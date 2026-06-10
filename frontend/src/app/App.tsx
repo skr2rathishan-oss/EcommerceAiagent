@@ -9,18 +9,30 @@ import {
   CheckCircle, DollarSign, Euro, PoundSterling, IndianRupee, Coins,
 } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
-import { PRODUCTS, type Product } from "./components/products";
+import { type Product } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
+import { InteractiveOrderSummary, type DeliveryInfo, type SellerInfo, getDefaultSeller } from "./components/InteractiveOrderSummary";
+import { sendMessage } from "./services/chatServices";
+import { mapBackendProductToUI } from "./services/mapping";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
 type RightPanelId = "Wishlist" | "Cart" | "Saved" | null;
 interface AnchorPos { x: number; y: number }
-interface Message { role: "user" | "ai"; text: string; products?: Product[] }
+interface Message {
+  role: "user" | "ai";
+  text: string;
+  products?: Product[];
+  orderSummary?: {
+    product: Product;
+    variants?: Record<string, string>;
+    deliveryInfo: DeliveryInfo;
+    sellerInfo: SellerInfo;
+    status: "pending" | "placed";
+  };
+}
 interface CartItem { product: Product; qty: number }
 
-// Demo: initial AI recommendation shown on first message
-const DEMO_PRODUCTS = PRODUCTS.slice(0, 4);
 
 // ── Sidebar items ──────────────────────────────────────────────────────────
 const NAV_TOP: { icon: React.ElementType; label: string }[] = [
@@ -46,6 +58,9 @@ export default function App() {
   const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
   const [savedItems, setSavedItems]     = useState<Product[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [pendingConfirmProduct, setPendingConfirmProduct] = useState<Product | null>(null);
+  const [pendingConfirmVariants, setPendingConfirmVariants] = useState<Record<string, string> | undefined>(undefined);
+  const [isTyping, setIsTyping] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -65,13 +80,35 @@ export default function App() {
     setRightPanel("Cart");
   };
 
-  const handleBuyNow = (p: Product) => {
-    setCartItems(prev => {
-      const exists = prev.find(i => i.product.id === p.id);
-      if (exists) return prev.map(i => i.product.id === p.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { product: p, qty: 1 }];
-    });
-    setRightPanel("Cart");
+  const handleBuyNow = (p: Product, variants?: Record<string, string>) => {
+    setPendingConfirmProduct(p);
+    setPendingConfirmVariants(variants);
+  };
+
+  const handlePlaceInlineOrder = (messageIndex: number, updatedDelivery: DeliveryInfo) => {
+    setMessages(prev => prev.map((msg, idx) => {
+      if (idx === messageIndex && msg.orderSummary) {
+        return {
+          ...msg,
+          orderSummary: {
+            ...msg.orderSummary,
+            deliveryInfo: updatedDelivery,
+            status: "placed"
+          }
+        };
+      }
+      return msg;
+    }));
+
+    setTimeout(() => {
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "ai",
+          text: `🎉 Order confirmed! Your package is being prepared for shipment. Thank you for placing your order!`,
+        }
+      ]);
+    }, 600);
   };
 
   const handleWishlist = (p: Product) => {
@@ -87,19 +124,31 @@ export default function App() {
     if (phase === "centered") setPhase("bottom");
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");
-    const lower = trimmed.toLowerCase();
-    const isProductQuery = ["show", "find", "recommend", "suggest", "product", "buy", "search", "look", "headphone", "watch", "shoe", "laptop", "keyboard", "earbud"].some(k => lower.includes(k));
-    setTimeout(() => {
-      if (isProductQuery) {
+    setIsTyping(true);
+
+    sendMessage(trimmed)
+      .then((data) => {
+        console.log("Raw Backend Payload:", data);
+        const mappedProducts = (data || []).map(mapBackendProductToUI);
+
         setMessages(prev => [...prev, {
           role: "ai",
-          text: "Here are some top picks I found for you! Click any product to explore the details, or add directly to your cart.",
-          products: DEMO_PRODUCTS,
+          text: mappedProducts.length > 0
+            ? "Here are the live results from the backend:"
+            : "I searched but couldn't find any products matching your query.",
+          products: mappedProducts,
         }]);
-      } else {
-        setMessages(prev => [...prev, { role: "ai", text: "I received your message. How else can I help you today? Try asking me to show you products or make a recommendation!" }]);
-      }
-    }, 800);
+      })
+      .catch((err) => {
+        console.error("API Error:", err);
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: "⚠️ Sorry, I couldn't reach the search service. Please make sure the backend server is running.",
+        }]);
+      })
+      .finally(() => {
+        setIsTyping(false);
+      });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -176,11 +225,87 @@ export default function App() {
         {/* Bottom phase */}
         {phase === "bottom" && (
           <div className="flex-1 flex flex-col min-h-0">
-            <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} />
+            <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} />
             <motion.div className="w-full px-4 pb-5 pt-3 flex justify-center"
               initial={{ opacity:0,y:40 }} animate={{ opacity:1,y:0,transition:{duration:0.45,ease:[0.22,1,0.36,1]} }}
             >
               <div className="w-full" style={{ maxWidth: 720 }}>
+                <AnimatePresence>
+                  {pendingConfirmProduct && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, y: 10 }}
+                      animate={{ opacity: 1, height: "auto", y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: 10 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.95)",
+                        backdropFilter: "blur(8px)",
+                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                        borderRadius: 16,
+                        padding: "12px 16px",
+                        marginBottom: 12,
+                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 12,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
+                          <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
+                          <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
+                          </h4>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => { setPendingConfirmProduct(null); setPendingConfirmVariants(undefined); }}
+                          style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultDelivery = {
+                              fullName: "Alex Johnson",
+                              phone: "+94 77 123 4567",
+                              email: "alex@example.com",
+                              address: "123 Galle Road, Colombo 03, Sri Lanka"
+                            };
+                            const seller = getDefaultSeller(pendingConfirmProduct.brand);
+                            setMessages(prev => [
+                              ...prev,
+                              {
+                                role: "ai",
+                                text: "Here is your Order Summary. You can edit the delivery details directly if needed, then click 'Place Order' to finish.",
+                                orderSummary: {
+                                  product: pendingConfirmProduct,
+                                  variants: pendingConfirmVariants,
+                                  deliveryInfo: defaultDelivery,
+                                  sellerInfo: seller,
+                                  status: "pending"
+                                }
+                              }
+                            ]);
+                            setPendingConfirmProduct(null);
+                            setPendingConfirmVariants(undefined);
+                          }}
+                          style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
+                        >
+                          Confirm
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
                   textareaRef={textareaRef} fileInputRef={fileInputRef} />
@@ -228,6 +353,8 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* Purchase flow overlay has been removed to keep everything inline */}
     </div>
   );
 }
@@ -876,11 +1003,25 @@ function IconBtn({ children, onClick, title }: { children: React.ReactNode; onCl
 }
 
 // ── Message Area ───────────────────────────────────────────────────────────
-function MessageArea({ messages, onAddToCart, onBuyNow, onWishlist }: { messages: Message[]; onAddToCart: (p: Product) => void; onBuyNow: (p: Product) => void; onWishlist: (p: Product) => void }) {
+function MessageArea({
+  messages,
+  onAddToCart,
+  onBuyNow,
+  onWishlist,
+  onPlaceInlineOrder,
+  isTyping,
+}: {
+  messages: Message[];
+  onAddToCart: (p: Product) => void;
+  onBuyNow: (p: Product, variants?: Record<string, string>) => void;
+  onWishlist: (p: Product) => void;
+  onPlaceInlineOrder: (index: number, info: DeliveryInfo) => void;
+  isTyping: boolean;
+}) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, isTyping]);
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-6" style={{ scrollbarWidth:"none" }}>
@@ -911,8 +1052,67 @@ function MessageArea({ messages, onAddToCart, onBuyNow, onWishlist }: { messages
                   />
                 </motion.div>
               )}
+
+              {/* Interactive Inline Order Summary */}
+              {msg.role === "ai" && msg.orderSummary && (
+                <motion.div
+                  initial={{ opacity:0, y:12 }} animate={{ opacity:1, y:0 }} transition={{ duration:0.35, delay:0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <InteractiveOrderSummary
+                    product={msg.orderSummary.product}
+                    variants={msg.orderSummary.variants}
+                    deliveryInfo={msg.orderSummary.deliveryInfo}
+                    sellerInfo={msg.orderSummary.sellerInfo}
+                    status={msg.orderSummary.status}
+                    onPlaceOrder={(updatedDelivery) => onPlaceInlineOrder(i, updatedDelivery)}
+                  />
+                </motion.div>
+              )}
             </motion.div>
           ))}
+          {isTyping && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="flex justify-start"
+            >
+              <div style={{
+                padding: "11px 16px",
+                borderRadius: "18px 18px 18px 6px",
+                background: "rgba(255,255,255,0.7)",
+                color: "#7c6a9e",
+                fontSize: 13,
+                fontFamily: "'Nunito',sans-serif",
+                boxShadow: "0 2px 10px rgba(64,41,112,0.05)",
+                border: "1px solid rgba(64,41,112,0.08)",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}>
+                <span style={{ display: "flex", gap: 3, alignItems: "center" }}>
+                  <motion.span
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
+                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
+                  />
+                  <motion.span
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.6, delay: 0.15 }}
+                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
+                  />
+                  <motion.span
+                    animate={{ y: [0, -4, 0] }}
+                    transition={{ repeat: Infinity, duration: 0.6, delay: 0.3 }}
+                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
+                  />
+                </span>
+                <span style={{ marginLeft: 4, fontWeight: 600 }}>Velora is searching...</span>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
         <div ref={bottomRef} />
       </div>

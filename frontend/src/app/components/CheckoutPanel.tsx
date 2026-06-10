@@ -5,7 +5,7 @@ import type { Product } from "./products";
 
 interface CartItem { product: Product; qty: number }
 
-interface DeliveryInfo {
+export interface DeliveryInfo {
   fullName: string;
   phone: string;
   email: string;
@@ -17,6 +17,7 @@ type Step = "form" | "summary";
 interface Props {
   cartItems: CartItem[];
   onClose: () => void;
+  onCheckoutComplete?: (info: DeliveryInfo) => void;
 }
 
 const FIELD_STYLE = (focused: boolean, error: boolean): React.CSSProperties => ({
@@ -102,7 +103,7 @@ function AddressField({ value, onChange, error }: { value: string; onChange: (v:
   );
 }
 
-export function CheckoutPanel({ cartItems, onClose }: Props) {
+export function CheckoutPanel({ cartItems, onClose, onCheckoutComplete }: Props) {
   const [step, setStep] = useState<Step>("form");
   const [info, setInfo] = useState<DeliveryInfo>({ fullName: "", phone: "", email: "", address: "" });
   const [errors, setErrors] = useState<Partial<DeliveryInfo>>({});
@@ -310,17 +311,16 @@ export function CheckoutPanel({ cartItems, onClose }: Props) {
               <ArrowRight size={16} strokeWidth={2.5} />
             </motion.button>
           ) : (
-            <motion.a
-              href="https://payment.example.com/checkout"
-              target="_blank"
-              rel="noopener noreferrer"
+            <motion.button
+              type="button"
+              onClick={() => onCheckoutComplete?.(info)}
               whileTap={{ scale: 0.97 }}
               className="flex items-center justify-center gap-2 w-full"
               style={{ padding: "13px", borderRadius: 14, border: "none", background: "linear-gradient(135deg,#3fc78e,#2a9e6a)", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", textDecoration: "none", boxShadow: "0 4px 16px rgba(42,158,106,0.35)", display: "flex" }}
             >
-              Proceed to Payment
-              <ExternalLink size={15} strokeWidth={2.5} />
-            </motion.a>
+              Complete Order
+              <CheckCircle size={15} strokeWidth={2.5} />
+            </motion.button>
           )}
         </div>
       </motion.aside>

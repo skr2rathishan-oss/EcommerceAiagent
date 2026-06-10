@@ -11,7 +11,7 @@ interface Props {
   selectedId: string | null;
   onSelect: (p: Product | null) => void;
   onAddToCart: (p: Product) => void;
-  onBuyNow: (p: Product) => void;
+  onBuyNow: (p: Product, variants?: Record<string, string>) => void;
   onWishlist: (p: Product) => void;
 }
 
@@ -70,7 +70,7 @@ function MiniCard({
 /* ── Selected product banner — 3 columns ── */
 function SelectedBanner({
   product, onAddToCart, onBuyNow, onWishlist,
-}: { product: Product; onAddToCart: (p: Product) => void; onBuyNow: (p: Product) => void; onWishlist: (p: Product) => void }) {
+}: { product: Product; onAddToCart: (p: Product) => void; onBuyNow: (p: Product, variants?: Record<string, string>) => void; onWishlist: (p: Product) => void }) {
   const [imgErr, setImgErr]       = useState(false);
   const [imgIdx, setImgIdx]       = useState(0);
   const [lightbox, setLightbox]   = useState(false);
@@ -233,7 +233,7 @@ function SelectedBanner({
           padding: "14px 12px",
         }}
       >
-        <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={() => onBuyNow(product)}
+        <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={() => onBuyNow(product, variants)}
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
           <Zap size={13} strokeWidth={2.5} />
           Buy Now
