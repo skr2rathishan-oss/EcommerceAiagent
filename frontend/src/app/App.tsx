@@ -66,7 +66,10 @@ export default function App() {
   const [pendingAddressChoice, setPendingAddressChoice] = useState(false);
   const [waitingForAddressInput, setWaitingForAddressInput] = useState(false);
   const [selectedDetailProductId, setSelectedDetailProductId] = useState<string | null>(null);
-  const [isEnteringAnotherAddress, setIsEnteringAnotherAddress] = useState(false);
+  const [isEnteringCustomDetails, setIsEnteringCustomDetails] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customPhone, setCustomPhone] = useState("");
+  const [customEmail, setCustomEmail] = useState("");
   const [newStreet1, setNewStreet1] = useState("");
   const [newStreet2, setNewStreet2] = useState("");
   const [newCity, setNewCity] = useState("");
@@ -78,7 +81,10 @@ export default function App() {
     setPendingConfirmVariants(undefined);
     setPendingAddressChoice(false);
     setWaitingForAddressInput(false);
-    setIsEnteringAnotherAddress(false);
+    setIsEnteringCustomDetails(false);
+    setCustomName("");
+    setCustomPhone("");
+    setCustomEmail("");
     setNewStreet1("");
     setNewStreet2("");
     setNewCity("");
@@ -431,21 +437,21 @@ export default function App() {
                             marginBottom: 12,
                             boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
                             display: "flex",
-                            flexDirection: isEnteringAnotherAddress ? "column" : "row",
-                            alignItems: isEnteringAnotherAddress ? "stretch" : "center",
-                            justifyContent: isEnteringAnotherAddress ? "flex-start" : "space-between",
+                            flexDirection: "column",
+                            alignItems: "stretch",
+                            justifyContent: "flex-start",
                             gap: 12,
                             overflow: "hidden",
                           }}
                         >
-                          {isEnteringAnotherAddress ? (
+                          {isEnteringCustomDetails ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
                               {/* Header */}
                               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setIsEnteringAnotherAddress(false);
+                                    setIsEnteringCustomDetails(false);
                                     setAddressError("");
                                   }}
                                   style={{
@@ -464,17 +470,84 @@ export default function App() {
                                   <ChevronLeft size={14} strokeWidth={2.5} />
                                 </button>
                                 <div>
-                                  <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Address</p>
+                                  <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Details</p>
                                   <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: 0 }}>
-                                    Enter Delivery Details
+                                    Enter Delivery & Owner Info
                                   </h4>
                                 </div>
                               </div>
 
                               {/* Form Fields */}
                               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>FULL NAME *</label>
+                                    <input
+                                      type="text"
+                                      value={customName}
+                                      onChange={(e) => setCustomName(e.target.value)}
+                                      placeholder="e.g. Alex Johnson"
+                                      style={{
+                                        width: "100%",
+                                        padding: "6px 10px",
+                                        borderRadius: 8,
+                                        border: "1.5px solid rgba(64,41,112,0.15)",
+                                        background: "#fff",
+                                        color: "#1a1025",
+                                        fontSize: 12,
+                                        fontFamily: "'Nunito', sans-serif",
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>PHONE NUMBER *</label>
+                                    <input
+                                      type="text"
+                                      value={customPhone}
+                                      onChange={(e) => setCustomPhone(e.target.value)}
+                                      placeholder="e.g. +94 77 123 4567"
+                                      style={{
+                                        width: "100%",
+                                        padding: "6px 10px",
+                                        borderRadius: 8,
+                                        border: "1.5px solid rgba(64,41,112,0.15)",
+                                        background: "#fff",
+                                        color: "#1a1025",
+                                        fontSize: 12,
+                                        fontFamily: "'Nunito', sans-serif",
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
                                 <div>
-                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>STREET LINE 1 *</label>
+                                  <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>EMAIL ADDRESS *</label>
+                                  <input
+                                    type="email"
+                                    value={customEmail}
+                                    onChange={(e) => setCustomEmail(e.target.value)}
+                                    placeholder="e.g. alex@example.com"
+                                    style={{
+                                      width: "100%",
+                                      padding: "6px 10px",
+                                      borderRadius: 8,
+                                      border: "1.5px solid rgba(64,41,112,0.15)",
+                                      background: "#fff",
+                                      color: "#1a1025",
+                                      fontSize: 12,
+                                      fontFamily: "'Nunito', sans-serif",
+                                      outline: "none",
+                                      boxSizing: "border-box",
+                                    }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 1 *</label>
                                   <input
                                     type="text"
                                     value={newStreet1}
@@ -482,7 +555,7 @@ export default function App() {
                                     placeholder="e.g. No 15, Temple Road"
                                     style={{
                                       width: "100%",
-                                      padding: "8px 12px",
+                                      padding: "6px 10px",
                                       borderRadius: 8,
                                       border: "1.5px solid rgba(64,41,112,0.15)",
                                       background: "#fff",
@@ -495,48 +568,49 @@ export default function App() {
                                   />
                                 </div>
 
-                                <div>
-                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>STREET LINE 2 (OPTIONAL)</label>
-                                  <input
-                                    type="text"
-                                    value={newStreet2}
-                                    onChange={(e) => setNewStreet2(e.target.value)}
-                                    placeholder="e.g. Near Kovil"
-                                    style={{
-                                      width: "100%",
-                                      padding: "8px 12px",
-                                      borderRadius: 8,
-                                      border: "1.5px solid rgba(64,41,112,0.15)",
-                                      background: "#fff",
-                                      color: "#1a1025",
-                                      fontSize: 12,
-                                      fontFamily: "'Nunito', sans-serif",
-                                      outline: "none",
-                                      boxSizing: "border-box",
-                                    }}
-                                  />
-                                </div>
-
-                                <div>
-                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>CITY / DISTRICT *</label>
-                                  <input
-                                    type="text"
-                                    value={newCity}
-                                    onChange={(e) => setNewCity(e.target.value)}
-                                    placeholder="e.g. Jaffna"
-                                    style={{
-                                      width: "100%",
-                                      padding: "8px 12px",
-                                      borderRadius: 8,
-                                      border: "1.5px solid rgba(64,41,112,0.15)",
-                                      background: "#fff",
-                                      color: "#1a1025",
-                                      fontSize: 12,
-                                      fontFamily: "'Nunito', sans-serif",
-                                      outline: "none",
-                                      boxSizing: "border-box",
-                                    }}
-                                  />
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1.2 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 2 (OPTIONAL)</label>
+                                    <input
+                                      type="text"
+                                      value={newStreet2}
+                                      onChange={(e) => setNewStreet2(e.target.value)}
+                                      placeholder="e.g. Near Kovil"
+                                      style={{
+                                        width: "100%",
+                                        padding: "6px 10px",
+                                        borderRadius: 8,
+                                        border: "1.5px solid rgba(64,41,112,0.15)",
+                                        background: "#fff",
+                                        color: "#1a1025",
+                                        fontSize: 12,
+                                        fontFamily: "'Nunito', sans-serif",
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 0.8 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>CITY *</label>
+                                    <input
+                                      type="text"
+                                      value={newCity}
+                                      onChange={(e) => setNewCity(e.target.value)}
+                                      placeholder="e.g. Jaffna"
+                                      style={{
+                                        width: "100%",
+                                        padding: "6px 10px",
+                                        borderRadius: 8,
+                                        border: "1.5px solid rgba(64,41,112,0.15)",
+                                        background: "#fff",
+                                        color: "#1a1025",
+                                        fontSize: 12,
+                                        fontFamily: "'Nunito', sans-serif",
+                                        outline: "none",
+                                        boxSizing: "border-box",
+                                      }}
+                                    />
+                                  </div>
                                 </div>
                               </div>
 
@@ -551,7 +625,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setIsEnteringAnotherAddress(false);
+                                    setIsEnteringCustomDetails(false);
                                     setAddressError("");
                                   }}
                                   disabled={checkingAddress}
@@ -571,8 +645,12 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={async () => {
-                                    if (!newStreet1.trim() || !newCity.trim()) {
-                                      setAddressError("Street Line 1 and City are required");
+                                    if (!customName.trim() || !customPhone.trim() || !customEmail.trim() || !newStreet1.trim() || !newCity.trim()) {
+                                      setAddressError("All marked (*) fields are required");
+                                      return;
+                                    }
+                                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customEmail.trim())) {
+                                      setAddressError("Please enter a valid email address");
                                       return;
                                     }
                                     setCheckingAddress(true);
@@ -591,10 +669,10 @@ export default function App() {
 
                                       if (res.available) {
                                         const formattedAddress = [newStreet1.trim(), newStreet2.trim(), res.city].filter(Boolean).join(", ");
-                                        const defaultDelivery = {
-                                          fullName: "Alex Johnson",
-                                          phone: "+94 77 123 4567",
-                                          email: "alex@example.com",
+                                        const customDelivery = {
+                                          fullName: customName.trim(),
+                                          phone: customPhone.trim(),
+                                          email: customEmail.trim(),
                                           address: formattedAddress,
                                         };
                                         const seller = getDefaultSeller(pendingConfirmProduct.brand);
@@ -606,14 +684,17 @@ export default function App() {
                                             orderSummary: {
                                               product: pendingConfirmProduct,
                                               variants: pendingConfirmVariants,
-                                              deliveryInfo: defaultDelivery,
+                                              deliveryInfo: customDelivery,
                                               sellerInfo: seller,
                                               status: "pending",
                                             },
                                           },
                                         ]);
                                         
-                                        // Save custom address to local storage
+                                        // Save custom details to local storage
+                                        localStorage.setItem("delivery_name", customName.trim());
+                                        localStorage.setItem("delivery_phone", customPhone.trim());
+                                        localStorage.setItem("delivery_email", customEmail.trim());
                                         localStorage.setItem("delivery_street1", newStreet1.trim());
                                         localStorage.setItem("delivery_street2", newStreet2.trim());
                                         localStorage.setItem("delivery_city", res.city);
@@ -647,41 +728,76 @@ export default function App() {
                               </div>
                             </div>
                           ) : (
-                            <>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                                 <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                   <MapPin size={20} color="#fff" />
                                 </div>
                                 <div style={{ minWidth: 0 }}>
-                                  <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Address</p>
+                                  <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Details</p>
                                   <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    Choose shipping location for your order
+                                    Choose shipping location and owner for order
                                   </h4>
                                 </div>
                               </div>
-                              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+
+                              {/* Preview of default owner details */}
+                              <div style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                padding: "10px 12px",
+                                background: "rgba(64,41,112,0.03)",
+                                border: "1px solid rgba(64,41,112,0.07)",
+                                borderRadius: 12,
+                                fontSize: 11.5,
+                                color: "#402970",
+                                fontFamily: "'Nunito', sans-serif"
+                              }}>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_name") || "Alex Johnson"}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_phone") || "+94 77 123 4567"}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_email") || "alex@example.com"}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
+                                  {[
+                                    localStorage.getItem("delivery_street1"),
+                                    localStorage.getItem("delivery_street2"),
+                                    localStorage.getItem("delivery_city") || "Colombo 03"
+                                  ].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
+                                </span></div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setIsEnteringAnotherAddress(true);
+                                    setIsEnteringCustomDetails(true);
+                                    setCustomName(localStorage.getItem("delivery_name") || "Alex Johnson");
+                                    setCustomPhone(localStorage.getItem("delivery_phone") || "+94 77 123 4567");
+                                    setCustomEmail(localStorage.getItem("delivery_email") || "alex@example.com");
+                                    setNewStreet1(localStorage.getItem("delivery_street1") || "");
+                                    setNewStreet2(localStorage.getItem("delivery_street2") || "");
+                                    setNewCity(localStorage.getItem("delivery_city") || "Colombo 03");
                                     setAddressError("");
                                   }}
                                   style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                                 >
-                                  Another Address
+                                  Another Details
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
+                                    const savedName = localStorage.getItem("delivery_name") || "Alex Johnson";
+                                    const savedPhone = localStorage.getItem("delivery_phone") || "+94 77 123 4567";
+                                    const savedEmail = localStorage.getItem("delivery_email") || "alex@example.com";
                                     const savedStreet1 = localStorage.getItem("delivery_street1") || "";
                                     const savedStreet2 = localStorage.getItem("delivery_street2") || "";
                                     const savedCity = localStorage.getItem("delivery_city") || "Colombo 03";
                                     const savedAddress = [savedStreet1, savedStreet2, savedCity].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka";
                                     
                                     const defaultDelivery = {
-                                      fullName: "Alex Johnson",
-                                      phone: "+94 77 123 4567",
-                                      email: "alex@example.com",
+                                      fullName: savedName,
+                                      phone: savedPhone,
+                                      email: savedEmail,
                                       address: savedAddress
                                     };
                                     const seller = getDefaultSeller(pendingConfirmProduct.brand);
@@ -706,7 +822,7 @@ export default function App() {
                                   Use Default
                                 </button>
                               </div>
-                            </>
+                            </div>
                           )}
                         </motion.div>
                       )}
