@@ -13,6 +13,7 @@ interface Props {
   onAddToCart: (p: Product) => void;
   onBuyNow: (p: Product, variants?: Record<string, string>) => void;
   onWishlist: (p: Product) => void;
+  onViewDetails: (productId: string) => void;
 }
 
 const IMG_H = 190; // fixed image height in the banner
@@ -69,8 +70,8 @@ function MiniCard({
 
 /* ── Selected product banner — 3 columns ── */
 function SelectedBanner({
-  product, onAddToCart, onBuyNow, onWishlist,
-}: { product: Product; onAddToCart: (p: Product) => void; onBuyNow: (p: Product, variants?: Record<string, string>) => void; onWishlist: (p: Product) => void }) {
+  product, onAddToCart, onBuyNow, onWishlist, onViewDetails,
+}: { product: Product; onAddToCart: (p: Product) => void; onBuyNow: (p: Product, variants?: Record<string, string>) => void; onWishlist: (p: Product) => void; onViewDetails: (productId: string) => void }) {
   const [imgErr, setImgErr]       = useState(false);
   const [imgIdx, setImgIdx]       = useState(0);
   const [lightbox, setLightbox]   = useState(false);
@@ -100,6 +101,7 @@ function SelectedBanner({
       {/* ── COL 1: image (shared element, stretches to card height) ── */}
       <motion.div
         layoutId={`product-img-${product.id}`}
+        onClick={() => onViewDetails(product.id)}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={{
           width: 190,
@@ -109,6 +111,7 @@ function SelectedBanner({
           position: "relative",
           background: "linear-gradient(135deg,#f5f0ff,#ede4ff)",
           overflow: "hidden",
+          cursor: "pointer",
         }}
       >
         {!imgErr
@@ -130,7 +133,10 @@ function SelectedBanner({
         {/* expand icon — top-right corner */}
         <button
           type="button"
-          onClick={() => setLightbox(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onViewDetails(product.id);
+          }}
           style={{
             position: "absolute", top: 8, right: 8, zIndex: 2,
             width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer",
@@ -147,7 +153,7 @@ function SelectedBanner({
         {product.images.length > 1 && (
           <div style={{ position: "absolute", bottom: 8, width: "100%", display: "flex", justifyContent: "center", gap: 4, zIndex: 1 }}>
             {product.images.map((_, i) => (
-              <button key={i} type="button" onClick={() => setImgIdx(i)}
+              <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setImgIdx(i); }}
                 style={{ width: i === imgIdx ? 14 : 5, height: 5, borderRadius: 3, border: "none", padding: 0, cursor: "pointer", background: i === imgIdx ? "#7c4dba" : "rgba(255,255,255,0.7)", transition: "all 0.2s" }} />
             ))}
           </div>
@@ -161,7 +167,7 @@ function SelectedBanner({
         transition={{ duration: 0.28, delay: 0.15, ease: "easeOut" }}
         style={{ flex: 1, padding: "13px 16px", display: "flex", flexDirection: "column", gap: 6, minWidth: 0, borderLeft: "1px solid rgba(124,77,186,0.08)", overflow: "hidden" }}
       >
-        <div>
+        <div style={{ cursor: "pointer" }} onClick={() => onViewDetails(product.id)}>
           <p style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>
             {product.brand} · {product.category}
           </p>
@@ -363,11 +369,14 @@ function SelectedBanner({
 }
 
 /* ── Main export ── */
-export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist }: Props) {
+export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails }: Props) {
   const selected = products.find(p => p.id === selectedId) ?? null;
   const others   = products.filter(p => p.id !== selectedId);
 
-  const handleSelect = (p: Product) => onSelect(p);
+  const handleSelect = (p: Product) => {
+    onSelect(p);
+    onViewDetails(p.id);
+  };
 
   return (
     <LayoutGroup>
@@ -398,7 +407,7 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
             transition={{ duration: 0.2 }}
             style={{ display: "flex", flexDirection: "column", gap: 12 }}
           >
-            <SelectedBanner product={selected} onAddToCart={onAddToCart} onBuyNow={onBuyNow} onWishlist={onWishlist} />
+            <SelectedBanner product={selected} onAddToCart={onAddToCart} onBuyNow={onBuyNow} onWishlist={onWishlist} onViewDetails={onViewDetails} />
 
             {others.length > 0 && (
               <motion.div

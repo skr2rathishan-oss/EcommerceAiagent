@@ -14,6 +14,7 @@ import { CheckoutPanel } from "./components/CheckoutPanel";
 import { InteractiveOrderSummary, type DeliveryInfo, type SellerInfo, getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { sendMessage } from "./services/chatServices";
 import { mapBackendProductToUI } from "./services/mapping";
+import { ProductDetailPanel } from "./components/ProductDetailPanel";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -61,6 +62,7 @@ export default function App() {
   const [pendingConfirmProduct, setPendingConfirmProduct] = useState<Product | null>(null);
   const [pendingConfirmVariants, setPendingConfirmVariants] = useState<Record<string, string> | undefined>(undefined);
   const [isTyping, setIsTyping] = useState(false);
+  const [selectedDetailProductId, setSelectedDetailProductId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -170,6 +172,19 @@ export default function App() {
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onItemClick={handleItemClick} />
 
+      {/* Product Detail Panel */}
+      <AnimatePresence>
+        {selectedDetailProductId && (
+          <ProductDetailPanel
+            productId={selectedDetailProductId}
+            onClose={() => setSelectedDetailProductId(null)}
+            onAddToCart={handleAddToCart}
+            onBuyNow={handleBuyNow}
+            onWishlist={handleWishlist}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Main */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
 
@@ -225,7 +240,7 @@ export default function App() {
         {/* Bottom phase */}
         {phase === "bottom" && (
           <div className="flex-1 flex flex-col min-h-0">
-            <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} />
+            <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} />
             <motion.div className="w-full px-4 pb-5 pt-3 flex justify-center"
               initial={{ opacity:0,y:40 }} animate={{ opacity:1,y:0,transition:{duration:0.45,ease:[0.22,1,0.36,1]} }}
             >
@@ -1010,6 +1025,7 @@ function MessageArea({
   onWishlist,
   onPlaceInlineOrder,
   isTyping,
+  onViewDetails,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -1017,6 +1033,7 @@ function MessageArea({
   onWishlist: (p: Product) => void;
   onPlaceInlineOrder: (index: number, info: DeliveryInfo) => void;
   isTyping: boolean;
+  onViewDetails: (id: string) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
@@ -1049,6 +1066,7 @@ function MessageArea({
                     onAddToCart={onAddToCart}
                     onBuyNow={onBuyNow}
                     onWishlist={onWishlist}
+                    onViewDetails={onViewDetails}
                   />
                 </motion.div>
               )}
