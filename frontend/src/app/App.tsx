@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   Paperclip, Mic, ArrowUp, Sparkles, PanelLeft,
   SquarePen, Clock, Settings, HelpCircle, UserCircle,
-  Heart, ShoppingCart, Bookmark, Globe, ChevronDown,
+  Heart, ShoppingCart, Bookmark, Globe, ChevronDown, ChevronLeft,
   X, Bell, Shield, Moon, MessageSquare, ChevronRight, MapPin,
   Mail, Phone, FileText, User, Camera, LogOut,
   CheckCircle, DollarSign, Euro, PoundSterling, IndianRupee, Coins,
@@ -66,6 +66,26 @@ export default function App() {
   const [pendingAddressChoice, setPendingAddressChoice] = useState(false);
   const [waitingForAddressInput, setWaitingForAddressInput] = useState(false);
   const [selectedDetailProductId, setSelectedDetailProductId] = useState<string | null>(null);
+  const [isEnteringAnotherAddress, setIsEnteringAnotherAddress] = useState(false);
+  const [newStreet1, setNewStreet1] = useState("");
+  const [newStreet2, setNewStreet2] = useState("");
+  const [newCity, setNewCity] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [checkingAddress, setCheckingAddress] = useState(false);
+
+  const resetPendingPurchaseState = () => {
+    setPendingConfirmProduct(null);
+    setPendingConfirmVariants(undefined);
+    setPendingAddressChoice(false);
+    setWaitingForAddressInput(false);
+    setIsEnteringAnotherAddress(false);
+    setNewStreet1("");
+    setNewStreet2("");
+    setNewCity("");
+    setAddressError("");
+    setCheckingAddress(false);
+  };
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
 
@@ -378,7 +398,7 @@ export default function App() {
                           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                             <button
                               type="button"
-                              onClick={() => { setPendingConfirmProduct(null); setPendingConfirmVariants(undefined); setPendingAddressChoice(false); setWaitingForAddressInput(false); }}
+                              onClick={resetPendingPurchaseState}
                               style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                             >
                               Cancel
@@ -407,83 +427,287 @@ export default function App() {
                             backdropFilter: "blur(8px)",
                             border: "1.5px solid rgba(124, 77, 186, 0.22)",
                             borderRadius: 16,
-                            padding: "12px 16px",
+                            padding: "16px 20px",
                             marginBottom: 12,
                             boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
                             display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
+                            flexDirection: isEnteringAnotherAddress ? "column" : "row",
+                            alignItems: isEnteringAnotherAddress ? "stretch" : "center",
+                            justifyContent: isEnteringAnotherAddress ? "flex-start" : "space-between",
                             gap: 12,
                             overflow: "hidden",
                           }}
                         >
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <MapPin size={20} color="#fff" />
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Address</p>
-                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                Choose shipping location for your order
-                              </h4>
-                            </div>
-                          </div>
-                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPendingAddressChoice(false);
-                                setWaitingForAddressInput(true);
-                                setMessages(prev => [
-                                  ...prev,
-                                  {
-                                    role: "ai",
-                                    text: "Please enter your delivery address in this format so I can check availability:\n\n**[Street Line 1], [Street Line 2], [City]**\n\ne.g., *No 15, Temple Road, Jaffna*"
-                                  }
-                                ]);
-                              }}
-                              style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                            >
-                              Another Address
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const savedStreet1 = localStorage.getItem("delivery_street1") || "";
-                                const savedStreet2 = localStorage.getItem("delivery_street2") || "";
-                                const savedCity = localStorage.getItem("delivery_city") || "Colombo 03";
-                                const savedAddress = [savedStreet1, savedStreet2, savedCity].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka";
-                                
-                                const defaultDelivery = {
-                                  fullName: "Alex Johnson",
-                                  phone: "+94 77 123 4567",
-                                  email: "alex@example.com",
-                                  address: savedAddress
-                                };
-                                const seller = getDefaultSeller(pendingConfirmProduct.brand);
-                                setMessages(prev => [
-                                  ...prev,
-                                  {
-                                    role: "ai",
-                                    text: "Here is your Order Summary. You can edit the delivery details directly if needed, then click 'Place Order' to finish.",
-                                    orderSummary: {
-                                      product: pendingConfirmProduct,
-                                      variants: pendingConfirmVariants,
-                                      deliveryInfo: defaultDelivery,
-                                      sellerInfo: seller,
-                                      status: "pending"
+                          {isEnteringAnotherAddress ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+                              {/* Header */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEnteringAnotherAddress(false);
+                                    setAddressError("");
+                                  }}
+                                  style={{
+                                    background: "rgba(64,41,112,0.07)",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    width: 24,
+                                    height: 24,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "#7c6a9e",
+                                  }}
+                                >
+                                  <ChevronLeft size={14} strokeWidth={2.5} />
+                                </button>
+                                <div>
+                                  <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Address</p>
+                                  <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: 0 }}>
+                                    Enter Delivery Details
+                                  </h4>
+                                </div>
+                              </div>
+
+                              {/* Form Fields */}
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>STREET LINE 1 *</label>
+                                  <input
+                                    type="text"
+                                    value={newStreet1}
+                                    onChange={(e) => setNewStreet1(e.target.value)}
+                                    placeholder="e.g. No 15, Temple Road"
+                                    style={{
+                                      width: "100%",
+                                      padding: "8px 12px",
+                                      borderRadius: 8,
+                                      border: "1.5px solid rgba(64,41,112,0.15)",
+                                      background: "#fff",
+                                      color: "#1a1025",
+                                      fontSize: 12,
+                                      fontFamily: "'Nunito', sans-serif",
+                                      outline: "none",
+                                      boxSizing: "border-box",
+                                    }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>STREET LINE 2 (OPTIONAL)</label>
+                                  <input
+                                    type="text"
+                                    value={newStreet2}
+                                    onChange={(e) => setNewStreet2(e.target.value)}
+                                    placeholder="e.g. Near Kovil"
+                                    style={{
+                                      width: "100%",
+                                      padding: "8px 12px",
+                                      borderRadius: 8,
+                                      border: "1.5px solid rgba(64,41,112,0.15)",
+                                      background: "#fff",
+                                      color: "#1a1025",
+                                      fontSize: 12,
+                                      fontFamily: "'Nunito', sans-serif",
+                                      outline: "none",
+                                      boxSizing: "border-box",
+                                    }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 700, display: "block", marginBottom: 4 }}>CITY / DISTRICT *</label>
+                                  <input
+                                    type="text"
+                                    value={newCity}
+                                    onChange={(e) => setNewCity(e.target.value)}
+                                    placeholder="e.g. Jaffna"
+                                    style={{
+                                      width: "100%",
+                                      padding: "8px 12px",
+                                      borderRadius: 8,
+                                      border: "1.5px solid rgba(64,41,112,0.15)",
+                                      background: "#fff",
+                                      color: "#1a1025",
+                                      fontSize: 12,
+                                      fontFamily: "'Nunito', sans-serif",
+                                      outline: "none",
+                                      boxSizing: "border-box",
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {addressError && (
+                                <p style={{ color: "#d4183d", fontSize: 11, margin: "2px 0 0 0", fontWeight: 600 }}>
+                                  ⚠️ {addressError}
+                                </p>
+                              )}
+
+                              {/* Footer Action Buttons */}
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEnteringAnotherAddress(false);
+                                    setAddressError("");
+                                  }}
+                                  disabled={checkingAddress}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 8,
+                                    border: "1.5px solid rgba(64,41,112,0.15)",
+                                    background: "transparent",
+                                    color: "#7c6a9e",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: checkingAddress ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  Back
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    if (!newStreet1.trim() || !newCity.trim()) {
+                                      setAddressError("Street Line 1 and City are required");
+                                      return;
                                     }
-                                  }
-                                ]);
-                                setPendingConfirmProduct(null);
-                                setPendingConfirmVariants(undefined);
-                                setPendingAddressChoice(false);
-                              }}
-                              style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
-                            >
-                              Use Default
-                            </button>
-                          </div>
+                                    setCheckingAddress(true);
+                                    setAddressError("");
+
+                                    const tomorrow = new Date();
+                                    tomorrow.setDate(tomorrow.getDate() + 1);
+                                    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+                                    try {
+                                      const res = await checkDelivery({
+                                        city: newCity.trim(),
+                                        deliveryDate: tomorrowStr,
+                                        productId: pendingConfirmProduct ? pendingConfirmProduct.id : "",
+                                      });
+
+                                      if (res.available) {
+                                        const formattedAddress = [newStreet1.trim(), newStreet2.trim(), res.city].filter(Boolean).join(", ");
+                                        const defaultDelivery = {
+                                          fullName: "Alex Johnson",
+                                          phone: "+94 77 123 4567",
+                                          email: "alex@example.com",
+                                          address: formattedAddress,
+                                        };
+                                        const seller = getDefaultSeller(pendingConfirmProduct.brand);
+                                        setMessages((prev) => [
+                                          ...prev,
+                                          {
+                                            role: "ai",
+                                            text: `✅ Delivery is available for your address in **${res.city}** (Delivery Charge: Rs. ${res.deliveryCharge}). Here is your updated Order Summary:`,
+                                            orderSummary: {
+                                              product: pendingConfirmProduct,
+                                              variants: pendingConfirmVariants,
+                                              deliveryInfo: defaultDelivery,
+                                              sellerInfo: seller,
+                                              status: "pending",
+                                            },
+                                          },
+                                        ]);
+                                        
+                                        // Save custom address to local storage
+                                        localStorage.setItem("delivery_street1", newStreet1.trim());
+                                        localStorage.setItem("delivery_street2", newStreet2.trim());
+                                        localStorage.setItem("delivery_city", res.city);
+
+                                        resetPendingPurchaseState();
+                                      } else {
+                                        setAddressError(res.warning || "Unsupported delivery city");
+                                      }
+                                    } catch (err: any) {
+                                      setAddressError(err.message || "Failed to check delivery availability");
+                                    } finally {
+                                      setCheckingAddress(false);
+                                    }
+                                  }}
+                                  disabled={checkingAddress}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    background: "linear-gradient(135deg,#7c4dba,#402970)",
+                                    color: "#fff",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    cursor: checkingAddress ? "not-allowed" : "pointer",
+                                    boxShadow: "0 4px 10px rgba(64,41,112,0.2)",
+                                    opacity: checkingAddress ? 0.7 : 1,
+                                  }}
+                                >
+                                  {checkingAddress ? "Verifying..." : "Verify & Confirm"}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                                <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <MapPin size={20} color="#fff" />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Address</p>
+                                  <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    Choose shipping location for your order
+                                  </h4>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEnteringAnotherAddress(true);
+                                    setAddressError("");
+                                  }}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                >
+                                  Another Address
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const savedStreet1 = localStorage.getItem("delivery_street1") || "";
+                                    const savedStreet2 = localStorage.getItem("delivery_street2") || "";
+                                    const savedCity = localStorage.getItem("delivery_city") || "Colombo 03";
+                                    const savedAddress = [savedStreet1, savedStreet2, savedCity].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka";
+                                    
+                                    const defaultDelivery = {
+                                      fullName: "Alex Johnson",
+                                      phone: "+94 77 123 4567",
+                                      email: "alex@example.com",
+                                      address: savedAddress
+                                    };
+                                    const seller = getDefaultSeller(pendingConfirmProduct.brand);
+                                    setMessages(prev => [
+                                      ...prev,
+                                      {
+                                        role: "ai",
+                                        text: "Here is your Order Summary. You can edit the delivery details directly if needed, then click 'Place Order' to finish.",
+                                        orderSummary: {
+                                          product: pendingConfirmProduct,
+                                          variants: pendingConfirmVariants,
+                                          deliveryInfo: defaultDelivery,
+                                          sellerInfo: seller,
+                                          status: "pending"
+                                        }
+                                      }
+                                    ]);
+                                    resetPendingPurchaseState();
+                                  }}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
+                                >
+                                  Use Default
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>

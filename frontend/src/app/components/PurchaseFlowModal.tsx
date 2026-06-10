@@ -199,8 +199,8 @@ export function PurchaseFlowModal({ product, selectedVariants, onClose, onOrderP
         style={{
           position: "relative",
           width: "100%",
-          maxWidth: "460px",
-          maxHeight: "90vh",
+          maxWidth: "540px",
+          maxHeight: "95vh",
           background: "#ffffff",
           borderRadius: 24,
           boxShadow: "0 20px 50px rgba(64, 41, 112, 0.22), 0 4px 12px rgba(0,0,0,0.08)",
@@ -210,7 +210,7 @@ export function PurchaseFlowModal({ product, selectedVariants, onClose, onOrderP
           overflow: "hidden",
           fontFamily: "'Nunito', sans-serif",
           zIndex: 1001,
-        }}
+        }
       >
         {/* Header */}
         <div style={{
