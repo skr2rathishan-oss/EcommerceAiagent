@@ -7,16 +7,19 @@ import {
   X, Bell, Shield, Moon, MessageSquare, ChevronRight, MapPin,
   Mail, Phone, FileText, User, Camera, LogOut,
   CheckCircle, DollarSign, Euro, PoundSterling, IndianRupee, Coins,
+  Package,
 } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { InteractiveOrderSummary, type DeliveryInfo, type SellerInfo, getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { sendMessage } from "./services/chatServices";
-import { mapBackendProductToUI } from "./services/mapping";
+import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { checkDelivery } from "./services/productServices";
 import { OrderConfirmationCard, type OrderConfirmationDetails } from "./components/OrderConfirmationCard";
+import { OrderTrackingCard } from "./components/OrderTrackingCard";
+import type { OrderTrackingDetails } from "./types/orderTracking";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -25,7 +28,7 @@ interface AnchorPos { x: number; y: number }
 interface Message {
   role: "user" | "ai";
   text: string;
-  type?: "text" | "order_confirmation";
+  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error";
   products?: Product[];
   orderSummary?: {
     product: Product;
@@ -35,6 +38,8 @@ interface Message {
     status: "pending" | "placed";
   };
   order?: OrderConfirmationDetails;
+  tracking?: OrderTrackingDetails;
+  orderNumber?: string;
 }
 interface CartItem { product: Product; qty: number }
 
@@ -62,6 +67,64 @@ export default function App() {
   const [cartItems, setCartItems]       = useState<CartItem[]>([]);
   const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
   const [savedItems, setSavedItems]     = useState<Product[]>([]);
+  const [orderedItems, setOrderedItems] = useState<OrderConfirmationDetails[]>(() => {
+    try {
+      const stored = localStorage.getItem("ordered_items");
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      console.error("Failed to parse ordered_items from localStorage", e);
+      return [];
+    }
+  });
+
+  const saveOrderToHistory = (order: OrderConfirmationDetails) => {
+    setOrderedItems(prev => {
+      if (prev.some(item => item.orderNumber === order.orderNumber)) return prev;
+      const updated = [order, ...prev];
+      localStorage.setItem("ordered_items", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const handleTriggerTracking = (orderNumber: string) => {
+    if (phase === "centered") setPhase("bottom");
+    setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
+    setIsTyping(true);
+
+    fetch("/api/orders/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderNumber })
+    })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(errData => {
+            throw new Error(errData.message || "Unable to retrieve order status");
+          });
+        }
+        return res.json();
+      })
+      .then(data => {
+        setMessages(prev => [...prev, {
+          role: "ai",
+          type: "order_tracking",
+          text: `Here is the current tracking status for order **${orderNumber}**:`,
+          tracking: data
+        }]);
+      })
+      .catch(err => {
+        setMessages(prev => [...prev, {
+          role: "ai",
+          type: "order_tracking_error",
+          text: `❌ ${err.message || "Failed to retrieve order status"}`,
+          orderNumber
+        }]);
+      })
+      .finally(() => {
+        setIsTyping(false);
+      });
+  };
+
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [pendingConfirmProduct, setPendingConfirmProduct] = useState<Product | null>(null);
   const [pendingConfirmVariants, setPendingConfirmVariants] = useState<Record<string, string> | undefined>(undefined);
@@ -147,6 +210,7 @@ export default function App() {
         image: item.product.images[0],
         qty: item.qty,
         price: item.product.price,
+        currency: item.product.currency,
       })),
       summary: {
         subtotal,
@@ -191,6 +255,7 @@ export default function App() {
 
     const inlineItems = [{ product: targetMsg.orderSummary.product, qty: 1 }];
     const orderDetails = generateOrderConfirmation(updatedDelivery, inlineItems);
+    saveOrderToHistory(orderDetails);
 
     setTimeout(() => {
       setMessages(prev => [
@@ -313,7 +378,27 @@ export default function App() {
     sendMessage(trimmed)
       .then((data) => {
         console.log("Raw Backend Payload:", data);
-        const mappedProducts = (data || []).map(mapBackendProductToUI);
+        if (data && typeof data === "object" && !Array.isArray(data)) {
+          if (data.type === "order_tracking") {
+            setMessages(prev => [...prev, {
+              role: "ai",
+              type: "order_tracking",
+              text: `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`,
+              tracking: data.tracking
+            }]);
+            return;
+          } else if (data.type === "order_tracking_error") {
+            setMessages(prev => [...prev, {
+              role: "ai",
+              type: "order_tracking_error",
+              text: `❌ ${data.message || "Unable to retrieve order status"}`,
+              orderNumber: data.orderNumber
+            }]);
+            return;
+          }
+        }
+
+        const mappedProducts = (Array.isArray(data) ? data : []).map(mapBackendProductToUI);
 
         setMessages(prev => [...prev, {
           role: "ai",
@@ -376,7 +461,13 @@ export default function App() {
           </div>
         )}
 
-        <TopNavbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen(o => !o)} onRightPanel={(id) => setRightPanel(p => p === id ? null : id)} />
+        <TopNavbar
+          sidebarOpen={sidebarOpen}
+          onToggleSidebar={() => setSidebarOpen(o => !o)}
+          onRightPanel={(id) => setRightPanel(p => p === id ? null : id)}
+          orderedItems={orderedItems}
+          onTrackOrder={handleTriggerTracking}
+        />
 
         {/* Centered phase */}
         <AnimatePresence>
@@ -423,7 +514,17 @@ export default function App() {
               </AnimatePresence>
               <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                  <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} onContinueShopping={() => textareaRef.current?.focus()} />
+                  <MessageArea
+                    messages={messages}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                    onWishlist={handleWishlist}
+                    onPlaceInlineOrder={handlePlaceInlineOrder}
+                    isTyping={isTyping}
+                    onViewDetails={setSelectedDetailProductId}
+                    onContinueShopping={() => textareaRef.current?.focus()}
+                    onTrackOrder={handleTriggerTracking}
+                  />
                 </div>
 
                 <motion.div
@@ -938,6 +1039,7 @@ export default function App() {
             onClose={() => setCheckoutOpen(false)}
             onCheckoutComplete={(info) => {
               const orderDetails = generateOrderConfirmation(info, cartItems);
+              saveOrderToHistory(orderDetails);
               setMessages(prev => [
                 ...prev,
                 {
@@ -1580,12 +1682,6 @@ function ToggleButton({ open, onClick }: { open: boolean; onClick: () => void })
 }
 
 // ── Top Navbar ─────────────────────────────────────────────────────────────
-const LANGUAGES = [
-  { code:"en", label:"English", short:"ENG" },
-  { code:"ta", label:"தமிழ்",  short:"TAM" },
-  { code:"si", label:"සිංහල",  short:"SIN" },
-];
-
 const CURRENCIES: { code: string; symbol: string; label: string; icon: React.ElementType }[] = [
   { code:"USD", symbol:"$",  label:"USD – US Dollar",        icon: DollarSign },
   { code:"EUR", symbol:"€",  label:"EUR – Euro",             icon: Euro },
@@ -1594,20 +1690,33 @@ const CURRENCIES: { code: string; symbol: string; label: string; icon: React.Ele
   { code:"INR", symbol:"₹",  label:"INR – Indian Rupee",     icon: IndianRupee },
 ];
 
-function TopNavbar({ sidebarOpen, onToggleSidebar, onRightPanel }: { sidebarOpen: boolean; onToggleSidebar: () => void; onRightPanel: (id: RightPanelId) => void }) {
-  const [lang, setLang]         = useState("en");
-  const [langOpen, setLangOpen] = useState(false);
+interface TopNavbarProps {
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  onRightPanel: (id: RightPanelId) => void;
+  orderedItems: OrderConfirmationDetails[];
+  onTrackOrder: (orderNumber: string) => void;
+}
+
+function TopNavbar({
+  sidebarOpen,
+  onToggleSidebar,
+  onRightPanel,
+  orderedItems,
+  onTrackOrder
+}: TopNavbarProps) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (dropRef.current && !dropRef.current.contains(e.target as Node)) setLangOpen(false);
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const currentLang = LANGUAGES.find(l => l.code===lang)!;
 
   return (
     <div className="relative z-10 flex items-center justify-between px-4"
@@ -1622,34 +1731,187 @@ function TopNavbar({ sidebarOpen, onToggleSidebar, onRightPanel }: { sidebarOpen
         <div style={{ width:1,height:22,background:"rgba(64,41,112,0.15)",margin:"0 6px" }} />
 
         <div ref={dropRef} className="relative">
-          <button type="button" onClick={() => setLangOpen(o=>!o)}
-            className="flex items-center gap-1.5"
-            style={{ height:34,padding:"0 10px",borderRadius:9999,border:`1px solid ${langOpen?"rgba(64,41,112,0.45)":"rgba(64,41,112,0.18)"}`,background:langOpen?"rgba(64,41,112,0.08)":"rgba(255,255,255,0.7)",color:"#402970",cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontSize:13,fontWeight:600,transition:"background 0.15s,border-color 0.15s",whiteSpace:"nowrap" }}
+          <button type="button" onClick={() => setDropdownOpen(o=>!o)}
+            className="flex items-center gap-1.5 relative"
+            style={{
+              height: 34,
+              padding: "0 12px",
+              borderRadius: 9999,
+              border: `1px solid ${dropdownOpen ? "rgba(124, 77, 186, 0.45)" : "rgba(64, 41, 112, 0.18)"}`,
+              background: dropdownOpen ? "rgba(124, 77, 186, 0.08)" : "rgba(255, 255, 255, 0.7)",
+              color: "#402970",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+              fontSize: 13,
+              fontWeight: 600,
+              transition: "all 0.15s",
+              whiteSpace: "nowrap"
+            }}
           >
-            <Globe size={14} strokeWidth={2} />
-            <span>{currentLang.short}</span>
-            <motion.span animate={{ rotate:langOpen?180:0 }} transition={{ duration:0.2 }} style={{ display:"flex",alignItems:"center" }}>
+            <Package size={14} strokeWidth={2} />
+            <span>Ordered Items</span>
+            {orderedItems.length > 0 && (
+              <span style={{
+                background: "linear-gradient(135deg, #7c4dba, #402970)",
+                color: "#ffffff",
+                fontSize: 9,
+                fontWeight: 800,
+                borderRadius: "50%",
+                width: 16,
+                height: 16,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: 2,
+                boxShadow: "0 2px 5px rgba(64,41,112,0.2)"
+              }}>
+                {orderedItems.length}
+              </span>
+            )}
+            <motion.span animate={{ rotate: dropdownOpen ? 180 : 0 }} transition={{ duration: 0.2 }} style={{ display: "flex", alignItems: "center" }}>
               <ChevronDown size={13} strokeWidth={2.5} />
             </motion.span>
           </button>
 
           <AnimatePresence>
-            {langOpen && (
-              <motion.div initial={{ opacity:0,y:-6,scale:0.96 }} animate={{ opacity:1,y:0,scale:1 }} exit={{ opacity:0,y:-6,scale:0.96 }}
-                transition={{ duration:0.15,ease:"easeOut" }}
-                style={{ position:"absolute",top:"calc(100% + 6px)",right:0,minWidth:130,background:"rgba(255,255,255,0.96)",backdropFilter:"blur(16px)",borderRadius:12,border:"1px solid rgba(64,41,112,0.14)",boxShadow:"0 8px 28px rgba(64,41,112,0.14)",overflow:"hidden",zIndex:100 }}
+            {dropdownOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  width: 320,
+                  background: "rgba(255, 255, 255, 0.98)",
+                  backdropFilter: "blur(20px)",
+                  borderRadius: 16,
+                  border: "1px solid rgba(124, 77, 186, 0.18)",
+                  boxShadow: "0 10px 30px rgba(64, 41, 112, 0.15)",
+                  zIndex: 100,
+                  padding: "12px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10
+                }}
               >
-                {LANGUAGES.map((l, i) => (
-                  <button key={l.code} type="button" onClick={() => { setLang(l.code); setLangOpen(false); }}
-                    className="flex items-center w-full gap-2"
-                    style={{ padding:"9px 14px",background:lang===l.code?"rgba(64,41,112,0.09)":"transparent",color:lang===l.code?"#402970":"#3a2a55",fontFamily:"'Nunito',sans-serif",fontSize:13,fontWeight:lang===l.code?700:500,cursor:"pointer",borderBottom:i<LANGUAGES.length-1?"1px solid rgba(64,41,112,0.07)":"none",transition:"background 0.12s",textAlign:"left" }}
-                    onMouseEnter={e => { if(lang!==l.code)(e.currentTarget as HTMLButtonElement).style.background="rgba(64,41,112,0.05)"; }}
-                    onMouseLeave={e => { if(lang!==l.code)(e.currentTarget as HTMLButtonElement).style.background="transparent"; }}
-                  >
-                    {lang===l.code ? <span style={{ width:6,height:6,borderRadius:"50%",background:"#402970",flexShrink:0 }} /> : <span style={{ width:6 }} />}
-                    {l.label}
-                  </button>
-                ))}
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  borderBottom: "1px solid rgba(64, 41, 112, 0.08)",
+                  paddingBottom: 8,
+                  marginBottom: 4
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: "#1a1025", fontFamily: "'Nunito', sans-serif" }}>📦 Order History</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#7c6a9e" }}>{orderedItems.length} order(s)</span>
+                </div>
+
+                {orderedItems.length === 0 ? (
+                  <div style={{
+                    padding: "24px 10px",
+                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6
+                  }}>
+                    <Package size={28} style={{ color: "rgba(64, 41, 112, 0.25)" }} />
+                    <p style={{ margin: 0, fontSize: 11.5, color: "#7c6a9e", fontWeight: 600, fontFamily: "'Nunito', sans-serif", lineHeight: 1.4 }}>
+                      No orders placed yet.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, overflowY: "auto", maxHeight: 300, paddingRight: 2 }}>
+                    {orderedItems.map((order) => (
+                      <div key={order.orderNumber} style={{
+                        background: "rgba(64, 41, 112, 0.02)",
+                        border: "1.5px solid rgba(64, 41, 112, 0.06)",
+                        borderRadius: 12,
+                        padding: 10,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                        transition: "all 0.2s"
+                      }}>
+                        {/* Order Header info */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, color: "#7c4dba", fontFamily: "monospace" }}>
+                            {order.orderNumber}
+                          </span>
+                          <span style={{ fontSize: 9.5, fontWeight: 600, color: "#7c6a9e" }}>
+                            {order.orderDate}
+                          </span>
+                        </div>
+
+                        {/* Items list */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {order.items.map(item => (
+                            <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <img src={item.image} alt={item.name} style={{
+                                width: 22,
+                                height: 22,
+                                borderRadius: 4,
+                                objectFit: "cover",
+                                border: "1px solid rgba(64, 41, 112, 0.08)"
+                              }} />
+                              <span style={{
+                                flex: 1,
+                                fontSize: 10.5,
+                                fontWeight: 600,
+                                color: "#1a1025",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap"
+                              }}>
+                                {item.name}
+                              </span>
+                              <span style={{ fontSize: 9.5, fontWeight: 700, color: "#7c6a9e" }}>
+                                x{item.qty}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Track button */}
+                        <div style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          borderTop: "1.5px solid rgba(64, 41, 112, 0.04)",
+                          paddingTop: 6,
+                          marginTop: 2
+                        }}>
+                          <span style={{ fontSize: 10.5, fontWeight: 800, color: "#402970" }}>
+                            Total: {formatUIPrice(order.summary.total, order.items[0]?.currency)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onTrackOrder(order.orderNumber);
+                              setDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: "4px 8px",
+                              borderRadius: 6,
+                              background: "linear-gradient(135deg, #7c4dba, #402970)",
+                              color: "#ffffff",
+                              border: "none",
+                              fontSize: 9.5,
+                              fontWeight: 800,
+                              cursor: "pointer",
+                              boxShadow: "0 2px 4px rgba(64, 41, 112, 0.15)"
+                            }}
+                          >
+                            Track
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1743,6 +2005,7 @@ function MessageArea({
   isTyping,
   onViewDetails,
   onContinueShopping,
+  onTrackOrder,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -1752,6 +2015,7 @@ function MessageArea({
   isTyping: boolean;
   onViewDetails: (id: string) => void;
   onContinueShopping: () => void;
+  onTrackOrder?: (orderNumber: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
@@ -1824,6 +2088,38 @@ function MessageArea({
                 >
                   <OrderConfirmationCard
                     order={msg.order}
+                    onContinueShopping={onContinueShopping}
+                    onTrackOrder={onTrackOrder}
+                  />
+                </motion.div>
+              )}
+
+              {/* Order Tracking Card */}
+              {msg.role === "ai" && msg.type === "order_tracking" && msg.tracking && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <OrderTrackingCard
+                    orderNumber={msg.tracking.orderNumber}
+                    initialTracking={msg.tracking}
+                    onContinueShopping={onContinueShopping}
+                  />
+                </motion.div>
+              )}
+
+              {/* Order Tracking Error / Retry Card */}
+              {msg.role === "ai" && msg.type === "order_tracking_error" && msg.orderNumber && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <OrderTrackingCard
+                    orderNumber={msg.orderNumber}
                     onContinueShopping={onContinueShopping}
                   />
                 </motion.div>
@@ -1961,7 +2257,7 @@ function RightSidebar({
                   <div className="flex-1 min-w-0">
                     <p style={{ color:"#1a1025",fontSize:13,fontWeight:600,fontFamily:"'Nunito',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>${item.product.price.toFixed(2)}</span>
+                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>{formatUIPrice(item.product.price, item.product.currency)}</span>
                       <span style={{ color:"#9e8dc0",fontSize:11,fontFamily:"'Nunito',sans-serif" }}>×{item.qty}</span>
                       <span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(64,41,112,0.08)",color:"#7c6a9e",fontFamily:"'Nunito',sans-serif" }}>{item.product.category}</span>
                     </div>
@@ -1991,7 +2287,7 @@ function RightSidebar({
                   <div className="flex-1 min-w-0">
                     <p style={{ color:"#1a1025",fontSize:13,fontWeight:600,fontFamily:"'Nunito',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>${product.price.toFixed(2)}</span>
+                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>{formatUIPrice(product.price, product.currency)}</span>
                       <span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(64,41,112,0.08)",color:"#7c6a9e",fontFamily:"'Nunito',sans-serif" }}>{product.category}</span>
                     </div>
                   </div>
@@ -2027,7 +2323,7 @@ function RightSidebar({
                   <div className="flex-1 min-w-0">
                     <p style={{ color:"#1a1025",fontSize:13,fontWeight:600,fontFamily:"'Nunito',sans-serif",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{product.name}</p>
                     <div className="flex items-center gap-2 mt-1">
-                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>${product.price.toFixed(2)}</span>
+                      <span style={{ color:"#402970",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>{formatUIPrice(product.price, product.currency)}</span>
                       <span style={{ fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:20,background:"rgba(64,41,112,0.08)",color:"#7c6a9e",fontFamily:"'Nunito',sans-serif" }}>{product.category}</span>
                     </div>
                   </div>
@@ -2048,7 +2344,7 @@ function RightSidebar({
           {id === "Cart" && cartItems.length > 0 && (
             <div className="flex items-center justify-between mb-3">
               <span style={{ color:"#7c6a9e",fontSize:13,fontWeight:600,fontFamily:"'Nunito',sans-serif" }}>Total</span>
-              <span style={{ color:"#1a1025",fontSize:16,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>${cartTotal.toFixed(2)}</span>
+              <span style={{ color:"#1a1025",fontSize:16,fontWeight:700,fontFamily:"'Nunito',sans-serif" }}>{formatUIPrice(cartTotal, cartItems[0]?.product.currency)}</span>
             </div>
           )}
           <button type="button"

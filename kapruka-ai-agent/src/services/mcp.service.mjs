@@ -1,4 +1,5 @@
 import { getMcpClient } from "./mcp.client.mjs";
+import { trackOrder } from "./orderTracking.service.mjs";
 
 export const searchProducts = async (query) => {
   const client = await getMcpClient();
@@ -45,6 +46,26 @@ export const searchProducts = async (query) => {
 };
 
 export const processMessage = async (message) => {
+  const lowerMsg = message.toLowerCase();
+  const match = message.match(/(VIMP[A-Z0-9]+|KAP-\d+-\d+)/i);
+
+  if ((lowerMsg.includes("track") || lowerMsg.includes("status") || lowerMsg.includes("where")) && match) {
+    const orderNumber = match[1];
+    try {
+      const trackingData = await trackOrder(orderNumber);
+      return {
+        type: "order_tracking",
+        tracking: trackingData
+      };
+    } catch (error) {
+      return {
+        type: "order_tracking_error",
+        message: error.message || "Unable to retrieve order status",
+        orderNumber
+      };
+    }
+  }
+
   return await searchProducts(message);
 };
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, User, Phone, Mail, MapPin, CheckCircle, ShoppingBag, ArrowRight, ChevronLeft, ExternalLink } from "lucide-react";
 import type { Product } from "./products";
+import { formatUIPrice } from "../services/mapping";
 
 interface CartItem { product: Product; qty: number }
 
@@ -265,7 +266,7 @@ export function CheckoutPanel({ cartItems, onClose, onCheckoutComplete }: Props)
                             <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 20, background: "rgba(64,41,112,0.08)", color: "#7c6a9e", fontFamily: "'Nunito',sans-serif" }}>{item.product.category}</span>
                           </div>
                         </div>
-                        <span style={{ color: "#402970", fontSize: 13, fontWeight: 700, fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>${(item.product.price * item.qty).toFixed(2)}</span>
+                        <span style={{ color: "#402970", fontSize: 13, fontWeight: 700, fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{formatUIPrice(item.product.price * item.qty, item.product.currency)}</span>
                       </div>
                     ))}
                   </div>
@@ -275,7 +276,7 @@ export function CheckoutPanel({ cartItems, onClose, onCheckoutComplete }: Props)
                 <div style={{ padding: "14px 16px", borderRadius: 14, background: "rgba(64,41,112,0.04)", border: "1px solid rgba(64,41,112,0.1)" }}>
                   <div className="flex justify-between items-center mb-2">
                     <span style={{ color: "#7c6a9e", fontSize: 12, fontFamily: "'Nunito',sans-serif" }}>Subtotal ({itemCount} items)</span>
-                    <span style={{ color: "#1a1025", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>${cartTotal.toFixed(2)}</span>
+                    <span style={{ color: "#1a1025", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>{formatUIPrice(cartTotal, cartItems[0]?.product.currency)}</span>
                   </div>
                   <div className="flex justify-between items-center mb-3">
                     <span style={{ color: "#7c6a9e", fontSize: 12, fontFamily: "'Nunito',sans-serif" }}>Delivery</span>
@@ -284,7 +285,7 @@ export function CheckoutPanel({ cartItems, onClose, onCheckoutComplete }: Props)
                   <div style={{ height: 1, background: "rgba(64,41,112,0.1)", marginBottom: 10 }} />
                   <div className="flex justify-between items-center">
                     <span style={{ color: "#1a1025", fontSize: 14, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Total</span>
-                    <span style={{ color: "#402970", fontSize: 18, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>${cartTotal.toFixed(2)}</span>
+                    <span style={{ color: "#402970", fontSize: 18, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>{formatUIPrice(cartTotal, cartItems[0]?.product.currency)}</span>
                   </div>
                 </div>
 

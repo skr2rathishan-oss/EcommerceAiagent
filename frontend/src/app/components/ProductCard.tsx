@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { Star, ShoppingCart, Eye, Heart } from "lucide-react";
 import type { Product } from "./products";
+import { formatUIPrice } from "../services/mapping";
 
 interface Props {
   product: Product;
@@ -75,19 +76,25 @@ export function ProductCard({ product, onViewDetails, onAddToCart, isSelected }:
         <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 700, fontFamily: "'Nunito',sans-serif", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{product.name}</p>
 
         {/* Rating */}
-        <div className="flex items-center gap-1">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} size={9} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
-          ))}
-          <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif", marginLeft: 1 }}>{product.rating}</span>
-          <span style={{ color: "#b8aed0", fontSize: 9, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
-        </div>
+        {!product.isMcp && (
+          <div className="flex items-center gap-1">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} size={9} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
+            ))}
+            <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif", marginLeft: 1 }}>{product.rating}</span>
+            <span style={{ color: "#b8aed0", fontSize: 9, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
+          </div>
+        )}
 
         {/* Price */}
         <div className="flex items-baseline gap-1.5">
-          <span style={{ color: "#1a1025", fontSize: 13, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>${product.price.toFixed(2)}</span>
+          <span style={{ color: "#1a1025", fontSize: 13, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>
+            {formatUIPrice(product.price, product.currency)}
+          </span>
           {product.originalPrice && (
-            <span style={{ color: "#b8aed0", fontSize: 10, fontFamily: "'Nunito',sans-serif", textDecoration: "line-through" }}>${product.originalPrice.toFixed(2)}</span>
+            <span style={{ color: "#b8aed0", fontSize: 10, fontFamily: "'Nunito',sans-serif", textDecoration: "line-through" }}>
+              {formatUIPrice(product.originalPrice, product.currency)}
+            </span>
           )}
         </div>
 
@@ -105,13 +112,14 @@ export function ProductCard({ product, onViewDetails, onAddToCart, isSelected }:
           </motion.button>
           <motion.button
             type="button"
-            whileTap={{ scale: 0.95 }}
-            onClick={e => { e.stopPropagation(); onAddToCart(product); }}
+            whileTap={product.stock > 0 ? { scale: 0.95 } : {}}
+            onClick={e => { e.stopPropagation(); if (product.stock > 0) onAddToCart(product); }}
+            disabled={product.stock === 0}
             className="flex items-center justify-center gap-1 flex-1"
-            style={{ padding: "6px 0", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}
+            style={{ padding: "6px 0", borderRadius: 8, border: "none", background: product.stock > 0 ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.15)", color: product.stock > 0 ? "#fff" : "#b8aed0", fontSize: 10, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif" }}
           >
             <ShoppingCart size={10} strokeWidth={2.5} />
-            Add
+            {product.stock > 0 ? "Add" : "Out of stock"}
           </motion.button>
         </div>
       </div>

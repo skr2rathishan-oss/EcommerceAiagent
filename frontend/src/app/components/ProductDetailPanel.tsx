@@ -476,22 +476,12 @@ export function ProductDetailPanel({ productId, onClose, onAddToCart, onBuyNow, 
           </AnimatePresence>
 
           <div className="flex gap-2">
-            <motion.button type="button" whileTap={productDetail.stock ? { scale: 0.97 } : {}}
-              disabled={!productDetail.stock}
-              onClick={() => {
-                const uiProduct = mapProductDetailToUI(productDetail);
-                onBuyNow(uiProduct, { Type: "Standard" });
-              }}
+            <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={handleWishlist}
               className="flex items-center justify-center gap-2 flex-1"
-              style={{ padding: "12px", borderRadius: 12, border: "none", background: productDetail.stock ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.15)", color: productDetail.stock ? "#fff" : "#b8aed0", fontSize: 13, fontWeight: 700, cursor: productDetail.stock ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif" }}
-            >
-              <Zap size={15} strokeWidth={2.5} />
-              Buy Now
-            </motion.button>
-            <motion.button type="button" whileTap={{ scale: 0.9 }} onClick={handleWishlist}
-              style={{ width: 46, borderRadius: 12, border: `1.5px solid ${wishlisted ? "rgba(232,57,90,0.4)" : "rgba(64,41,112,0.2)"}`, background: wishlisted ? "rgba(232,57,90,0.08)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+              style={{ padding: "12px", borderRadius: 12, border: `1.5px solid ${wishlisted ? "rgba(232,57,90,0.4)" : "rgba(64,41,112,0.2)"}`, background: wishlisted ? "rgba(232,57,90,0.08)" : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Nunito',sans-serif" }}
             >
               <Heart size={17} strokeWidth={2} color={wishlisted ? "#e8395a" : "#9e8dc0"} fill={wishlisted ? "#e8395a" : "none"} />
+              <span style={{ color: wishlisted ? "#e8395a" : "#9e8dc0", fontSize: 13, fontWeight: 700 }}>Wishlist</span>
             </motion.button>
           </div>
         </div>

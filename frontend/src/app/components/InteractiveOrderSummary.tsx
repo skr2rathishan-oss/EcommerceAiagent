@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { User, Phone, Mail, MapPin, CheckCircle, Edit2, Star, Save, ShoppingCart, Maximize2, Minimize2 } from "lucide-react";
 import type { Product } from "./products";
+import { formatUIPrice } from "../services/mapping";
 
 export interface DeliveryInfo {
   fullName: string;
@@ -199,7 +200,7 @@ export function InteractiveOrderSummary({
             <div style={{ minWidth: 0 }}>
               <h5 style={{ color: "#1a1025", fontSize: 12, fontWeight: 755, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</h5>
               <p style={{ color: "#9e8dc0", fontSize: 10.5, fontWeight: 600, margin: "2px 0 0 0" }}>
-                Price: <span style={{ color: "#1a1025", fontWeight: 700 }}>${product.price.toFixed(2)}</span>
+                Price: <span style={{ color: "#1a1025", fontWeight: 700 }}>{formatUIPrice(product.price, product.currency)}</span>
               </p>
               {variants && Object.keys(variants).length > 0 && (
                 <p style={{ color: "#b8aed0", fontSize: 9.5, margin: "1px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -309,7 +310,7 @@ export function InteractiveOrderSummary({
       }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
           <span style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 600 }}>Total:</span>
-          <span style={{ color: "#402970", fontSize: 15, fontWeight: 900 }}>${product.price.toFixed(2)}</span>
+          <span style={{ color: "#402970", fontSize: 15, fontWeight: 900 }}>{formatUIPrice(product.price, product.currency)}</span>
           <span style={{ color: "#3fc78e", fontSize: 10, fontWeight: 700, marginLeft: 4 }}>FREE SHIPPING</span>
         </div>
 

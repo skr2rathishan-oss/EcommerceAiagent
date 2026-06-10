@@ -4,6 +4,7 @@ import {
   CheckCircle, Check, Copy, ShoppingBag, User,
   Phone, Mail, MapPin, Truck, Calendar, Hash, ExternalLink
 } from "lucide-react";
+import { formatUIPrice } from "../services/mapping";
 
 export interface OrderConfirmationDetails {
   referenceNumber: string;
@@ -23,6 +24,7 @@ export interface OrderConfirmationDetails {
     image: string;
     qty: number;
     price: number;
+    currency?: string;
   }>;
   summary: {
     subtotal: number;
@@ -35,6 +37,7 @@ export interface OrderConfirmationDetails {
 interface Props {
   order: OrderConfirmationDetails;
   onContinueShopping?: () => void;
+  onTrackOrder?: (orderNumber: string) => void;
 }
 
 const STEPPER_LABELS = [
@@ -44,7 +47,7 @@ const STEPPER_LABELS = [
   "Delivered"
 ];
 
-export function OrderConfirmationCard({ order, onContinueShopping }: Props) {
+export function OrderConfirmationCard({ order, onContinueShopping, onTrackOrder }: Props) {
   const [copied, setCopied] = useState(false);
   const [trackerStep, setTrackerStep] = useState(0); // Mock delivery tracking: 0 to 3
   const [trackingAlert, setTrackingAlert] = useState("");
@@ -56,14 +59,18 @@ export function OrderConfirmationCard({ order, onContinueShopping }: Props) {
   };
 
   const handleTrackOrder = () => {
-    if (trackerStep < 3) {
-      const next = trackerStep + 1;
-      setTrackerStep(next);
-      setTrackingAlert(`🚚 Shipment Status Updated: ${STEPPER_LABELS[next]}`);
-      setTimeout(() => setTrackingAlert(""), 3500);
+    if (onTrackOrder) {
+      onTrackOrder(order.orderNumber);
     } else {
-      setTrackingAlert("✅ Your package has been delivered!");
-      setTimeout(() => setTrackingAlert(""), 3500);
+      if (trackerStep < 3) {
+        const next = trackerStep + 1;
+        setTrackerStep(next);
+        setTrackingAlert(`🚚 Shipment Status Updated: ${STEPPER_LABELS[next]}`);
+        setTimeout(() => setTrackingAlert(""), 3500);
+      } else {
+        setTrackingAlert("✅ Your package has been delivered!");
+        setTimeout(() => setTrackingAlert(""), 3500);
+      }
     }
   };
 
@@ -202,10 +209,10 @@ export function OrderConfirmationCard({ order, onContinueShopping }: Props) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 700, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</p>
-                  <span style={{ color: "#9e8dc0", fontSize: 10, fontWeight: 600 }}>Qty: {item.qty} · Price: ${item.price.toFixed(2)}</span>
+                  <span style={{ color: "#9e8dc0", fontSize: 10, fontWeight: 600 }}>Qty: {item.qty} · Price: {formatUIPrice(item.price, item.currency)}</span>
                 </div>
                 <span style={{ color: "#402970", fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
-                  ${(item.price * item.qty).toFixed(2)}
+                  {formatUIPrice(item.price * item.qty, item.currency)}
                 </span>
               </div>
             ))}
@@ -223,7 +230,7 @@ export function OrderConfirmationCard({ order, onContinueShopping }: Props) {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ color: "#7c6a9e" }}>Subtotal</span>
-              <span style={{ color: "#1a1025", fontWeight: 600 }}>${order.summary.subtotal.toFixed(2)}</span>
+              <span style={{ color: "#1a1025", fontWeight: 600 }}>{formatUIPrice(order.summary.subtotal, order.items[0]?.currency)}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
               <span style={{ color: "#7c6a9e" }}>Delivery Charge</span>
@@ -232,13 +239,13 @@ export function OrderConfirmationCard({ order, onContinueShopping }: Props) {
             {order.summary.discount > 0 && (
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <span style={{ color: "#d4183d" }}>Discount</span>
-                <span style={{ color: "#d4183d", fontWeight: 600 }}>-${order.summary.discount.toFixed(2)}</span>
+                <span style={{ color: "#d4183d", fontWeight: 600 }}>-{formatUIPrice(order.summary.discount, order.items[0]?.currency)}</span>
               </div>
             )}
             <div style={{ height: 1, background: "rgba(64, 41, 112, 0.1)", margin: "8px 0" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "#1a1025", fontSize: 13, fontWeight: 800 }}>Total Amount</span>
-              <span style={{ color: "#402970", fontSize: 16, fontWeight: 900 }}>${order.summary.total.toFixed(2)}</span>
+              <span style={{ color: "#402970", fontSize: 16, fontWeight: 900 }}>{formatUIPrice(order.summary.total, order.items[0]?.currency)}</span>
             </div>
           </div>
         </div>

@@ -17,6 +17,8 @@ export interface Product {
   delivery: string;
   stock: number;
   category: string;
+  isMcp?: boolean;
+  currency?: string;
 }
 
 export const PRODUCTS: Product[] = [

@@ -5,6 +5,7 @@ import {
   Shield, CheckCircle, Maximize2, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import type { Product } from "./products";
+import { formatUIPrice } from "../services/mapping";
 
 interface Props {
   products: Product[];
@@ -56,13 +57,17 @@ function MiniCard({
       <div style={{ padding: "7px 9px 9px" }}>
         <p style={{ color: "#9e8dc0", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>{product.brand}</p>
         <p style={{ color: "#1a1025", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", lineHeight: 1.25, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>{product.name}</p>
-        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
-          ))}
-          <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
-        </div>
-        <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>${product.price.toFixed(2)}</p>
+        {!product.isMcp && (
+          <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
+            ))}
+            <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+          </div>
+        )}
+        <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>
+          {formatUIPrice(product.price, product.currency)}
+        </p>
       </div>
     </motion.div>
   );
@@ -177,51 +182,92 @@ function SelectedBanner({
           <p style={{ color: "#1a1025", fontSize: 14, fontWeight: 800, fontFamily: "'Nunito',sans-serif", lineHeight: 1.3 }}>{product.name}</p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Star key={i} size={10} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
-          ))}
-          <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
-          <span style={{ color: "#b8aed0", fontSize: 10, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
-        </div>
+        {!product.isMcp && (
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Star key={i} size={10} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
+            ))}
+            <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+            <span style={{ color: "#b8aed0", fontSize: 10, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
+          </div>
+        )}
 
         <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-          <span style={{ color: "#1a1025", fontSize: 17, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>${product.price.toFixed(2)}</span>
+          <span style={{ color: "#1a1025", fontSize: 17, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>
+            {formatUIPrice(product.price, product.currency)}
+          </span>
           {product.originalPrice && (
-            <span style={{ color: "#b8aed0", fontSize: 11, textDecoration: "line-through", fontFamily: "'Nunito',sans-serif" }}>${product.originalPrice.toFixed(2)}</span>
+            <span style={{ color: "#b8aed0", fontSize: 11, textDecoration: "line-through", fontFamily: "'Nunito',sans-serif" }}>
+              {formatUIPrice(product.originalPrice, product.currency)}
+            </span>
           )}
-          {discount && (
-            <span style={{ color: "#3fc78e", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Save ${(product.originalPrice! - product.price).toFixed(2)}</span>
+          {discount && product.originalPrice && (
+            <span style={{ color: "#3fc78e", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
+              Save {formatUIPrice(product.originalPrice - product.price, product.currency)}
+            </span>
           )}
         </div>
 
         <p style={{ color: "#7c6a9e", fontSize: 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {product.variants.map(v => (
-            <div key={v.type} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5 }}>
-              <span style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{v.type}:</span>
-              {v.options.map(opt => (
-                <button key={opt} type="button" onClick={() => setVariants(sv => ({ ...sv, [v.type]: opt }))}
-                  style={{ padding: "2px 8px", borderRadius: 20, border: `1.5px solid ${variants[v.type] === opt ? "rgba(124,77,186,0.6)" : "rgba(64,41,112,0.14)"}`, background: variants[v.type] === opt ? "rgba(124,77,186,0.1)" : "transparent", color: variants[v.type] === opt ? "#402970" : "#9e8dc0", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", transition: "all 0.15s" }}>
-                  {opt}
-                </button>
-              ))}
-            </div>
-          ))}
-        </div>
+        {product.variants.length > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {product.variants.map(v => (
+              <div key={v.type} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5 }}>
+                <span style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{v.type}:</span>
+                {v.options.map(opt => (
+                  <button key={opt} type="button" onClick={() => setVariants(sv => ({ ...sv, [v.type]: opt }))}
+                    style={{ padding: "2px 8px", borderRadius: 20, border: `1.5px solid ${variants[v.type] === opt ? "rgba(124,77,186,0.6)" : "rgba(64,41,112,0.14)"}`, background: variants[v.type] === opt ? "rgba(124,77,186,0.1)" : "transparent", color: variants[v.type] === opt ? "#402970" : "#9e8dc0", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", transition: "all 0.15s" }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
 
         <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: "auto" }}>
-          {[
-            { icon: <Truck size={9} color="#3fc78e" strokeWidth={2} />, text: "Free delivery", bg: "rgba(63,199,142,0.08)", border: "rgba(63,199,142,0.2)", color: "#2a9e6a" },
-            { icon: <Shield size={9} color="#7c4dba" strokeWidth={2} />, text: "1-yr warranty", bg: "rgba(64,41,112,0.04)", border: "rgba(64,41,112,0.1)", color: "#402970" },
-            { icon: <Package size={9} color={product.stock < 15 ? "#ef7832" : "#7c4dba"} strokeWidth={2} />, text: product.stock < 15 ? `Only ${product.stock} left` : "In stock", bg: product.stock < 15 ? "rgba(239,120,50,0.07)" : "rgba(64,41,112,0.04)", border: product.stock < 15 ? "rgba(239,120,50,0.2)" : "rgba(64,41,112,0.08)", color: product.stock < 15 ? "#c45f10" : "#402970" },
-          ].map((pill, i) => (
-            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 7px", borderRadius: 7, background: pill.bg, border: `1px solid ${pill.border}` }}>
-              {pill.icon}
-              <span style={{ color: pill.color, fontSize: 9, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>{pill.text}</span>
-            </span>
-          ))}
+          {(() => {
+            const pills = [];
+            
+            // Delivery
+            pills.push({
+              icon: <Truck size={9} color="#3fc78e" strokeWidth={2} />,
+              text: product.delivery || "Standard shipping",
+              bg: "rgba(63,199,142,0.08)",
+              border: "rgba(63,199,142,0.2)",
+              color: "#2a9e6a"
+            });
+
+            // Warranty (only for non-MCP products)
+            if (!product.isMcp) {
+              pills.push({
+                icon: <Shield size={9} color="#7c4dba" strokeWidth={2} />,
+                text: "1-yr warranty",
+                bg: "rgba(64,41,112,0.04)",
+                border: "rgba(64,41,112,0.1)",
+                color: "#402970"
+              });
+            }
+
+            // Stock
+            const isInStock = product.stock > 0;
+            const isLowStock = !product.isMcp && product.stock < 15;
+            pills.push({
+              icon: <Package size={9} color={!isInStock ? "#d4183d" : isLowStock ? "#ef7832" : "#7c4dba"} strokeWidth={2} />,
+              text: !isInStock ? "Out of stock" : isLowStock ? `Only ${product.stock} left` : "In stock",
+              bg: !isInStock ? "rgba(212,24,61,0.07)" : isLowStock ? "rgba(239,120,50,0.07)" : "rgba(64,41,112,0.04)",
+              border: !isInStock ? "rgba(212,24,61,0.2)" : isLowStock ? "rgba(239,120,50,0.2)" : "rgba(64,41,112,0.08)",
+              color: !isInStock ? "#d4183d" : isLowStock ? "#c45f10" : "#402970"
+            });
+
+            return pills.map((pill, i) => (
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 3, padding: "3px 7px", borderRadius: 7, background: pill.bg, border: `1px solid ${pill.border}` }}>
+                {pill.icon}
+                <span style={{ color: pill.color, fontSize: 9, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>{pill.text}</span>
+              </span>
+            ));
+          })()}
         </div>
       </motion.div>
 
@@ -242,8 +288,10 @@ function SelectedBanner({
           padding: "14px 12px 14px 12px",
         }}
       >
-        <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={() => onBuyNow(product, variants)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", marginTop: 24 }}>
+        <motion.button type="button" whileTap={product.stock > 0 ? { scale: 0.97 } : {}}
+          onClick={() => { if (product.stock > 0) onBuyNow(product, variants); }}
+          disabled={product.stock === 0}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: product.stock > 0 ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.15)", color: product.stock > 0 ? "#fff" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif", marginTop: 24 }}>
           <Zap size={13} strokeWidth={2.5} />
           Buy Now
         </motion.button>
@@ -256,8 +304,10 @@ function SelectedBanner({
               <span style={{ color: "#2a9e6a", fontSize: 12, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Added!</span>
             </motion.div>
           ) : (
-            <motion.button key="cart" type="button" whileTap={{ scale: 0.97 }} onClick={doAdd}
-              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.22)", background: "transparent", color: "#402970", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
+            <motion.button key="cart" type="button" whileTap={product.stock > 0 ? { scale: 0.97 } : {}}
+              onClick={() => { if (product.stock > 0) doAdd(); }}
+              disabled={product.stock === 0}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: `1.5px solid ${product.stock > 0 ? "rgba(64,41,112,0.22)" : "rgba(64,41,112,0.1)"}`, background: "transparent", color: product.stock > 0 ? "#402970" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif" }}>
               <ShoppingCart size={13} strokeWidth={2.5} />
               Add to Cart
             </motion.button>
