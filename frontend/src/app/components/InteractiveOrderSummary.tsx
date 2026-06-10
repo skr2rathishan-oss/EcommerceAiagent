@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { User, Phone, Mail, MapPin, CheckCircle, Edit2, Star, Save, ShoppingCart } from "lucide-react";
+import { User, Phone, Mail, MapPin, CheckCircle, Edit2, Star, Save, ShoppingCart, Maximize2, Minimize2 } from "lucide-react";
 import type { Product } from "./products";
 
 export interface DeliveryInfo {
@@ -55,6 +55,7 @@ export function InteractiveOrderSummary({
   onPlaceOrder,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isEnlarged, setIsEnlarged] = useState(false);
   const [info, setInfo] = useState<DeliveryInfo>({ ...deliveryInfo });
   const [errors, setErrors] = useState<Partial<DeliveryInfo>>({});
 
@@ -85,6 +86,7 @@ export function InteractiveOrderSummary({
 
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
@@ -95,9 +97,10 @@ export function InteractiveOrderSummary({
         boxShadow: "0 4px 20px rgba(64,41,112,0.05)",
         overflow: "hidden",
         width: "100%",
-        maxWidth: "580px",
+        maxWidth: isEnlarged ? "100%" : "580px",
         marginTop: 10,
         fontFamily: "'Nunito', sans-serif",
+        transition: "max-width 0.25s ease-in-out",
       }}
     >
       {/* Top compact header */}
@@ -130,10 +133,10 @@ export function InteractiveOrderSummary({
           </span>
         </div>
         
-        {status === "pending" && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button
             type="button"
-            onClick={isEditing ? handleSave : () => setIsEditing(true)}
+            onClick={() => setIsEnlarged(!isEnlarged)}
             style={{
               display: "flex",
               alignItems: "center",
@@ -148,17 +151,40 @@ export function InteractiveOrderSummary({
               borderRadius: 4,
             }}
           >
-            {isEditing ? <Save size={11} /> : <Edit2 size={11} />}
-            <span style={{ fontSize: 10.5 }}>{isEditing ? "Save Info" : "Edit Delivery"}</span>
+            {isEnlarged ? <Minimize2 size={11} /> : <Maximize2 size={11} />}
+            <span style={{ fontSize: 10.5 }}>{isEnlarged ? "Shrink" : "Enlarge"}</span>
           </button>
-        )}
+
+          {status === "pending" && (
+            <button
+              type="button"
+              onClick={isEditing ? handleSave : () => setIsEditing(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                border: "none",
+                background: "transparent",
+                color: "#7c4dba",
+                fontSize: 11,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: "2px 6px",
+                borderRadius: 4,
+              }}
+            >
+              {isEditing ? <Save size={11} /> : <Edit2 size={11} />}
+              <span style={{ fontSize: 10.5 }}>{isEditing ? "Save Info" : "Edit Delivery"}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main Body (2 Columns Layout) */}
       <div style={{
         padding: "14px",
         display: "grid",
-        gridTemplateColumns: "1fr 1.1fr",
+        gridTemplateColumns: isEnlarged ? "1fr 1.5fr" : "1fr 1.1fr",
         gap: "14px",
         alignItems: "start",
       }}>

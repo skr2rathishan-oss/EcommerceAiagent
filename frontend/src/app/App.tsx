@@ -16,6 +16,7 @@ import { sendMessage } from "./services/chatServices";
 import { mapBackendProductToUI } from "./services/mapping";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { checkDelivery } from "./services/productServices";
+import { OrderConfirmationCard, type OrderConfirmationDetails } from "./components/OrderConfirmationCard";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -24,6 +25,7 @@ interface AnchorPos { x: number; y: number }
 interface Message {
   role: "user" | "ai";
   text: string;
+  type?: "text" | "order_confirmation";
   products?: Product[];
   orderSummary?: {
     product: Product;
@@ -32,6 +34,7 @@ interface Message {
     sellerInfo: SellerInfo;
     status: "pending" | "placed";
   };
+  order?: OrderConfirmationDetails;
 }
 interface CartItem { product: Product; qty: number }
 
@@ -102,6 +105,58 @@ export default function App() {
     el.style.height = Math.min(el.scrollHeight, 160) + "px";
   }, [value]);
 
+  const generateOrderConfirmation = (
+    deliveryInfo: DeliveryInfo,
+    items: Array<{ product: Product; qty: number }>
+  ): OrderConfirmationDetails => {
+    const now = new Date();
+    const formatDate = (date: Date) => {
+      const day = String(date.getDate()).padStart(2, "0");
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      return `${day} ${month} ${year}`;
+    };
+
+    const deliveryDate = new Date();
+    deliveryDate.setDate(now.getDate() + 2);
+
+    const referenceNumber = `KAP-${now.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+    const orderNumber = `VIMP${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
+    const subtotal = items.reduce((sum, item) => sum + item.product.price * item.qty, 0);
+    const deliveryCharge = 0;
+    const discount = 0;
+    const total = subtotal + deliveryCharge - discount;
+
+    return {
+      referenceNumber,
+      orderNumber,
+      orderDate: formatDate(now),
+      estimatedDelivery: formatDate(deliveryDate),
+      paymentStatus: "Paid",
+      recipient: {
+        name: deliveryInfo.fullName,
+        phone: deliveryInfo.phone,
+        email: deliveryInfo.email,
+        address: deliveryInfo.address,
+      },
+      items: items.map(item => ({
+        id: item.product.id,
+        name: item.product.name,
+        image: item.product.images[0],
+        qty: item.qty,
+        price: item.product.price,
+      })),
+      summary: {
+        subtotal,
+        deliveryCharge,
+        discount,
+        total,
+      }
+    };
+  };
+
   const handleAddToCart = (p: Product) => {
     setCartItems(prev => {
       const exists = prev.find(i => i.product.id === p.id);
@@ -117,6 +172,9 @@ export default function App() {
   };
 
   const handlePlaceInlineOrder = (messageIndex: number, updatedDelivery: DeliveryInfo) => {
+    const targetMsg = messages[messageIndex];
+    if (!targetMsg || !targetMsg.orderSummary) return;
+
     setMessages(prev => prev.map((msg, idx) => {
       if (idx === messageIndex && msg.orderSummary) {
         return {
@@ -131,12 +189,17 @@ export default function App() {
       return msg;
     }));
 
+    const inlineItems = [{ product: targetMsg.orderSummary.product, qty: 1 }];
+    const orderDetails = generateOrderConfirmation(updatedDelivery, inlineItems);
+
     setTimeout(() => {
       setMessages(prev => [
         ...prev,
         {
           role: "ai",
-          text: `🎉 Order confirmed! Your package is being prepared for shipment. Thank you for placing your order!`,
+          type: "order_confirmation",
+          text: "✅ Order Successfully Placed",
+          order: orderDetails
         }
       ]);
     }, 600);
@@ -360,7 +423,7 @@ export default function App() {
               </AnimatePresence>
               <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-                  <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} />
+                  <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} onContinueShopping={() => textareaRef.current?.focus()} />
                 </div>
 
                 <motion.div
@@ -873,6 +936,20 @@ export default function App() {
           <CheckoutPanel
             cartItems={cartItems}
             onClose={() => setCheckoutOpen(false)}
+            onCheckoutComplete={(info) => {
+              const orderDetails = generateOrderConfirmation(info, cartItems);
+              setMessages(prev => [
+                ...prev,
+                {
+                  role: "ai",
+                  type: "order_confirmation",
+                  text: "✅ Order Successfully Placed",
+                  order: orderDetails
+                }
+              ]);
+              setCartItems([]);
+              setCheckoutOpen(false);
+            }}
           />
         )}
       </AnimatePresence>
@@ -1665,6 +1742,7 @@ function MessageArea({
   onPlaceInlineOrder,
   isTyping,
   onViewDetails,
+  onContinueShopping,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -1673,6 +1751,7 @@ function MessageArea({
   onPlaceInlineOrder: (index: number, info: DeliveryInfo) => void;
   isTyping: boolean;
   onViewDetails: (id: string) => void;
+  onContinueShopping: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
@@ -1731,6 +1810,21 @@ function MessageArea({
                     sellerInfo={msg.orderSummary.sellerInfo}
                     status={msg.orderSummary.status}
                     onPlaceOrder={(updatedDelivery) => onPlaceInlineOrder(i, updatedDelivery)}
+                  />
+                </motion.div>
+              )}
+
+              {/* Order Confirmation Card */}
+              {msg.role === "ai" && msg.type === "order_confirmation" && msg.order && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <OrderConfirmationCard
+                    order={msg.order}
+                    onContinueShopping={onContinueShopping}
                   />
                 </motion.div>
               )}
