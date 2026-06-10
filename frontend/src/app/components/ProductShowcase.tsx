@@ -96,12 +96,36 @@ function SelectedBanner({
         border: "1.5px solid rgba(124,77,186,0.2)",
         boxShadow: "0 4px 20px rgba(64,41,112,0.1)",
         overflow: "hidden",
+        position: "relative",
       }}
     >
+      {/* ── Small expand icon — top-right corner ── */}
+      <button
+        type="button"
+        onClick={() => onViewDetails(product.id)}
+        title="View full details"
+        style={{
+          position: "absolute", top: 8, right: 8, zIndex: 5,
+          width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer",
+          background: "rgba(255,255,255,0.85)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          boxShadow: "0 1px 6px rgba(64,41,112,0.18)",
+          transition: "background 0.15s, transform 0.15s",
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.background = "rgba(124,77,186,0.15)";
+          e.currentTarget.style.transform = "scale(1.12)";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.background = "rgba(255,255,255,0.85)";
+          e.currentTarget.style.transform = "scale(1)";
+        }}
+      >
+        <Maximize2 size={12} color="#7c4dba" strokeWidth={2.2} />
+      </button>
       {/* ── COL 1: image (shared element, stretches to card height) ── */}
       <motion.div
         layoutId={`product-img-${product.id}`}
-        onClick={() => onViewDetails(product.id)}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={{
           width: 190,
@@ -111,7 +135,6 @@ function SelectedBanner({
           position: "relative",
           background: "linear-gradient(135deg,#f5f0ff,#ede4ff)",
           overflow: "hidden",
-          cursor: "pointer",
         }}
       >
         {!imgErr
@@ -130,26 +153,6 @@ function SelectedBanner({
             -{discount}%
           </span>
         )}
-        {/* expand icon — top-right corner */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onViewDetails(product.id);
-          }}
-          style={{
-            position: "absolute", top: 8, right: 8, zIndex: 2,
-            width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer",
-            background: "rgba(255,255,255,0.88)", backdropFilter: "blur(6px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: "0 2px 8px rgba(64,41,112,0.18)",
-            transition: "background 0.15s",
-          }}
-          onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,1)")}
-          onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.88)")}
-        >
-          <Maximize2 size={13} color="#402970" strokeWidth={2.2} />
-        </button>
         {product.images.length > 1 && (
           <div style={{ position: "absolute", bottom: 8, width: "100%", display: "flex", justifyContent: "center", gap: 4, zIndex: 1 }}>
             {product.images.map((_, i) => (
@@ -167,7 +170,7 @@ function SelectedBanner({
         transition={{ duration: 0.28, delay: 0.15, ease: "easeOut" }}
         style={{ flex: 1, padding: "13px 16px", display: "flex", flexDirection: "column", gap: 6, minWidth: 0, borderLeft: "1px solid rgba(124,77,186,0.08)", overflow: "hidden" }}
       >
-        <div style={{ cursor: "pointer" }} onClick={() => onViewDetails(product.id)}>
+        <div style={{ cursor: "default" }}>
           <p style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>
             {product.brand} · {product.category}
           </p>
@@ -222,7 +225,7 @@ function SelectedBanner({
         </div>
       </motion.div>
 
-      {/* ── COL 3: actions, vertically centered ── */}
+      {/* ── COL 3: actions ── */}
       <motion.div
         initial={{ opacity: 0, x: 16 }}
         animate={{ opacity: 1, x: 0 }}
@@ -234,13 +237,13 @@ function SelectedBanner({
           display: "flex",
           flexDirection: "column",
           alignItems: "stretch",
-          justifyContent: "center",
+          justifyContent: "flex-end",
           gap: 8,
-          padding: "14px 12px",
+          padding: "14px 12px 14px 12px",
         }}
       >
         <motion.button type="button" whileTap={{ scale: 0.97 }} onClick={() => onBuyNow(product, variants)}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", marginTop: 24 }}>
           <Zap size={13} strokeWidth={2.5} />
           Buy Now
         </motion.button>
@@ -268,6 +271,7 @@ function SelectedBanner({
         </motion.button>
       </motion.div>
     </motion.div>
+
 
     {/* ── Left-side image lightbox ── */}
     <AnimatePresence>
@@ -375,7 +379,6 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
 
   const handleSelect = (p: Product) => {
     onSelect(p);
-    onViewDetails(p.id);
   };
 
   return (

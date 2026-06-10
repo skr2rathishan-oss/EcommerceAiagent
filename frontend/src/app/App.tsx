@@ -4,7 +4,7 @@ import {
   Paperclip, Mic, ArrowUp, Sparkles, PanelLeft,
   SquarePen, Clock, Settings, HelpCircle, UserCircle,
   Heart, ShoppingCart, Bookmark, Globe, ChevronDown,
-  X, Bell, Shield, Moon, MessageSquare, ChevronRight,
+  X, Bell, Shield, Moon, MessageSquare, ChevronRight, MapPin,
   Mail, Phone, FileText, User, Camera, LogOut,
   CheckCircle, DollarSign, Euro, PoundSterling, IndianRupee, Coins,
 } from "lucide-react";
@@ -15,6 +15,7 @@ import { InteractiveOrderSummary, type DeliveryInfo, type SellerInfo, getDefault
 import { sendMessage } from "./services/chatServices";
 import { mapBackendProductToUI } from "./services/mapping";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
+import { checkDelivery } from "./services/productServices";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -62,6 +63,8 @@ export default function App() {
   const [pendingConfirmProduct, setPendingConfirmProduct] = useState<Product | null>(null);
   const [pendingConfirmVariants, setPendingConfirmVariants] = useState<Record<string, string> | undefined>(undefined);
   const [isTyping, setIsTyping] = useState(false);
+  const [pendingAddressChoice, setPendingAddressChoice] = useState(false);
+  const [waitingForAddressInput, setWaitingForAddressInput] = useState(false);
   const [selectedDetailProductId, setSelectedDetailProductId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef  = useRef<HTMLTextAreaElement>(null);
@@ -126,6 +129,96 @@ export default function App() {
     if (phase === "centered") setPhase("bottom");
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");
+
+    if (waitingForAddressInput) {
+      setIsTyping(true);
+
+      const CITIES_LIST = [
+        "Colombo 01", "Colombo 02", "Colombo 03", "Colombo 04", "Colombo 05", "Colombo 06", "Colombo 07", "Colombo 08", "Colombo 09", "Colombo 10", "Colombo 11", "Colombo 12", "Colombo 13", "Colombo 14", "Colombo 15",
+        "Jaffna", "Galle", "Kandy", "Negombo", "Anuradhapura", "Gampaha", "Kurunegala", "Batticaloa", "Trincomalee", "Matara", "Ratnapura", "Badulla", "Kalutara", "Moratuwa", "Dehiwala", "Mount Lavinia"
+      ];
+      let detectedCity = "";
+      const textLower = trimmed.toLowerCase();
+      for (const city of CITIES_LIST) {
+        if (textLower.includes(city.toLowerCase())) {
+          detectedCity = city;
+          break;
+        }
+      }
+
+      if (!detectedCity) {
+        const parts = trimmed.split(",");
+        if (parts.length > 0) {
+          detectedCity = parts[parts.length - 1].trim();
+        }
+      }
+
+      if (!detectedCity) {
+        detectedCity = "Colombo 03";
+      }
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+      checkDelivery({
+        city: detectedCity,
+        deliveryDate: tomorrowStr,
+        productId: pendingConfirmProduct ? pendingConfirmProduct.id : ""
+      })
+        .then((res) => {
+          if (res.available) {
+            setWaitingForAddressInput(false);
+            const seller = getDefaultSeller(pendingConfirmProduct!.brand);
+            const deliveryInfo = {
+              fullName: "Alex Johnson",
+              phone: "+94 77 123 4567",
+              email: "alex@example.com",
+              address: trimmed
+            };
+
+            setMessages(prev => [
+              ...prev,
+              {
+                role: "ai",
+                text: `✅ Great! Delivery is available for your address in **${res.city}** (Delivery Charge: Rs. ${res.deliveryCharge}). Here is your updated Order Summary:`,
+                orderSummary: {
+                  product: pendingConfirmProduct!,
+                  variants: pendingConfirmVariants,
+                  deliveryInfo: deliveryInfo,
+                  sellerInfo: seller,
+                  status: "pending"
+                }
+              }
+            ]);
+            setPendingConfirmProduct(null);
+            setPendingConfirmVariants(undefined);
+          } else {
+            setMessages(prev => [
+              ...prev,
+              {
+                role: "ai",
+                text: `❌ Delivery not available for your address. Reason: ${res.warning || "Unsupported delivery city"}. Please enter a different address or city in this format:\n\n**[Street Line 1], [Street Line 2], [City]**`
+              }
+            ]);
+          }
+        })
+        .catch((err) => {
+          setMessages(prev => [
+            ...prev,
+            {
+              role: "ai",
+              text: `⚠️ Unable to verify delivery: ${err.message || "Failed to call check service"}. Please try typing the address again.`
+            }
+          ]);
+        })
+        .finally(() => {
+          setIsTyping(false);
+        });
+
+      return;
+    }
+
     setIsTyping(true);
 
     sendMessage(trimmed)
@@ -168,25 +261,12 @@ export default function App() {
   const canSend = value.trim().length > 0;
 
   return (
-    <div className="size-full flex overflow-hidden" style={{ background: "#f0ebfa", fontFamily: "'Nunito',sans-serif" }}>
+    <div className="h-screen w-screen flex overflow-hidden" style={{ background: "#f0ebfa", fontFamily: "'Nunito',sans-serif" }}>
       {/* Sidebar */}
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onItemClick={handleItemClick} />
 
-      {/* Product Detail Panel */}
-      <AnimatePresence>
-        {selectedDetailProductId && (
-          <ProductDetailPanel
-            productId={selectedDetailProductId}
-            onClose={() => setSelectedDetailProductId(null)}
-            onAddToCart={handleAddToCart}
-            onBuyNow={handleBuyNow}
-            onWishlist={handleWishlist}
-          />
-        )}
-      </AnimatePresence>
-
       {/* Main */}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
+      <div className="flex-1 flex flex-col relative overflow-hidden min-h-0">
 
         {/* Center glow — centered phase only */}
         {phase === "centered" && (
@@ -240,95 +320,183 @@ export default function App() {
         {/* Bottom phase */}
         {phase === "bottom" && (
           <div className="flex-1 flex flex-col min-h-0">
-            <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} />
-            <motion.div className="w-full px-4 pb-5 pt-3 flex justify-center"
-              initial={{ opacity:0,y:40 }} animate={{ opacity:1,y:0,transition:{duration:0.45,ease:[0.22,1,0.36,1]} }}
-            >
-              <div className="w-full" style={{ maxWidth: 720 }}>
-                <AnimatePresence>
-                  {pendingConfirmProduct && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(8px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 16,
-                        padding: "12px 16px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
-                          <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
-                          <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
-                          </h4>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={() => { setPendingConfirmProduct(null); setPendingConfirmVariants(undefined); }}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const defaultDelivery = {
-                              fullName: "Alex Johnson",
-                              phone: "+94 77 123 4567",
-                              email: "alex@example.com",
-                              address: "123 Galle Road, Colombo 03, Sri Lanka"
-                            };
-                            const seller = getDefaultSeller(pendingConfirmProduct.brand);
-                            setMessages(prev => [
-                              ...prev,
-                              {
-                                role: "ai",
-                                text: "Here is your Order Summary. You can edit the delivery details directly if needed, then click 'Place Order' to finish.",
-                                orderSummary: {
-                                  product: pendingConfirmProduct,
-                                  variants: pendingConfirmVariants,
-                                  deliveryInfo: defaultDelivery,
-                                  sellerInfo: seller,
-                                  status: "pending"
-                                }
-                              }
-                            ]);
-                            setPendingConfirmProduct(null);
-                            setPendingConfirmVariants(undefined);
+            <div className="flex-1 min-h-0 flex items-stretch gap-0 px-0 pb-0">
+              <AnimatePresence mode="popLayout">
+                {selectedDetailProductId && (
+                  <ProductDetailPanel
+                    productId={selectedDetailProductId}
+                    onClose={() => setSelectedDetailProductId(null)}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                    onWishlist={handleWishlist}
+                  />
+                )}
+              </AnimatePresence>
+              <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                  <MessageArea messages={messages} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} onWishlist={handleWishlist} onPlaceInlineOrder={handlePlaceInlineOrder} isTyping={isTyping} onViewDetails={setSelectedDetailProductId} />
+                </div>
+
+                <motion.div
+                  className="w-full pt-3 flex justify-center flex-none"
+                  initial={{ opacity:0,y:40 }} animate={{ opacity:1,y:0,transition:{duration:0.45,ease:[0.22,1,0.36,1]} }}
+                >
+                  <div className="w-full" style={{ maxWidth: 720 }}>
+                    <AnimatePresence>
+                      {pendingConfirmProduct && !pendingAddressChoice && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.95)",
+                            backdropFilter: "blur(8px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 16,
+                            padding: "12px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            overflow: "hidden",
                           }}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
                         >
-                          Confirm
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                  onKeyDown={handleKeyDown} canSend={canSend}
-                  textareaRef={textareaRef} fileInputRef={fileInputRef} />
-                <p className="text-center mt-2 select-none" style={{ color:"#b8aed0",fontSize:11.5 }}>
-                  Enter to send · Shift + Enter for new line
-                </p>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
+                              <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
+                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
+                              </h4>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => { setPendingConfirmProduct(null); setPendingConfirmVariants(undefined); setPendingAddressChoice(false); setWaitingForAddressInput(false); }}
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingAddressChoice(true);
+                              }}
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
+                            >
+                              Confirm
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {pendingConfirmProduct && pendingAddressChoice && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.95)",
+                            backdropFilter: "blur(8px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 16,
+                            padding: "12px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <MapPin size={20} color="#fff" />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Address</p>
+                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                Choose shipping location for your order
+                              </h4>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingAddressChoice(false);
+                                setWaitingForAddressInput(true);
+                                setMessages(prev => [
+                                  ...prev,
+                                  {
+                                    role: "ai",
+                                    text: "Please enter your delivery address in this format so I can check availability:\n\n**[Street Line 1], [Street Line 2], [City]**\n\ne.g., *No 15, Temple Road, Jaffna*"
+                                  }
+                                ]);
+                              }}
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Another Address
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const savedStreet1 = localStorage.getItem("delivery_street1") || "";
+                                const savedStreet2 = localStorage.getItem("delivery_street2") || "";
+                                const savedCity = localStorage.getItem("delivery_city") || "Colombo 03";
+                                const savedAddress = [savedStreet1, savedStreet2, savedCity].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka";
+                                
+                                const defaultDelivery = {
+                                  fullName: "Alex Johnson",
+                                  phone: "+94 77 123 4567",
+                                  email: "alex@example.com",
+                                  address: savedAddress
+                                };
+                                const seller = getDefaultSeller(pendingConfirmProduct.brand);
+                                setMessages(prev => [
+                                  ...prev,
+                                  {
+                                    role: "ai",
+                                    text: "Here is your Order Summary. You can edit the delivery details directly if needed, then click 'Place Order' to finish.",
+                                    orderSummary: {
+                                      product: pendingConfirmProduct,
+                                      variants: pendingConfirmVariants,
+                                      deliveryInfo: defaultDelivery,
+                                      sellerInfo: seller,
+                                      status: "pending"
+                                    }
+                                  }
+                                ]);
+                                setPendingConfirmProduct(null);
+                                setPendingConfirmVariants(undefined);
+                                setPendingAddressChoice(false);
+                              }}
+                              style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
+                            >
+                              Use Default
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                      onKeyDown={handleKeyDown} canSend={canSend}
+                      textareaRef={textareaRef} fileInputRef={fileInputRef} />
+                    <p className="text-center mt-2 select-none" style={{ color:"#b8aed0",fontSize:11.5 }}>
+                      Enter to send · Shift + Enter for new line
+                    </p>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
+            </div>
           </div>
         )}
       </div>
@@ -569,6 +737,21 @@ function PanelSettings() {
   const [privacy, setPrivacy]     = useState(false);
   const [currency, setCurrency]   = useState("USD");
 
+  const [addressName, setAddressName] = useState(() => localStorage.getItem("delivery_address_name") || "Home");
+  const [street1, setStreet1] = useState(() => localStorage.getItem("delivery_street1") || "");
+  const [street2, setStreet2] = useState(() => localStorage.getItem("delivery_street2") || "");
+  const [city, setCity] = useState(() => localStorage.getItem("delivery_city") || "Colombo 03");
+  const [addressSaved, setAddressSaved] = useState(false);
+
+  const saveAddress = () => {
+    localStorage.setItem("delivery_address_name", addressName);
+    localStorage.setItem("delivery_street1", street1);
+    localStorage.setItem("delivery_street2", street2);
+    localStorage.setItem("delivery_city", city);
+    setAddressSaved(true);
+    setTimeout(() => setAddressSaved(false), 2000);
+  };
+
   const rows = [
     { icon:<Moon size={18} strokeWidth={2} />,  label:"Dark Mode",       sub:"Switch to dark theme",           value:darkMode, set:setDarkMode },
     { icon:<Bell size={18} strokeWidth={2} />,  label:"Notifications",   sub:"Get updates and alerts",         value:notifs,   set:setNotifs },
@@ -639,6 +822,122 @@ function PanelSettings() {
               </button>
             );
           })}
+        </div>
+      </motion.div>
+
+      <p style={{ color:"#9e8dc0",fontSize:11,fontWeight:700,letterSpacing:"0.08em",fontFamily:"'Nunito',sans-serif",textTransform:"uppercase",marginTop:8 }}>Delivery Address</p>
+      <motion.div initial={{ opacity:0,y:8 }} animate={{ opacity:1,y:0 }} transition={{ delay:0.22 }}
+        style={{ padding:"14px 16px",borderRadius:14,background:"rgba(64,41,112,0.04)",border:"1px solid rgba(64,41,112,0.08)" }}
+      >
+        <div className="flex items-center gap-3 mb-3">
+          <div style={{ width:36,height:36,borderRadius:10,background:"linear-gradient(135deg,#7c4dba,#402970)",display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <MapPin size={18} color="#fff" strokeWidth={2} />
+          </div>
+          <div>
+            <p style={{ color:"#1a1025",fontSize:13,fontWeight:600,fontFamily:"'Nunito',sans-serif" }}>Delivery Address</p>
+            <p style={{ color:"#9e8dc0",fontSize:11,fontFamily:"'Nunito',sans-serif",marginTop:1 }}>Configure your primary shipping address</p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <div>
+            <label style={{ color:"#7c6a9e",fontSize:11,fontWeight:700,fontFamily:"'Nunito',sans-serif",display:"block",marginBottom:4 }}>Address Label (e.g. Home, Office)</label>
+            <input
+              type="text"
+              value={addressName}
+              onChange={(e) => setAddressName(e.target.value)}
+              placeholder="e.g. Home, Office"
+              style={{ width:"100%",padding:"9px 12px",borderRadius:10,border:"1px solid rgba(64,41,112,0.15)",background:"#fff",color:"#1a1025",fontSize:12.5,fontFamily:"'Nunito',sans-serif",outline:"none",boxSizing:"border-box" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ color:"#7c6a9e",fontSize:11,fontWeight:700,fontFamily:"'Nunito',sans-serif",display:"block",marginBottom:4 }}>Street Line 1</label>
+            <input
+              type="text"
+              value={street1}
+              onChange={(e) => setStreet1(e.target.value)}
+              placeholder="Street Address, P.O. Box"
+              style={{ width:"100%",padding:"9px 12px",borderRadius:10,border:"1px solid rgba(64,41,112,0.15)",background:"#fff",color:"#1a1025",fontSize:12.5,fontFamily:"'Nunito',sans-serif",outline:"none",boxSizing:"border-box" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ color:"#7c6a9e",fontSize:11,fontWeight:700,fontFamily:"'Nunito',sans-serif",display:"block",marginBottom:4 }}>Street Line 2</label>
+            <input
+              type="text"
+              value={street2}
+              onChange={(e) => setStreet2(e.target.value)}
+              placeholder="Apartment, suite, unit, building, floor, etc."
+              style={{ width:"100%",padding:"9px 12px",borderRadius:10,border:"1px solid rgba(64,41,112,0.15)",background:"#fff",color:"#1a1025",fontSize:12.5,fontFamily:"'Nunito',sans-serif",outline:"none",boxSizing:"border-box" }}
+            />
+          </div>
+
+          <div>
+            <label style={{ color:"#7c6a9e",fontSize:11,fontWeight:700,fontFamily:"'Nunito',sans-serif",display:"block",marginBottom:4 }}>City</label>
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              style={{ width:"100%",padding:"9px 12px",borderRadius:10,border:"1px solid rgba(64,41,112,0.15)",background:"#fff",color:"#1a1025",fontSize:12.5,fontFamily:"'Nunito',sans-serif",outline:"none",cursor:"pointer",boxSizing:"border-box" }}
+            >
+              <option value="Colombo 03">Colombo 03</option>
+              <option value="Colombo 01">Colombo 01</option>
+              <option value="Colombo 02">Colombo 02</option>
+              <option value="Colombo 04">Colombo 04</option>
+              <option value="Colombo 05">Colombo 05</option>
+              <option value="Colombo 07">Colombo 07</option>
+              <option value="Jaffna">Jaffna</option>
+              <option value="Galle">Galle</option>
+              <option value="Kandy">Kandy</option>
+              <option value="Negombo">Negombo</option>
+              <option value="Anuradhapura">Anuradhapura</option>
+              <option value="Gampaha">Gampaha</option>
+              <option value="Kurunegala">Kurunegala</option>
+              <option value="Batticaloa">Batticaloa</option>
+              <option value="Trincomalee">Trincomalee</option>
+              <option value="Matara">Matara</option>
+              <option value="Ratnapura">Ratnapura</option>
+              <option value="Badulla">Badulla</option>
+              <option value="Kalutara">Kalutara</option>
+              <option value="Moratuwa">Moratuwa</option>
+              <option value="Dehiwala">Dehiwala</option>
+              <option value="Mount Lavinia">Mount Lavinia</option>
+            </select>
+          </div>
+
+          <button
+            type="button"
+            onClick={saveAddress}
+            style={{
+              marginTop: 6,
+              padding: "10px",
+              borderRadius: 10,
+              border: "none",
+              background: "linear-gradient(135deg,#7c4dba,#402970)",
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "'Nunito',sans-serif",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8
+            }}
+          >
+            Save Address
+          </button>
+
+          <AnimatePresence>
+            {addressSaved && (
+              <motion.div initial={{ opacity:0,y:4 }} animate={{ opacity:1,y:0 }} exit={{ opacity:0 }}
+                className="flex items-center gap-2 mt-1" style={{ padding:"8px 12px",borderRadius:10,background:"rgba(63,199,142,0.12)",border:"1px solid rgba(63,199,142,0.3)" }}
+              >
+                <CheckCircle size={14} color="#3fc78e" strokeWidth={2.5} />
+                <span style={{ color:"#2a9e6a",fontSize:11.5,fontWeight:600,fontFamily:"'Nunito',sans-serif" }}>Delivery address saved</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
 
@@ -1035,13 +1334,21 @@ function MessageArea({
   isTyping: boolean;
   onViewDetails: (id: string) => void;
 }) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior:"smooth" }); }, [messages, isTyping]);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-6" style={{ scrollbarWidth:"none" }}>
+    <div
+      ref={scrollRef}
+      className="w-full h-full overflow-y-auto px-4 py-6"
+      style={{ scrollbarWidth:"none", overscrollBehavior: "contain", paddingBottom: 128, minHeight: 0 }}
+    >
       <div className="flex flex-col gap-5 mx-auto" style={{ maxWidth: 760 }}>
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
@@ -1132,7 +1439,6 @@ function MessageArea({
             </motion.div>
           )}
         </AnimatePresence>
-        <div ref={bottomRef} />
       </div>
     </div>
   );

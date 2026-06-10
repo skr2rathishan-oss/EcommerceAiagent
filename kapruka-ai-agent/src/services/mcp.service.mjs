@@ -14,17 +14,34 @@ export const searchProducts = async (query) => {
     }
   });
 
-  const data = JSON.parse(result.structuredContent.result);
+  // Safely extract the raw string — prefer structuredContent, fall back to content text
+  const raw =
+    result?.structuredContent?.result ??
+    result?.content?.[0]?.text ??
+    "";
 
-    return data.results.map(product => ({
-        id: product.id,
-        name: product.name,
-        price: product.price.amount,
-        currency: product.price.currency,
-        image: product.image_url,
-        url: product.url,
-        inStock: product.in_stock
-    }));
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    // MCP returned a plain-text message like "No products found"
+    console.warn("[MCP] searchProducts: non-JSON response:", raw);
+    return [];
+  }
+
+  if (!data?.results || !Array.isArray(data.results)) {
+    return [];
+  }
+
+  return data.results.map(product => ({
+    id: product.id,
+    name: product.name,
+    price: product.price.amount,
+    currency: product.price.currency,
+    image: product.image_url,
+    url: product.url,
+    inStock: product.in_stock
+  }));
 };
 
 export const processMessage = async (message) => {
@@ -44,7 +61,18 @@ export const getProductDetails = async (productId) => {
     }
   });
 
-  const data = JSON.parse(result.structuredContent.result);
+  const raw =
+    result?.structuredContent?.result ??
+    result?.content?.[0]?.text ??
+    "";
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    console.warn("[MCP] getProductDetails: non-JSON response:", raw);
+    throw new Error("Product details not available");
+  }
 
   return {
     id: data.id,
@@ -57,4 +85,4 @@ export const getProductDetails = async (productId) => {
     shippingInfo: data.shipping ? `Ships from ${data.shipping.ships_from}` : "Standard shipping",
     url: data.url
   };
-};
+};

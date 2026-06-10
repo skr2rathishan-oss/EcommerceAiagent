@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, ShoppingCart, Zap, Heart, Truck, Package,
-  ChevronLeft, ChevronRight, Shield, CheckCircle, ExternalLink, AlertTriangle, Loader2
+  ChevronLeft, ChevronRight, Shield, CheckCircle, ExternalLink,
+  Loader2, AlertTriangle
 } from "lucide-react";
 import type { Product } from "./products";
 import { fetchProductDetails, type ProductDetail } from "../services/productServices";
+import { mapProductDetailToUI } from "../services/mapping";
 
 interface Props {
   productId: string;
@@ -14,26 +16,6 @@ interface Props {
   onBuyNow: (p: Product, variants?: Record<string, string>) => void;
   onWishlist: (p: Product) => void;
 }
-
-export const mapProductDetailToUI = (pd: ProductDetail): Product => {
-  const brandName = pd.name.split(" ")[0] || "Kapruka";
-  return {
-    id: pd.id,
-    name: pd.name,
-    brand: brandName,
-    price: pd.price,
-    rating: 4.6,
-    reviewCount: 124,
-    shortDesc: pd.description.substring(0, 100) + (pd.description.length > 100 ? "..." : ""),
-    description: pd.description,
-    images: pd.images.length > 0 ? pd.images : ["https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=800"],
-    specs: [{ label: "Origin", value: "Imported" }],
-    variants: [{ type: "Type", options: ["Standard"] }],
-    delivery: pd.shippingInfo,
-    stock: pd.stock ? 10 : 0,
-    category: "General"
-  };
-};
 
 const renderFormattedDescription = (text: string) => {
   if (!text) return null;
@@ -238,23 +220,36 @@ export function ProductDetailPanel({ productId, onClose, onAddToCart, onBuyNow, 
   return (
     <motion.div
       key={productId}
-      initial={{ x: -420, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: -420, opacity: 0 }}
-      transition={{ type: "spring", stiffness: 280, damping: 30 }}
+      initial={{ opacity: 0, x: -18 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: -18 }}
+      transition={{ duration: 0.22 }}
       style={{
-        width: 400,
-        minWidth: 400,
-        height: "100%",
-        background: "#fff",
-        borderRight: "1px solid rgba(64,41,112,0.1)",
         display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
+        width: 380,
+        maxWidth: "100%",
+        height: "100%",
         flexShrink: 0,
-        boxShadow: "4px 0 32px rgba(64,41,112,0.1)",
       }}
     >
+      <motion.div
+        initial={{ x: -18, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: -18, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 280, damping: 30 }}
+        style={{
+          position: "relative",
+          width: "100%",
+          height: "100%",
+          background: "#fff",
+          border: "1px solid rgba(64,41,112,0.1)",
+          borderRadius: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          boxShadow: "0 8px 30px rgba(64,41,112,0.12)",
+        }}
+      >
       {/* Header */}
       <div style={{ padding: "14px 16px", borderBottom: "1px solid rgba(64,41,112,0.08)", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, background: "linear-gradient(135deg,rgba(124,77,186,0.05),rgba(64,41,112,0.03))" }}>
         <div>
@@ -501,6 +496,7 @@ export function ProductDetailPanel({ productId, onClose, onAddToCart, onBuyNow, 
           </div>
         </div>
       )}
+      </motion.div>
     </motion.div>
   );
 }
