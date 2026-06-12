@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -8,19 +8,20 @@ import {
   X, Bell, Shield, Moon, MessageSquare, ChevronRight, MapPin,
   Mail, Phone, FileText, User, Camera, LogOut,
   CheckCircle, DollarSign, Euro, PoundSterling, IndianRupee, Coins,
-  Package,
+  Package, Eye, Scale, Truck,
 } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { InteractiveOrderSummary, type DeliveryInfo, type SellerInfo, getDefaultSeller } from "./components/InteractiveOrderSummary";
-import { sendMessage } from "./services/chatServices";
+import { sendMessage, selectProduct, fetchProductDetails } from "./services/chatServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
 import { checkDelivery } from "./services/productServices";
 import { OrderConfirmationCard, type OrderConfirmationDetails } from "./components/OrderConfirmationCard";
 import { OrderTrackingCard } from "./components/OrderTrackingCard";
 import type { OrderTrackingDetails } from "./types/orderTracking";
+import { ProductDetailsCard } from "./components/ProductDetailsCard";
 
 type Phase        = "centered" | "bottom";
 type PanelId      = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -29,7 +30,8 @@ interface AnchorPos { x: number; y: number }
 interface Message {
   role: "user" | "ai";
   text: string;
-  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error";
+  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error"
+       | "product_details";
   products?: Product[];
   orderSummary?: {
     product: Product;
@@ -41,6 +43,8 @@ interface Message {
   order?: OrderConfirmationDetails;
   tracking?: OrderTrackingDetails;
   orderNumber?: string;
+  // product_details payload
+  productDetails?: { content: string; product: Product };
 }
 interface CartItem { product: Product; qty: number }
 
@@ -77,6 +81,116 @@ export default function App() {
       return [];
     }
   });
+
+  // ── Shopping Context ────────────────────────────────────────────────────────
+  // Mirrors the backend session memory for in-memory filtering support.
+  const [shoppingContext, setShoppingContext] = useState<{
+    lastSearchResults: Product[];
+    selectedProduct: Product | null;
+  }>({ lastSearchResults: [], selectedProduct: null });
+
+  // Track selected product IDs per message index to control showcase selection status
+  const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
+
+  // ── Product Action Popup State ──────────────────────────────────────────────
+  // Controls the follow-up action popup that appears above the input box
+  // after a user clicks on a product card.
+  const [pendingProductActions, setPendingProductActions] = useState<{
+    product: Product;
+    actions: { id: string; label: string; emoji: string }[];
+  } | null>(null);
+
+  // ── Handle Product Card Selection ───────────────────────────────────────────
+  // Fired when user clicks a product card in ProductShowcase.
+  // Saves to context and calls backend to get follow-up response.
+  const handleProductSelect = async (product: Product) => {
+    // Save to local shopping context
+    setShoppingContext(prev => ({ ...prev, selectedProduct: product }));
+
+    // Show action popup above input box immediately (optimistic)
+    setPendingProductActions({
+      product,
+      actions: [
+        { id: "view_details",   label: "Details",   emoji: "👀" },
+        { id: "check_delivery", label: "Delivery",  emoji: "🚚" },
+        { id: "add_to_cart",    label: "Add Cart",  emoji: "🛒" },
+        { id: "save_for_later", label: "Wishlist",  emoji: "❤️" },
+        { id: "compare",        label: "Compare",   emoji: "⚖️" },
+      ],
+    });
+
+    // Also notify backend so it saves to session memory
+    try {
+      await selectProduct({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        currency: product.currency,
+        images: product.images,
+        inStock: product.stock > 0,
+      });
+    } catch {
+      // Non-critical: session context save failed, popup still shows
+      console.warn("[ProductSelect] Backend session save failed (non-critical)");
+    }
+  };
+
+  // ── Handle Product Action Button Click ──────────────────────────────────────
+  // Handles the 5 action buttons in the popup above the input box.
+  const handleProductAction = async (actionId: string, product: Product) => {
+    setPendingProductActions(null); // close popup
+    setSelectedIds({});
+    setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
+
+    if (actionId === "view_details") {
+      if (phase === "centered") setPhase("bottom");
+      setIsTyping(true);
+      try {
+        const data = await fetchProductDetails(product.id) as {
+          type: string; content: string; product: Product;
+        };
+        if (data?.type === "product_details" && data.content) {
+          setMessages(prev => [...prev, {
+            role: "ai",
+            text: `Here are the full details for **${product.name}**:`,
+            type: "product_details",
+            productDetails: { content: data.content, product },
+          }]);
+        } else {
+          // Fallback: format locally if backend returned something unexpected
+          setMessages(prev => [...prev, {
+            role: "ai",
+            text: `**${product.name}**\n\nPrice: ${formatUIPrice(product.price, product.currency)}\n\n${product.description || product.shortDesc || ""}`,
+          }]);
+        }
+      } catch {
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: "⚠️ I couldn't load the full product details right now. Please try again.",
+        }]);
+      } finally {
+        setIsTyping(false);
+      }
+
+    } else if (actionId === "add_to_cart") {
+      handleAddToCart(product);
+
+    } else if (actionId === "save_for_later") {
+      handleWishlist(product);
+
+    } else if (actionId === "check_delivery") {
+      setPendingConfirmProduct(product);
+      setPendingAddressChoice(true);
+      if (phase === "centered") setPhase("bottom");
+
+    } else if (actionId === "compare") {
+      if (phase === "centered") setPhase("bottom");
+      setMessages(prev => [...prev, {
+        role: "ai",
+        text: `🔜 **Compare feature coming soon!**\n\nI'll be able to compare **${product.name}** with similar products side-by-side. For now, you can browse the other products in the search results above.`,
+      }]);
+    }
+  };
 
   const saveOrderToHistory = (order: OrderConfirmationDetails) => {
     setOrderedItems(prev => {
@@ -407,6 +521,11 @@ export default function App() {
 
         const mappedProducts = (Array.isArray(data) ? data : []).map(mapBackendProductToUI);
 
+        // Save to shopping context for future in-memory filtering
+        if (mappedProducts.length > 0) {
+          setShoppingContext(prev => ({ ...prev, lastSearchResults: mappedProducts }));
+        }
+
         setMessages(prev => [...prev, {
           role: "ai",
           text: mappedProducts.length > 0
@@ -523,6 +642,8 @@ export default function App() {
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                   <MessageArea
                     messages={messages}
+                    selectedIds={selectedIds}
+                    setSelectedIds={setSelectedIds}
                     onAddToCart={handleAddToCart}
                     onBuyNow={handleBuyNow}
                     onWishlist={handleWishlist}
@@ -531,6 +652,10 @@ export default function App() {
                     onViewDetails={setSelectedDetailProductId}
                     onContinueShopping={() => textareaRef.current?.focus()}
                     onTrackOrder={handleTriggerTracking}
+                    onSelectProduct={handleProductSelect}
+                    onAddToCartFromDetails={handleAddToCart}
+                    onBuyNowFromDetails={handleBuyNow}
+                    onWishlistFromDetails={handleWishlist}
                   />
                 </div>
 
@@ -540,6 +665,101 @@ export default function App() {
                 >
                   <div className="w-full" style={{ maxWidth: 720 }}>
                     <AnimatePresence>
+                      {/* ── Product Actions Popup ─────────────────────────────────────────── */}
+                      {/* Appears above the input box when user selects a product card.        */}
+                      {/* 5 action buttons arranged in a 2-column grid (max 2 rows).          */}
+                      {pendingProductActions && !pendingConfirmProduct && (
+                        <motion.div
+                          key="product-actions-popup"
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.97)",
+                            backdropFilter: "blur(14px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 18,
+                            padding: "13px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 28px rgba(64, 41, 112, 0.15)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {/* Header row: product thumbnail + name + dismiss */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11 }}>
+                            <div style={{ width: 38, height: 38, borderRadius: 9, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
+                              <img
+                                src={pendingProductActions.product.images?.[0] || ""}
+                                alt={pendingProductActions.product.name}
+                                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                              />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                Great choice! 😊 What would you like to do?
+                              </p>
+                              <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 700, margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {pendingProductActions.product.name}
+                              </p>
+                            </div>
+                             <button
+                              type="button"
+                              onClick={() => {
+                                setPendingProductActions(null);
+                                setSelectedIds({});
+                                setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
+                              }}
+                              style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                            >
+                              <X size={11} strokeWidth={2.5} />
+                            </button>
+                          </div>
+
+                          {/* Action buttons — single flex row, all 5 fit in one line */}
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {pendingProductActions.actions.map((action) => (
+                              <motion.button
+                                key={action.id}
+                                type="button"
+                                whileTap={{ scale: 0.94 }}
+                                onClick={() => handleProductAction(action.id, pendingProductActions.product)}
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 6px",
+                                  borderRadius: 9,
+                                  border: "1.5px solid rgba(64,41,112,0.13)",
+                                  background: "rgba(64,41,112,0.03)",
+                                  color: "#402970",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  fontFamily: "'Nunito', sans-serif",
+                                  transition: "background 0.15s, border-color 0.15s",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background = "rgba(124,77,186,0.10)";
+                                  e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background = "rgba(64,41,112,0.03)";
+                                  e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
+                                }}
+                              >
+                                <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+
                       {pendingConfirmProduct && !pendingAddressChoice && (
                         <motion.div
                           initial={{ opacity: 0, height: 0, y: 10 }}
@@ -2098,6 +2318,12 @@ function MessageArea({
   onViewDetails,
   onContinueShopping,
   onTrackOrder,
+  onSelectProduct,
+  onAddToCartFromDetails,
+  onBuyNowFromDetails,
+  onWishlistFromDetails,
+  selectedIds,
+  setSelectedIds,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -2108,9 +2334,14 @@ function MessageArea({
   onViewDetails: (id: string) => void;
   onContinueShopping: () => void;
   onTrackOrder?: (orderNumber: string) => void;
+  onSelectProduct?: (p: Product) => void;
+  onAddToCartFromDetails?: (p: Product) => void;
+  onBuyNowFromDetails?: (p: Product, variants?: Record<string, string>) => void;
+  onWishlistFromDetails?: (p: Product) => void;
+  selectedIds: Record<number, string | null>;
+  setSelectedIds: Dispatch<SetStateAction<Record<number, string | null>>>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -2153,6 +2384,25 @@ function MessageArea({
                     onBuyNow={onBuyNow}
                     onWishlist={onWishlist}
                     onViewDetails={onViewDetails}
+                    onSelectProduct={onSelectProduct}
+                  />
+                </motion.div>
+              )}
+
+              {/* Product Details Card — rendered when AI returns formatted product details */}
+              {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <ProductDetailsCard
+                    content={msg.productDetails.content}
+                    product={msg.productDetails.product}
+                    onAddToCart={onAddToCartFromDetails ?? onAddToCart}
+                    onBuyNow={onBuyNowFromDetails ?? onBuyNow}
+                    onWishlist={onWishlistFromDetails ?? onWishlist}
                   />
                 </motion.div>
               )}

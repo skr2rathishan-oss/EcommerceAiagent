@@ -3,6 +3,12 @@ import { getMcpClient } from "./mcp.client.mjs";
 export const trackOrder = async (orderNumber) => {
   const client = await getMcpClient();
 
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("\n[ORDER TRACKING] Tracking order number:", orderNumber);
+  console.log("[MCP REQUEST] Tool: kapruka_track_order");
+  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ order_number: orderNumber }, null, 2));
+  const mcpStart = Date.now();
+
   const result = await client.callTool({
     name: "kapruka_track_order",
     arguments: {
@@ -12,6 +18,11 @@ export const trackOrder = async (orderNumber) => {
       }
     }
   });
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[MCP RESPONSE] Tool: kapruka_track_order");
+  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
+  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
 
   const raw =
     result?.structuredContent?.result ??
@@ -73,7 +84,7 @@ export const trackOrder = async (orderNumber) => {
   // Ensure progress from MCP is forwarded directly if it matches the format
   const progressList = normalizedProgress;
 
-  return {
+  const trackingData = {
     orderNumber: data.order_number || data.orderNumber || orderNumber,
     status: data.status || "Order Received",
     recipient: {
@@ -83,4 +94,9 @@ export const trackOrder = async (orderNumber) => {
     deliveryDate: data.delivery_date || data.deliveryDate || new Date().toISOString().split("T")[0],
     progress: progressList
   };
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[ORDER TRACKING] Final normalized tracking data:", JSON.stringify(trackingData, null, 2));
+
+  return trackingData;
 };

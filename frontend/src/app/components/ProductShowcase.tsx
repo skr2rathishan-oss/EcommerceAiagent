@@ -15,6 +15,8 @@ interface Props {
   onBuyNow: (p: Product, variants?: Record<string, string>) => void;
   onWishlist: (p: Product) => void;
   onViewDetails: (productId: string) => void;
+  // Called additionally when a product card is selected — triggers the AI follow-up popup
+  onSelectProduct?: (p: Product) => void;
 }
 
 const IMG_H = 190; // fixed image height in the banner
@@ -423,61 +425,108 @@ function SelectedBanner({
 }
 
 /* ── Main export ── */
-export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails }: Props) {
-  const selected = products.find(p => p.id === selectedId) ?? null;
-  const others   = products.filter(p => p.id !== selectedId);
-
+export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails, onSelectProduct }: Props) {
   const handleSelect = (p: Product) => {
-    onSelect(p);
+    // Toggle: clicking the already-selected product deselects it
+    onSelect(selectedId === p.id ? null : p);
+    // Fire the AI follow-up popup (if wired by App.tsx)
+    if (selectedId !== p.id) onSelectProduct?.(p);
   };
+
+  // 1. Find the selected product index
+  const selectedIndex = products.findIndex(p => p.id === selectedId);
+
+  interface LayoutItem {
+    type: "card" | "banner";
+    product: Product;
+  }
+
+  let layoutItems: LayoutItem[] = [];
+
+  if (selectedIndex === -1) {
+    // No selection: render all as cards
+    layoutItems = products.map(p => ({ type: "card", product: p }));
+  } else {
+    const selectedProduct = products[selectedIndex];
+    const beforeProducts = products.slice(0, selectedIndex);
+    const afterProducts = products.slice(selectedIndex + 1);
+
+    const M = beforeProducts.length;
+    const rem = M % 4;
+
+    let pulledProducts: Product[] = [];
+    let remainingAfterProducts: Product[] = [];
+
+    if (rem > 0) {
+      const fillCount = 4 - rem;
+      pulledProducts = afterProducts.slice(0, fillCount);
+      remainingAfterProducts = afterProducts.slice(fillCount);
+    } else {
+      remainingAfterProducts = afterProducts;
+    }
+
+    // Combine in correct order to achieve the specified reflow:
+    // Left-side products of the row move above the banner, and right-side products fill the rest of the row.
+    beforeProducts.forEach(p => layoutItems.push({ type: "card", product: p }));
+    pulledProducts.forEach(p => layoutItems.push({ type: "card", product: p }));
+    layoutItems.push({ type: "banner", product: selectedProduct });
+    remainingAfterProducts.forEach(p => layoutItems.push({ type: "card", product: p }));
+  }
 
   return (
     <LayoutGroup>
-      <AnimatePresence mode="popLayout">
-        {!selected ? (
-          /* ── No selection: plain grid ── */
-          <motion.div
-            key="grid"
-            layout
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10 }}
-          >
-            {products.map(p => (
-              <MiniCard key={p.id} product={p} onClick={() => handleSelect(p)} />
-            ))}
-          </motion.div>
-        ) : (
-          /* ── Product selected: banner above, others grid below ── */
-          <motion.div
-            key="selected"
-            layout
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            style={{ display: "flex", flexDirection: "column", gap: 12 }}
-          >
-            <SelectedBanner product={selected} onAddToCart={onAddToCart} onBuyNow={onBuyNow} onWishlist={onWishlist} onViewDetails={onViewDetails} />
+      <motion.div
+        layout
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 148px)",
+          gap: 10,
+          width: "100%",
+          maxWidth: 622,
+          margin: "0 auto",
+          justifyContent: "center",
+        }}
+      >
+        {layoutItems.map(item => {
+          const isSelected = item.type === "banner";
+          const p = item.product;
 
-            {others.length > 0 && (
-              <motion.div
-                layout
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: 0.18, ease: "easeOut" }}
-                style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(148px, 1fr))", gap: 10 }}
-              >
-                {others.map(p => (
-                  <MiniCard key={p.id} product={p} onClick={() => handleSelect(p)} />
-                ))}
-              </motion.div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          return isSelected ? (
+            /* ── Selected: banner spans all 4 columns ── */
+            <motion.div
+              key={p.id}
+              layout
+              layoutId={`product-slot-${p.id}`}
+              style={{ gridColumn: "1 / -1", minWidth: 0 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+            >
+              <SelectedBanner
+                product={p}
+                onAddToCart={onAddToCart}
+                onBuyNow={onBuyNow}
+                onWishlist={onWishlist}
+                onViewDetails={onViewDetails}
+              />
+            </motion.div>
+          ) : (
+            /* ── Unselected card ── */
+            <motion.div
+              key={p.id}
+              layout
+              layoutId={`product-slot-${p.id}`}
+              style={{ width: 148 }}
+              initial={false}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 340, damping: 34 }}
+            >
+              <MiniCard product={p} onClick={() => handleSelect(p)} />
+            </motion.div>
+          );
+        })}
+      </motion.div>
     </LayoutGroup>
   );
 }

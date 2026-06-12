@@ -1,6 +1,7 @@
 export const INTENTS = {
     SEARCH_PRODUCTS: "search_products",
     GET_PRODUCT_DETAILS: "get_product_details",
+    SELECT_PRODUCT: "select_product",
     CHECK_DELIVERY: "check_delivery",
     CREATE_ORDER: "create_order",
     TRACK_ORDER: "track_order",

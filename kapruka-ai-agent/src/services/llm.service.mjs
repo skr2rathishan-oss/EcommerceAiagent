@@ -16,39 +16,67 @@ const client = new OpenAI({
     apiKey: process.env.NVIDIA_API_KEY,
 });
 
-export const chatWithLLM = async (message) => {
-    try {
-        const completion = await client.chat.completions.create({
-            model: process.env.NVIDIA_MODEL,
-            temperature: 0.2,
-            max_tokens: 300,
-            messages: [
-                {
-                    role: "system",
-                    content: SYSTEM_PROMPT,
-                },
-                {
-                    role: "user",
-                    content: message,
-                },
-            ],
-        });
+export const chatWithLLM = async ({
+  message,
+  history = [],
+  memory = {},
+}) => {
+  try {
+    const messagesArray = [
+      {
+        role: "system",
+        content: `
+${SYSTEM_PROMPT}
 
-        return completion.choices[0].message.content;
+Customer Context:
+${JSON.stringify(memory, null, 2)}
+        `,
+      },
 
-    } catch (error) {
-        console.error("LLM Error:", error);
+      ...history,
 
-        return {
-            error: true,
-            message: "Failed to process AI request",
-        };
+      {
+        role: "user",
+        content: message,
+      },
+    ];
 
-    }
+    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+    console.log("[LLM REQUEST] Model:", process.env.NVIDIA_MODEL);
+    console.log("[LLM REQUEST] Total messages in context:", messagesArray.length);
+    console.log("[LLM REQUEST] Full messages array:", JSON.stringify(messagesArray, null, 2));
+    const llmCallStart = Date.now();
+
+    const completion = await client.chat.completions.create({
+      model: process.env.NVIDIA_MODEL,
+      temperature: 0.6,
+      max_tokens: 800,
+      messages: messagesArray,
+    });
+
+    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+    console.log("[LLM RESPONSE] API call duration:", Date.now() - llmCallStart, "ms");
+    console.log("[LLM RESPONSE] Raw completion:", JSON.stringify(completion.choices[0], null, 2));
+
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error("LLM Error:", error);
+    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+    console.error("[ERROR] chatWithLLM failed:", error.message);
+
+    return {
+      error: true,
+      message: "Failed to process AI request",
+    };
+  }
 };
 
 
 export const detectIntent = async (message) => {
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[INTENT] detectIntent called with:", message);
+  const start = Date.now();
+
   const completion = await client.chat.completions.create({
     model: process.env.NVIDIA_MODEL,
     temperature: 0,
@@ -64,6 +92,10 @@ export const detectIntent = async (message) => {
       },
     ],
   });
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[INTENT] detectIntent response time:", Date.now() - start, "ms");
+  console.log("[INTENT] Raw LLM intent response:", completion.choices[0].message.content);
 
   return completion.choices[0].message.content;
 };
