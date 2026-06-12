@@ -16,7 +16,8 @@ export const searchProducts = async (query) => {
       params: {
         q: query,
         response_format: "json",
-        in_stock_only: true
+        in_stock_only: true,
+        limit: 30          // default is 10; max is 50
       }
     }
   });
@@ -131,4 +132,4 @@ export const getProductDetails = async (productId) => {
     shippingInfo: data.shipping ? `Ships from ${data.shipping.ships_from}` : "Standard shipping",
     url: data.url
   };
-};
+};
