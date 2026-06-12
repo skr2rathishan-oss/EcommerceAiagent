@@ -1,6 +1,10 @@
 import { detectIntent, chatWithLLM } from "../services/llm.service.mjs";
 import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs";
+import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
+import { getShoppingContext } from "../agent/memoryManager.mjs";
+
+
 
 export const chat = async (req, res) => {
   try {
@@ -17,7 +21,7 @@ export const chat = async (req, res) => {
       console.log("[CONTROLLER] Direct intent from frontend:", req.body.intent);
       const directParameters = {
         ...(req.body.parameters || {}),
-        ...(req.body.product   ? { product:   req.body.product   } : {}),
+        ...(req.body.product ? { product: req.body.product } : {}),
         ...(req.body.productId ? { productId: req.body.productId } : {}),
       };
       const directResult = await routeIntent(req.body.intent, directParameters, sessionId);
@@ -88,8 +92,11 @@ export const chat = async (req, res) => {
       console.log("[LLM REQUEST] History being sent:", JSON.stringify(history, null, 2));
       const llmStart = Date.now();
 
-      // Call LLM with full conversation history
-      result = await chatWithLLM({ message, history });
+      // Load session context memory
+      const memory = getShoppingContext(sessionId);
+
+      // Call LLM with full conversation history and memory context
+      result = await chatWithLLM({ message, history, memory });
 
       // TEMP DEBUG LOG - SAFE TO REMOVE LATER
       console.log("[LLM RESPONSE] Time taken:", Date.now() - llmStart, "ms");
@@ -128,9 +135,22 @@ export const chat = async (req, res) => {
     // Format the response correctly for the frontend:
     // 1. If result is an array (e.g. products list from search_products), return it directly
     if (Array.isArray(result)) {
+      // Persist the user's search query to the history so follow-up context works
+      addMessage(sessionId, "user", message);
+
+      const history = getRecentHistory(sessionId);
+      const text = await formatRecommendations(message, result, history);
+
+      // Save assistant's recommendation intro to chat history
+      addMessage(sessionId, "assistant", text);
+
       // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-      console.log("[FINAL RESPONSE] Sending product array, count:", result.length);
-      return res.json(result);
+      console.log("[FINAL RESPONSE] Sending structured product_grid, count:", result.length);
+      return res.json({
+        type: "product_grid",
+        text,
+        products: result
+      });
     }
 
     // 2. If result is a structured object with a type (e.g. order_tracking), return it directly
