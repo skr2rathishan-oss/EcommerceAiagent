@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Dispatch, SetStateAction } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import {
@@ -89,6 +89,9 @@ export default function App() {
     selectedProduct: Product | null;
   }>({ lastSearchResults: [], selectedProduct: null });
 
+  // Track selected product IDs per message index to control showcase selection status
+  const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
+
   // ── Product Action Popup State ──────────────────────────────────────────────
   // Controls the follow-up action popup that appears above the input box
   // after a user clicks on a product card.
@@ -108,11 +111,11 @@ export default function App() {
     setPendingProductActions({
       product,
       actions: [
-        { id: "view_details",   label: "View Full Details",   emoji: "👀" },
-        { id: "check_delivery", label: "Check Delivery",      emoji: "🚚" },
-        { id: "add_to_cart",    label: "Add To Cart",         emoji: "🛒" },
-        { id: "save_for_later", label: "Save For Later",      emoji: "❤️" },
-        { id: "compare",        label: "Compare Similar",     emoji: "⚖️" },
+        { id: "view_details",   label: "Details",   emoji: "👀" },
+        { id: "check_delivery", label: "Delivery",  emoji: "🚚" },
+        { id: "add_to_cart",    label: "Add Cart",  emoji: "🛒" },
+        { id: "save_for_later", label: "Wishlist",  emoji: "❤️" },
+        { id: "compare",        label: "Compare",   emoji: "⚖️" },
       ],
     });
 
@@ -136,6 +139,8 @@ export default function App() {
   // Handles the 5 action buttons in the popup above the input box.
   const handleProductAction = async (actionId: string, product: Product) => {
     setPendingProductActions(null); // close popup
+    setSelectedIds({});
+    setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
 
     if (actionId === "view_details") {
       if (phase === "centered") setPhase("bottom");
@@ -637,6 +642,8 @@ export default function App() {
                 <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                   <MessageArea
                     messages={messages}
+                    selectedIds={selectedIds}
+                    setSelectedIds={setSelectedIds}
                     onAddToCart={handleAddToCart}
                     onBuyNow={handleBuyNow}
                     onWishlist={handleWishlist}
@@ -696,50 +703,57 @@ export default function App() {
                                 {pendingProductActions.product.name}
                               </p>
                             </div>
-                            <button
+                             <button
                               type="button"
-                              onClick={() => setPendingProductActions(null)}
+                              onClick={() => {
+                                setPendingProductActions(null);
+                                setSelectedIds({});
+                                setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
+                              }}
                               style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
                             >
                               <X size={11} strokeWidth={2.5} />
                             </button>
                           </div>
 
-                          {/* Action buttons — 2-column grid, max 3 rows */}
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+                          {/* Action buttons — single flex row, all 5 fit in one line */}
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                             {pendingProductActions.actions.map((action) => (
                               <motion.button
                                 key={action.id}
                                 type="button"
-                                whileTap={{ scale: 0.96 }}
+                                whileTap={{ scale: 0.94 }}
                                 onClick={() => handleProductAction(action.id, pendingProductActions.product)}
                                 style={{
+                                  flex: 1,
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: 6,
-                                  padding: "8px 12px",
-                                  borderRadius: 10,
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 6px",
+                                  borderRadius: 9,
                                   border: "1.5px solid rgba(64,41,112,0.13)",
                                   background: "rgba(64,41,112,0.03)",
                                   color: "#402970",
-                                  fontSize: 11,
+                                  fontSize: 10,
                                   fontWeight: 700,
                                   cursor: "pointer",
                                   fontFamily: "'Nunito', sans-serif",
                                   transition: "background 0.15s, border-color 0.15s",
-                                  textAlign: "left",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
                                 }}
                                 onMouseEnter={e => {
-                                  e.currentTarget.style.background = "rgba(124,77,186,0.09)";
-                                  e.currentTarget.style.borderColor = "rgba(124,77,186,0.3)";
+                                  e.currentTarget.style.background = "rgba(124,77,186,0.10)";
+                                  e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
                                 }}
                                 onMouseLeave={e => {
                                   e.currentTarget.style.background = "rgba(64,41,112,0.03)";
                                   e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
                                 }}
                               >
-                                <span style={{ fontSize: 14 }}>{action.emoji}</span>
-                                {action.label}
+                                <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
                               </motion.button>
                             ))}
                           </div>
@@ -2308,6 +2322,8 @@ function MessageArea({
   onAddToCartFromDetails,
   onBuyNowFromDetails,
   onWishlistFromDetails,
+  selectedIds,
+  setSelectedIds,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -2322,9 +2338,10 @@ function MessageArea({
   onAddToCartFromDetails?: (p: Product) => void;
   onBuyNowFromDetails?: (p: Product, variants?: Record<string, string>) => void;
   onWishlistFromDetails?: (p: Product) => void;
+  selectedIds: Record<number, string | null>;
+  setSelectedIds: Dispatch<SetStateAction<Record<number, string | null>>>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
 
   useEffect(() => {
     const el = scrollRef.current;
