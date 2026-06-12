@@ -9,6 +9,23 @@ export const chat = async (req, res) => {
     // Resolve session ID from header, body, or fall back to a default key
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
 
+    // ── Direct-intent fast path ───────────────────────────────────────────
+    // When the frontend sends an explicit `intent` field (e.g. for product
+    // selection or detail fetch), skip LLM detection and route directly.
+    // This avoids wasting tokens and keeps product interactions snappy.
+    if (req.body.intent) {
+      console.log("[CONTROLLER] Direct intent from frontend:", req.body.intent);
+      const directParameters = {
+        ...(req.body.parameters || {}),
+        ...(req.body.product   ? { product:   req.body.product   } : {}),
+        ...(req.body.productId ? { productId: req.body.productId } : {}),
+      };
+      const directResult = await routeIntent(req.body.intent, directParameters, sessionId);
+      console.log("[CONTROLLER] Direct intent result type:", directResult?.type);
+      return res.json(directResult);
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     // TEMP DEBUG LOG - SAFE TO REMOVE LATER
     console.log("\n==================================================");
     console.log("[REQUEST] Incoming chat request");
@@ -92,7 +109,8 @@ export const chat = async (req, res) => {
 
       result = await routeIntent(
         parsedIntent.intent,
-        parsedIntent.parameters
+        parsedIntent.parameters,
+        sessionId
       );
 
       // TEMP DEBUG LOG - SAFE TO REMOVE LATER

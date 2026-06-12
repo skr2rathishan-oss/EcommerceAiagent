@@ -15,6 +15,8 @@ interface Props {
   onBuyNow: (p: Product, variants?: Record<string, string>) => void;
   onWishlist: (p: Product) => void;
   onViewDetails: (productId: string) => void;
+  // Called additionally when a product card is selected — triggers the AI follow-up popup
+  onSelectProduct?: (p: Product) => void;
 }
 
 const IMG_H = 190; // fixed image height in the banner
@@ -423,12 +425,14 @@ function SelectedBanner({
 }
 
 /* ── Main export ── */
-export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails }: Props) {
+export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails, onSelectProduct }: Props) {
   const selected = products.find(p => p.id === selectedId) ?? null;
   const others   = products.filter(p => p.id !== selectedId);
 
   const handleSelect = (p: Product) => {
     onSelect(p);
+    // Fire the AI follow-up popup (if wired by App.tsx)
+    onSelectProduct?.(p);
   };
 
   return (

@@ -1,18 +1,99 @@
+// ── Session Management ───────────────────────────────────────────────────────
+// Generate and persist a stable session ID across page reloads.
+// This ties the frontend conversation to the backend's per-session memory.
+
+function getSessionId(): string {
+  let id = sessionStorage.getItem("velora_session_id");
+  if (!id) {
+    id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+    sessionStorage.setItem("velora_session_id", id);
+  }
+  return id;
+}
+
 const API_URL = "/api/chat";
 
+// ── General Chat / Intent Message ────────────────────────────────────────────
 export const sendMessage = async (message: string) => {
     const response = await fetch(API_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
+            "x-session-id": getSessionId(),
         },
         body: JSON.stringify({
             message,
+            sessionId: getSessionId(),
         }),
     });
 
     if (!response.ok) {
         throw new Error("Failed to fetch products");
+    }
+
+    return response.json();
+};
+
+// ── Product Selection ─────────────────────────────────────────────────────────
+// Called when the user clicks a product card. Sends the selected product
+// to the backend so it can be saved to session memory and a follow-up
+// conversational response (product_selected type) is returned.
+
+export interface SelectedProductPayload {
+    id: string;
+    name: string;
+    price: number;
+    currency?: string;
+    image?: string;
+    images?: string[];
+    inStock?: boolean;
+    url?: string;
+    [key: string]: unknown;
+}
+
+export const selectProduct = async (product: SelectedProductPayload): Promise<unknown> => {
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "x-session-id": getSessionId(),
+        },
+        body: JSON.stringify({
+            message: `select_product:${product.id}`,
+            sessionId: getSessionId(),
+            intent: "select_product",
+            product,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to select product");
+    }
+
+    return response.json();
+};
+
+// ── Get Product Details ───────────────────────────────────────────────────────
+// Called when user clicks "View Full Details" from the action popup.
+// Returns a product_details type response with formatted markdown content.
+
+export const fetchProductDetails = async (productId: string): Promise<unknown> => {
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "x-session-id": getSessionId(),
+        },
+        body: JSON.stringify({
+            message: `get_product_details:${productId}`,
+            sessionId: getSessionId(),
+            intent: "get_product_details",
+            productId,
+        }),
+    });
+
+    if (!response.ok) {
+        throw new Error("Failed to fetch product details");
     }
 
     return response.json();
