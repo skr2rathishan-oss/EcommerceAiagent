@@ -50,13 +50,13 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 type: "product_selected",
                 productId: product.id,
                 product: product,
-                message: `Great choice! 😊\n\nYou've selected **${product.name}**.`,
+                message: `Great choice! 😊\n\nThat looks like a promising option.\n\nWhat would you like to do next?`,
                 actions: [
-                    { id: "view_details",     label: "View Full Details",          emoji: "👀" },
-                    { id: "check_delivery",   label: "Check Delivery",             emoji: "🚚" },
-                    { id: "add_to_cart",      label: "Add To Cart",                emoji: "🛒" },
-                    { id: "save_for_later",   label: "Save For Later",             emoji: "❤️" },
-                    { id: "compare",          label: "Compare With Similar",       emoji: "⚖️" },
+                    { id: "view_details", label: "View Full Details", emoji: "👀" },
+                    { id: "check_delivery", label: "Check Delivery", emoji: "🚚" },
+                    { id: "add_to_cart", label: "Add To Cart", emoji: "🛒" },
+                    { id: "save_for_later", label: "Save For Later", emoji: "❤️" },
+                    { id: "compare", label: "Compare With Similar", emoji: "⚖️" },
                 ]
             };
         }
@@ -64,7 +64,14 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         // ── Get Product Details ───────────────────────────────────────────────
         // Fetches full product details from MCP and formats them for display.
         case INTENTS.GET_PRODUCT_DETAILS: {
-            const productId = parameters.productId || parameters.product_id;
+            let productId = parameters.productId || parameters.product_id;
+
+            // Check context fallback if productId is not explicitly passed
+            const context = getShoppingContext(sessionId);
+            if (!productId && context.selectedProduct) {
+                productId = context.selectedProduct.id;
+            }
+
             if (!productId) {
                 return {
                     type: "text",
@@ -81,7 +88,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 console.error("[PRODUCT DETAILS] Failed to fetch details:", err.message);
 
                 // Fallback: use product from shopping context if MCP call fails
-                const context = getShoppingContext(sessionId);
                 if (context.selectedProduct && context.selectedProduct.id === productId) {
                     console.log("[PRODUCT DETAILS] Falling back to session context product");
                     return formatProductDetails(context.selectedProduct);

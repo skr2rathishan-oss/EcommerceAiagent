@@ -49,8 +49,8 @@ ${JSON.stringify(memory, null, 2)}
 
     const completion = await client.chat.completions.create({
       model: process.env.NVIDIA_MODEL,
-      temperature: 0.6,
-      max_tokens: 800,
+      temperature: 0.8,
+      max_tokens:200,
       messages: messagesArray,
     });
 
