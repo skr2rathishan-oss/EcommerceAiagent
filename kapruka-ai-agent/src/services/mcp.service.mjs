@@ -4,6 +4,12 @@ import { trackOrder } from "./orderTracking.service.mjs";
 export const searchProducts = async (query) => {
   const client = await getMcpClient();
 
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("\n[PRODUCT SEARCH] Initiating product search for query:", query);
+  console.log("[MCP REQUEST] Tool: kapruka_search_products");
+  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ q: query, in_stock_only: true }, null, 2));
+  const mcpStart = Date.now();
+
   const result = await client.callTool({
     name: "kapruka_search_products",
     arguments: {
@@ -14,6 +20,11 @@ export const searchProducts = async (query) => {
       }
     }
   });
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[MCP RESPONSE] Tool: kapruka_search_products");
+  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
+  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
 
   // Safely extract the raw string — prefer structuredContent, fall back to content text
   const raw =
@@ -34,7 +45,7 @@ export const searchProducts = async (query) => {
     return [];
   }
 
-  return data.results.map(product => ({
+  const mappedResults = data.results.map(product => ({
     id: product.id,
     name: product.name,
     price: product.price.amount,
@@ -43,6 +54,10 @@ export const searchProducts = async (query) => {
     url: product.url,
     inStock: product.in_stock
   }));
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[PRODUCT SEARCH] Mapped results count:", mappedResults.length);
+  return mappedResults;
 };
 
 export const processMessage = async (message) => {
@@ -72,6 +87,11 @@ export const processMessage = async (message) => {
 export const getProductDetails = async (productId) => {
   const client = await getMcpClient();
 
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("\n[MCP REQUEST] Tool: kapruka_get_product");
+  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ product_id: productId }, null, 2));
+  const mcpStart = Date.now();
+
   const result = await client.callTool({
     name: "kapruka_get_product",
     arguments: {
@@ -81,6 +101,11 @@ export const getProductDetails = async (productId) => {
       }
     }
   });
+
+  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
+  console.log("[MCP RESPONSE] Tool: kapruka_get_product");
+  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
+  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
 
   const raw =
     result?.structuredContent?.result ??
