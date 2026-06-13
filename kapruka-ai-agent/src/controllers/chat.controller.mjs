@@ -155,6 +155,10 @@ export const chat = async (req, res) => {
 
     // 2. If result is a structured object with a type (e.g. order_tracking), return it directly
     if (result && typeof result === "object" && result.type) {
+      if (result.type === "product_grid") {
+        addMessage(sessionId, "user", message);
+        addMessage(sessionId, "assistant", result.text || "");
+      }
       // TEMP DEBUG LOG - SAFE TO REMOVE LATER
       console.log("[FINAL RESPONSE] Sending structured object, type:", result.type);
       console.log("[FINAL RESPONSE] Payload:", JSON.stringify(result, null, 2));

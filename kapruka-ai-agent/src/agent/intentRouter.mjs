@@ -2,6 +2,7 @@ import { INTENTS } from "../config/intents.mjs";
 import { searchProducts, getProductDetails } from "../services/mcp.service.mjs";
 import { getShoppingContext, updateShoppingContext } from "./memoryManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
+import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
 
 // ── Intent Router ────────────────────────────────────────────────────────────
 // Routes a detected intent to the appropriate service.
@@ -26,7 +27,25 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             updateShoppingContext(sessionId, { lastSearchResults: results });
 
             console.log("[SHOPPING CONTEXT] Stored", results.length, "products for session:", sessionId);
-            return results;
+
+            // Apply universal filtering
+            const filters = parameters.filters || {};
+            const filteredResults = applyFilters(results, filters);
+            console.log("[FILTERING] Applied filters:", JSON.stringify(filters), "Filtered count:", filteredResults.length);
+
+            if (filteredResults.length > 0) {
+                return filteredResults;
+            }
+
+            // No results matching filters: return suggestions
+            const suggestions = getSuggestions(results, filters);
+            console.log("[FILTERING] No matches. Suggestions count:", suggestions.length);
+
+            return {
+                type: "product_grid",
+                text: "No products matched your filters. However, you might like these similar options:",
+                products: suggestions
+            };
         }
 
         // ── Product Selection ─────────────────────────────────────────────────
