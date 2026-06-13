@@ -13,14 +13,25 @@ import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
 //
 // SAFE TO EXTEND: Add new case blocks below for new intents.
 
-export const routeIntent = async (intent, parameters = {}, sessionId = "default") => {
+export const routeIntent = async (intent, parameters = {}, sessionId = "default", onProgress) => {
     switch (intent) {
 
         // ── Product Search ────────────────────────────────────────────────────
         case INTENTS.SEARCH_PRODUCTS: {
-            const results = await searchProducts(
-                parameters.query || parameters.q
-            );
+            onProgress?.("SEARCHING", "active");
+
+            let results;
+            try {
+                results = await searchProducts(
+                    parameters.query || parameters.q
+                );
+            } catch (err) {
+                onProgress?.("SEARCHING", "error", ["Catalog service unavailable"]);
+                throw err;
+            }
+
+            onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
+            onProgress?.("FILTERING", "active");
 
             // Store results in shopping context for future filtering
             // without needing a new MCP request
@@ -33,19 +44,43 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             const filteredResults = applyFilters(results, filters);
             console.log("[FILTERING] Applied filters:", JSON.stringify(filters), "Filtered count:", filteredResults.length);
 
-            if (filteredResults.length > 0) {
-                return filteredResults;
+            const filterDetails = [];
+            if (filters.brand) filterDetails.push(`${filters.brand} filter applied`);
+            if (filters.category) filterDetails.push(`${filters.category} filter applied`);
+            if (filters.color) filterDetails.push(`${filters.color} filter applied`);
+            if (filters.gender) filterDetails.push(`${filters.gender} filter applied`);
+            if (filters.priceMin || filters.priceMax) filterDetails.push("Price filter applied");
+            if (filterDetails.length === 0 && Object.keys(filters).length > 0) {
+                filterDetails.push("Filters applied");
             }
 
-            // No results matching filters: return suggestions
-            const suggestions = getSuggestions(results, filters);
-            console.log("[FILTERING] No matches. Suggestions count:", suggestions.length);
+            onProgress?.("FILTERING", "completed", filterDetails);
+            onProgress?.("RANKING", "active");
 
-            return {
-                type: "product_grid",
-                text: "No products matched your filters. However, you might like these similar options:",
-                products: suggestions
-            };
+            let finalProducts;
+            let introText = "";
+
+            if (filteredResults.length > 0) {
+                finalProducts = filteredResults;
+            } else {
+                // No results matching filters: return suggestions
+                const suggestions = getSuggestions(results, filters);
+                console.log("[FILTERING] No matches. Suggestions count:", suggestions.length);
+                finalProducts = suggestions;
+                introText = "No products matched your filters. However, you might like these similar options:";
+            }
+
+            onProgress?.("RANKING", "completed", ["Ranked by relevance"]);
+            onProgress?.("READY", "active");
+
+            if (introText) {
+                return {
+                    type: "product_grid",
+                    text: introText,
+                    products: finalProducts
+                };
+            }
+            return finalProducts;
         }
 
         // ── Product Selection ─────────────────────────────────────────────────

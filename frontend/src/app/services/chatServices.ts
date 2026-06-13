@@ -14,7 +14,7 @@ function getSessionId(): string {
 const API_URL = "/api/chat";
 
 // ── General Chat / Intent Message ────────────────────────────────────────────
-export const sendMessage = async (message: string) => {
+export const sendMessage = async (message: string, onProgress?: (payload: any) => void) => {
     const response = await fetch(API_URL, {
         method: "POST",
         headers: {
@@ -31,7 +31,61 @@ export const sendMessage = async (message: string) => {
         throw new Error("Failed to fetch products");
     }
 
-    return response.json();
+    const reader = response.body?.getReader();
+    if (!reader) {
+        throw new Error("ReadableStream not supported by browser");
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalResult: any = null;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+
+            if (trimmedLine.startsWith("data: ")) {
+                try {
+                    const payload = JSON.parse(trimmedLine.slice(6));
+                    if (payload.type === "progress") {
+                        onProgress?.(payload);
+                    } else if (payload.type === "complete") {
+                        finalResult = payload.data;
+                    }
+                } catch (err) {
+                    console.error("Failed to parse SSE line:", trimmedLine, err);
+                }
+            }
+        }
+    }
+
+    // Process any remaining buffered text
+    if (buffer && buffer.trim().startsWith("data: ")) {
+        try {
+            const payload = JSON.parse(buffer.trim().slice(6));
+            if (payload.type === "progress") {
+                onProgress?.(payload);
+            } else if (payload.type === "complete") {
+                finalResult = payload.data;
+            }
+        } catch (err) {
+            console.error("Failed to parse trailing buffer:", buffer, err);
+        }
+    }
+
+    if (!finalResult) {
+        throw new Error("Stream closed without complete response");
+    }
+
+    return finalResult;
 };
 
 // ── Product Selection ─────────────────────────────────────────────────────────
