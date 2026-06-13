@@ -532,7 +532,7 @@ export default function App() {
           const baseLogs = prev?.logs || [
             { id: "UNDERSTANDING", title: "Understanding request", status: "error", details: ["Catalog service unavailable"] }
           ];
-          const updatedLogs = baseLogs.map(log => 
+          const updatedLogs = baseLogs.map(log =>
             log.status === "active" || log.status === "pending" ? { ...log, status: "error" as const, details: ["Catalog service unavailable"] } : log
           );
           return {

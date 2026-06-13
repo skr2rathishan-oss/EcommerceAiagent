@@ -3,12 +3,12 @@
 // This ties the frontend conversation to the backend's per-session memory.
 
 function getSessionId(): string {
-  let id = sessionStorage.getItem("velora_session_id");
-  if (!id) {
-    id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-    sessionStorage.setItem("velora_session_id", id);
-  }
-  return id;
+    let id = sessionStorage.getItem("velora_session_id");
+    if (!id) {
+        id = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+        sessionStorage.setItem("velora_session_id", id);
+    }
+    return id;
 }
 
 const API_URL = "/api/chat";
