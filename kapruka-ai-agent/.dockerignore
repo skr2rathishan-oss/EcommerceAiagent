@@ -1,0 +1,31 @@
+# Exclude node_modules and development dependencies
+node_modules/
+
+# Exclude local environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Exclude git repository details
+.git/
+.gitignore
+
+# Exclude system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Exclude logs
+logs/
+*.log
+npm-debug.log*
+
+# Exclude temporary build and test files
+tmp/
+temp/
+coverage/
+dist/
+build/
