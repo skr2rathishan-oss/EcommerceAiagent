@@ -13,22 +13,19 @@ function getSessionId(): string {
 
 const API_URL = "/api/chat";
 
-// ── General Chat / Intent Message ────────────────────────────────────────────
-export const sendMessage = async (message: string, onProgress?: (payload: any) => void) => {
+// Helper to handle streaming POST requests to /api/chat
+const fetchStream = async (body: any, onProgress?: (payload: any) => void): Promise<any> => {
     const response = await fetch(API_URL, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "x-session-id": getSessionId(),
         },
-        body: JSON.stringify({
-            message,
-            sessionId: getSessionId(),
-        }),
+        body: JSON.stringify(body),
     });
 
     if (!response.ok) {
-        throw new Error("Failed to fetch products");
+        throw new Error("Failed to fetch response");
     }
 
     const reader = response.body?.getReader();
@@ -88,6 +85,14 @@ export const sendMessage = async (message: string, onProgress?: (payload: any) =
     return finalResult;
 };
 
+// ── General Chat / Intent Message ────────────────────────────────────────────
+export const sendMessage = async (message: string, onProgress?: (payload: any) => void) => {
+    return fetchStream({
+        message,
+        sessionId: getSessionId(),
+    }, onProgress);
+};
+
 // ── Product Selection ─────────────────────────────────────────────────────────
 // Called when the user clicks a product card. Sends the selected product
 // to the backend so it can be saved to session memory and a follow-up
@@ -106,25 +111,12 @@ export interface SelectedProductPayload {
 }
 
 export const selectProduct = async (product: SelectedProductPayload): Promise<unknown> => {
-    const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-session-id": getSessionId(),
-        },
-        body: JSON.stringify({
-            message: `select_product:${product.id}`,
-            sessionId: getSessionId(),
-            intent: "select_product",
-            product,
-        }),
+    return fetchStream({
+        message: `select_product:${product.id}`,
+        sessionId: getSessionId(),
+        intent: "select_product",
+        product,
     });
-
-    if (!response.ok) {
-        throw new Error("Failed to select product");
-    }
-
-    return response.json();
 };
 
 // ── Get Product Details ───────────────────────────────────────────────────────
@@ -132,23 +124,10 @@ export const selectProduct = async (product: SelectedProductPayload): Promise<un
 // Returns a product_details type response with formatted markdown content.
 
 export const fetchProductDetails = async (productId: string): Promise<unknown> => {
-    const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-session-id": getSessionId(),
-        },
-        body: JSON.stringify({
-            message: `get_product_details:${productId}`,
-            sessionId: getSessionId(),
-            intent: "get_product_details",
-            productId,
-        }),
+    return fetchStream({
+        message: `get_product_details:${productId}`,
+        sessionId: getSessionId(),
+        intent: "get_product_details",
+        productId,
     });
-
-    if (!response.ok) {
-        throw new Error("Failed to fetch product details");
-    }
-
-    return response.json();
 };
