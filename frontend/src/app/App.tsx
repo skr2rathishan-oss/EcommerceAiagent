@@ -22,6 +22,7 @@ import { OrderConfirmationCard, type OrderConfirmationDetails } from "./componen
 import { OrderTrackingCard } from "./components/OrderTrackingCard";
 import type { OrderTrackingDetails } from "./types/orderTracking";
 import { ProductDetailsCard } from "./components/ProductDetailsCard";
+import { AgentActivityBar, type LogItem } from "./components/AgentActivityBar";
 
 type Phase = "centered" | "bottom";
 type PanelId = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -92,6 +93,15 @@ export default function App() {
   // Track selected product IDs per message index to control showcase selection status
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
 
+  const [activity, setActivity] = useState<{
+    currentStep: string;
+    currentMessage: string;
+    logs: LogItem[];
+    error?: boolean;
+  } | null>(null);
+
+  const [activityExpanded, setActivityExpanded] = useState(false);
+
   // ── Product Action Popup State ──────────────────────────────────────────────
   // Controls the follow-up action popup that appears above the input box
   // after a user clicks on a product card.
@@ -145,6 +155,14 @@ export default function App() {
     if (actionId === "view_details") {
       if (phase === "centered") setPhase("bottom");
       setIsTyping(true);
+      setActivity({
+        currentStep: "UNDERSTANDING",
+        currentMessage: "Fetching product details...",
+        logs: [
+          { id: "UNDERSTANDING", title: "Retrieving details", status: "active", details: [`Product ID: ${product.id}`] },
+          { id: "READY", title: "Formatting display", status: "pending", details: [] }
+        ]
+      });
       try {
         const data = await fetchProductDetails(product.id) as {
           type: string; content: string; product: Product;
@@ -170,6 +188,7 @@ export default function App() {
         }]);
       } finally {
         setIsTyping(false);
+        setActivity(null);
       }
 
     } else if (actionId === "add_to_cart") {
@@ -205,6 +224,14 @@ export default function App() {
     if (phase === "centered") setPhase("bottom");
     setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
     setIsTyping(true);
+    setActivity({
+      currentStep: "UNDERSTANDING",
+      currentMessage: "Retrieving order status...",
+      logs: [
+        { id: "UNDERSTANDING", title: "Locating order", status: "active", details: [`Order Number: ${orderNumber}`] },
+        { id: "READY", title: "Retrieving tracking data", status: "pending", details: [] }
+      ]
+    });
 
     fetch("/api/orders/track", {
       method: "POST",
@@ -226,6 +253,7 @@ export default function App() {
           text: `Here is the current tracking status for order **${orderNumber}**:`,
           tracking: data
         }]);
+        setActivity(null);
       })
       .catch(err => {
         setMessages(prev => [...prev, {
@@ -234,6 +262,7 @@ export default function App() {
           text: `❌ ${err.message || "Failed to retrieve order status"}`,
           orderNumber
         }]);
+        setActivity(null);
       })
       .finally(() => {
         setIsTyping(false);
@@ -392,6 +421,138 @@ export default function App() {
     setRightPanel("Wishlist");
   };
 
+  const performSearch = (trimmed: string) => {
+    setIsTyping(true);
+    setActivityExpanded(false);
+    setActivity({
+      currentStep: "UNDERSTANDING",
+      currentMessage: "Understanding request...",
+      logs: [
+        { id: "UNDERSTANDING", title: "Understanding request", status: "active", details: [] }
+      ],
+      error: false
+    });
+
+    sendMessage(trimmed, (payload) => {
+      setActivity({
+        currentStep: payload.step,
+        currentMessage: payload.message,
+        logs: payload.logs,
+        error: payload.error
+      });
+    })
+      .then((data) => {
+        console.log("Raw Backend Payload:", data);
+
+        // First collapse the panel
+        setActivityExpanded(false);
+
+        // Set state to completed
+        setActivity(prev => {
+          const baseLogs = prev?.logs || [];
+          const completedLogs = baseLogs.map(log => ({ ...log, status: "completed" as const }));
+          return {
+            currentStep: "READY",
+            currentMessage: "Recommendations ready",
+            logs: completedLogs,
+            error: false
+          };
+        });
+
+        // Delay 1 second before clearing loader and showing responses
+        setTimeout(() => {
+          setActivity(null);
+          setIsTyping(false);
+
+          if (data && typeof data === "object" && !Array.isArray(data)) {
+            if (data.type === "order_tracking") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                type: "order_tracking",
+                text: `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`,
+                tracking: data.tracking
+              }]);
+              return;
+            } else if (data.type === "order_tracking_error") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                type: "order_tracking_error",
+                text: `❌ ${data.message || "Unable to retrieve order status"}`,
+                orderNumber: data.orderNumber
+              }]);
+              return;
+            } else if (data.type === "product_details") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: `Here are the details for **${data.product?.name || "the product"}**:`,
+                type: "product_details",
+                productDetails: { content: data.content, product: data.product },
+              }]);
+              return;
+            } else if (data.type === "text" || (data.type === undefined && typeof data.text === "string")) {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+              }]);
+              return;
+            }
+          }
+
+          let introText = "";
+          let rawProducts = [];
+
+          if (data && typeof data === "object" && !Array.isArray(data)) {
+            if (data.type === "product_grid") {
+              introText = data.text || "";
+              rawProducts = data.products || [];
+            }
+          } else if (Array.isArray(data)) {
+            rawProducts = data;
+          }
+
+          const mappedProducts = rawProducts.map(mapBackendProductToUI);
+
+          // Save to shopping context for future in-memory filtering
+          if (mappedProducts.length > 0) {
+            setShoppingContext(prev => ({ ...prev, lastSearchResults: mappedProducts }));
+          }
+
+          setMessages(prev => [...prev, {
+            role: "ai",
+            text: introText || (mappedProducts.length > 0
+              ? "Here are the live results from the backend:"
+              : "I searched but couldn't find any products matching your query."),
+            products: mappedProducts,
+          }]);
+        }, 1000);
+      })
+      .catch((err) => {
+        console.error("API Error:", err);
+        setActivity(prev => {
+          const baseLogs = prev?.logs || [
+            { id: "UNDERSTANDING", title: "Understanding request", status: "error", details: ["Catalog service unavailable"] }
+          ];
+          const updatedLogs = baseLogs.map(log => 
+            log.status === "active" || log.status === "pending" ? { ...log, status: "error" as const, details: ["Catalog service unavailable"] } : log
+          );
+          return {
+            currentStep: "ERROR",
+            currentMessage: "Search failed",
+            logs: updatedLogs,
+            error: true
+          };
+        });
+      });
+  };
+
+  const handleRetry = () => {
+    const userMsgs = messages.filter(m => m.role === "user");
+    if (userMsgs.length > 0) {
+      const lastMsg = userMsgs[userMsgs.length - 1].text;
+      performSearch(lastMsg);
+    }
+  };
+
   const handleSend = () => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -401,6 +562,14 @@ export default function App() {
 
     if (waitingForAddressInput) {
       setIsTyping(true);
+      setActivity({
+        currentStep: "UNDERSTANDING",
+        currentMessage: "Checking delivery availability...",
+        logs: [
+          { id: "UNDERSTANDING", title: "Validating address", status: "active", details: [`Address: ${trimmed}`] },
+          { id: "READY", title: "Checking carrier service", status: "pending", details: [] }
+        ]
+      });
 
       const CITIES_LIST = [
         "Colombo 01", "Colombo 02", "Colombo 03", "Colombo 04", "Colombo 05", "Colombo 06", "Colombo 07", "Colombo 08", "Colombo 09", "Colombo 10", "Colombo 11", "Colombo 12", "Colombo 13", "Colombo 14", "Colombo 15",
@@ -471,6 +640,7 @@ export default function App() {
               }
             ]);
           }
+          setActivity(null);
         })
         .catch((err) => {
           setMessages(prev => [
@@ -480,6 +650,7 @@ export default function App() {
               text: `⚠️ Unable to verify delivery: ${err.message || "Failed to call check service"}. Please try typing the address again.`
             }
           ]);
+          setActivity(null);
         })
         .finally(() => {
           setIsTyping(false);
@@ -488,82 +659,7 @@ export default function App() {
       return;
     }
 
-    setIsTyping(true);
-
-    sendMessage(trimmed)
-      .then((data) => {
-        console.log("Raw Backend Payload:", data);
-        if (data && typeof data === "object" && !Array.isArray(data)) {
-          if (data.type === "order_tracking") {
-            setMessages(prev => [...prev, {
-              role: "ai",
-              type: "order_tracking",
-              text: `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`,
-              tracking: data.tracking
-            }]);
-            return;
-          } else if (data.type === "order_tracking_error") {
-            setMessages(prev => [...prev, {
-              role: "ai",
-              type: "order_tracking_error",
-              text: `❌ ${data.message || "Unable to retrieve order status"}`,
-              orderNumber: data.orderNumber
-            }]);
-            return;
-          } else if (data.type === "product_details") {
-            setMessages(prev => [...prev, {
-              role: "ai",
-              text: `Here are the details for **${data.product?.name || "the product"}**:`,
-              type: "product_details",
-              productDetails: { content: data.content, product: data.product },
-            }]);
-            return;
-          } else if (data.type === "text" || (data.type === undefined && typeof data.text === "string")) {
-            setMessages(prev => [...prev, {
-              role: "ai",
-              text: data.text,
-            }]);
-            return;
-          }
-        }
-
-        let introText = "";
-        let rawProducts = [];
-
-        if (data && typeof data === "object" && !Array.isArray(data)) {
-          if (data.type === "product_grid") {
-            introText = data.text || "";
-            rawProducts = data.products || [];
-          }
-        } else if (Array.isArray(data)) {
-          rawProducts = data;
-        }
-
-        const mappedProducts = rawProducts.map(mapBackendProductToUI);
-
-        // Save to shopping context for future in-memory filtering
-        if (mappedProducts.length > 0) {
-          setShoppingContext(prev => ({ ...prev, lastSearchResults: mappedProducts }));
-        }
-
-        setMessages(prev => [...prev, {
-          role: "ai",
-          text: introText || (mappedProducts.length > 0
-            ? "Here are the live results from the backend:"
-            : "I searched but couldn't find any products matching your query."),
-          products: mappedProducts,
-        }]);
-      })
-      .catch((err) => {
-        console.error("API Error:", err);
-        setMessages(prev => [...prev, {
-          role: "ai",
-          text: "⚠️ Sorry, I couldn't reach the search service. Please make sure the backend server is running.",
-        }]);
-      })
-      .finally(() => {
-        setIsTyping(false);
-      });
+    performSearch(trimmed);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -676,6 +772,10 @@ export default function App() {
                     onAddToCartFromDetails={handleAddToCart}
                     onBuyNowFromDetails={handleBuyNow}
                     onWishlistFromDetails={handleWishlist}
+                    activity={activity}
+                    onRetry={handleRetry}
+                    activityExpanded={activityExpanded}
+                    onExpandedChange={setActivityExpanded}
                   />
                 </div>
 
@@ -2336,6 +2436,10 @@ function MessageArea({
   onWishlistFromDetails,
   selectedIds,
   setSelectedIds,
+  activity,
+  onRetry,
+  activityExpanded,
+  onExpandedChange,
 }: {
   messages: Message[];
   onAddToCart: (p: Product) => void;
@@ -2352,6 +2456,15 @@ function MessageArea({
   onWishlistFromDetails?: (p: Product) => void;
   selectedIds: Record<number, string | null>;
   setSelectedIds: Dispatch<SetStateAction<Record<number, string | null>>>;
+  activity: {
+    currentStep: string;
+    currentMessage: string;
+    logs: LogItem[];
+    error?: boolean;
+  } | null;
+  onRetry: () => void;
+  activityExpanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -2497,47 +2610,16 @@ function MessageArea({
               )}
             </motion.div>
           ))}
-          {isTyping && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex justify-start"
-            >
-              <div style={{
-                padding: "11px 16px",
-                borderRadius: "18px 18px 18px 6px",
-                background: "rgba(255,255,255,0.7)",
-                color: "#7c6a9e",
-                fontSize: 13,
-                fontFamily: "'Nunito',sans-serif",
-                boxShadow: "0 2px 10px rgba(64,41,112,0.05)",
-                border: "1px solid rgba(64,41,112,0.08)",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}>
-                <span style={{ display: "flex", gap: 3, alignItems: "center" }}>
-                  <motion.span
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
-                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
-                  />
-                  <motion.span
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{ repeat: Infinity, duration: 0.6, delay: 0.15 }}
-                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
-                  />
-                  <motion.span
-                    animate={{ y: [0, -4, 0] }}
-                    transition={{ repeat: Infinity, duration: 0.6, delay: 0.3 }}
-                    style={{ width: 6, height: 6, borderRadius: "50%", background: "#7c4dba", display: "inline-block" }}
-                  />
-                </span>
-                <span style={{ marginLeft: 4, fontWeight: 600 }}>Velora is searching...</span>
-              </div>
-            </motion.div>
+          {isTyping && activity && (
+            <AgentActivityBar
+              currentStep={activity.currentStep}
+              currentMessage={activity.currentMessage}
+              logs={activity.logs}
+              error={activity.error}
+              onRetry={onRetry}
+              expandedState={activityExpanded}
+              onExpandedChange={onExpandedChange}
+            />
           )}
         </AnimatePresence>
       </div>
