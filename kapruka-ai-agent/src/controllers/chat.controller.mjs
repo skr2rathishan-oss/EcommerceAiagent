@@ -3,6 +3,17 @@ import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
 import { getShoppingContext } from "../agent/memoryManager.mjs";
+import { saveMessage } from "../services/conversation.service.mjs";
+
+// Helper to extract message content from assistant response payload
+function extractText(payload) {
+  if (!payload) return "";
+  if (typeof payload === "string") return payload;
+  if (payload.text) return payload.text;
+  if (payload.message) return payload.message;
+  if (payload.content) return payload.content;
+  return "";
+}
 
 
 
@@ -20,6 +31,11 @@ export const chat = async (req, res) => {
         message: "Message is required and must be a non-empty string."
       });
     }
+
+    // Save user message (non-blocking)
+    saveMessage(sessionId, "user", message).catch(err => {
+      console.error("[Persistence Error] Failed to save user message:", err);
+    });
 
     // ── Direct-intent fast path ───────────────────────────────────────────
     // When the frontend sends an explicit `intent` field (e.g. for product
@@ -47,6 +63,14 @@ export const chat = async (req, res) => {
 
       const directResult = await routeIntent(req.body.intent, directParameters, sessionId);
       console.log("[CONTROLLER] Direct intent result type:", directResult?.type);
+
+      // Save assistant response (non-blocking)
+      const assistantText = extractText(directResult);
+      if (assistantText) {
+        saveMessage(sessionId, "assistant", assistantText).catch(err => {
+          console.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
+        });
+      }
 
       res.write(`data: ${JSON.stringify({
         type: "complete",
@@ -267,6 +291,14 @@ export const chat = async (req, res) => {
 
     // Complete the final step
     updateProgress("READY", "completed");
+
+    // Save assistant response (non-blocking)
+    const assistantText = extractText(finalPayload);
+    if (assistantText) {
+      saveMessage(sessionId, "assistant", assistantText).catch(err => {
+        console.error("[Persistence Error] Failed to save assistant message:", err);
+      });
+    }
 
     res.write(`data: ${JSON.stringify({
       type: "complete",

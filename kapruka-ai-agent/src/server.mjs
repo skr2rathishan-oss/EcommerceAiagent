@@ -1,3 +1,6 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import chatRoutes from "./routes/chat.routes.mjs";
 import productsRoutes from "./routes/products.routes.mjs";
@@ -5,6 +8,8 @@ import deliveryRoutes from "./routes/delivery.routes.mjs";
 import orderTrackingRoutes from "./routes/orderTracking.routes.mjs";
 import morgan from "morgan";
 import cors from "cors";
+import { connectDB } from "./database/mongo.mjs";
+await connectDB();
 
 const app = express();
 
