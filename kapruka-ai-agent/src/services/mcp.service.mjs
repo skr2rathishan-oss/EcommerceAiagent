@@ -53,7 +53,16 @@ export const searchProducts = async (query) => {
     currency: product.price.currency,
     image: product.image_url,
     url: product.url,
-    inStock: product.in_stock
+    inStock: product.in_stock,
+    description: product.description || product.summary || product.shortDesc || "",
+    brand: product.brand || "",
+    category: product.category || "",
+    color: product.color || "",
+    size: product.size || "",
+    gender: product.gender || "",
+    type: product.type || "",
+    flavor: product.flavor || product.flavour || "",
+    weight: product.weight || ""
   }));
 
   // TEMP DEBUG LOG - SAFE TO REMOVE LATER
