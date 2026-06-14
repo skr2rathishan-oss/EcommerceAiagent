@@ -30,6 +30,26 @@ try {
 }
 
 /**
+ * Runs a promise with a timeout. If it times out, returns the default value.
+ */
+async function withTimeout(promise, ms, defaultValue) {
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      console.warn(`[TranslationService] Operation timed out after ${ms}ms. Returning original text.`);
+      resolve(defaultValue);
+    }, ms);
+  });
+  return Promise.race([
+    promise.then((val) => {
+      clearTimeout(timeoutId);
+      return val;
+    }),
+    timeoutPromise
+  ]);
+}
+
+/**
  * Translates Sinhala, Tamil, Tanglish, or mixed shopping requests into English.
  * 
  * @param {string} text - The input text to translate to English.
@@ -47,12 +67,14 @@ export async function translateToEnglish(text) {
 
   try {
     const prompt = TRANSLATE_TO_ENGLISH(text);
-    const response = await ai.models.generateContent({
+    const geminiCall = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
 
-    if (response.text) {
+    const response = await withTimeout(geminiCall, 2500, null);
+
+    if (response && response.text) {
       return response.text.trim();
     }
     return text;
@@ -80,12 +102,14 @@ export async function translateToSinhala(text) {
 
   try {
     const prompt = TRANSLATE_TO_SINHALA(text);
-    const response = await ai.models.generateContent({
+    const geminiCall = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
 
-    if (response.text) {
+    const response = await withTimeout(geminiCall, 2500, null);
+
+    if (response && response.text) {
       return response.text.trim();
     }
     return text;
@@ -113,12 +137,14 @@ export async function translateToTamil(text) {
 
   try {
     const prompt = TRANSLATE_TO_TAMIL(text);
-    const response = await ai.models.generateContent({
+    const geminiCall = ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
 
-    if (response.text) {
+    const response = await withTimeout(geminiCall, 2500, null);
+
+    if (response && response.text) {
       return response.text.trim();
     }
     return text;
