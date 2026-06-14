@@ -1,8 +1,9 @@
 import express from "express";
-import { getProduct } from "../controllers/products.controller.mjs";
+import { getProduct, trackInteractionController } from "../controllers/products.controller.mjs";
 
 const router = express.Router();
 
 router.get("/:id", getProduct);
+router.post("/interaction", trackInteractionController);
 
 export default router;

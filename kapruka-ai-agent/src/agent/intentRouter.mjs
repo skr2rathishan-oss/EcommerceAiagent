@@ -3,6 +3,7 @@ import { searchProducts, getProductDetails } from "../services/mcp.service.mjs";
 import { getShoppingContext, updateShoppingContext } from "./memoryManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
+import { trackInteraction } from "../services/productInteraction.service.mjs";
 
 // ── Intent Router ────────────────────────────────────────────────────────────
 // Routes a detected intent to the appropriate service.
@@ -100,6 +101,11 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             updateShoppingContext(sessionId, { selectedProduct: product });
             console.log("[SHOPPING CONTEXT] Selected product:", product.name, "for session:", sessionId);
 
+            // Track "view" interaction in the background asynchronously
+            trackInteraction(sessionId, product.id, product.name, product.category, "view").catch(err => {
+                console.error("[Background Tracking Error] Failed to track select_product:", err);
+            });
+
             return {
                 type: "product_selected",
                 productId: product.id,
@@ -135,6 +141,11 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
 
             try {
                 const rawProduct = await getProductDetails(productId);
+                // Track "details" interaction in the background asynchronously
+                trackInteraction(sessionId, rawProduct.id, rawProduct.name, rawProduct.category, "details").catch(err => {
+                    console.error("[Background Tracking Error] Failed to track get_product_details:", err);
+                });
+
                 const formatted = formatProductDetails(rawProduct);
                 console.log("[PRODUCT DETAILS] Formatted details for product:", productId);
                 return formatted;
@@ -144,6 +155,10 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 // Fallback: use product from shopping context if MCP call fails
                 if (context.selectedProduct && context.selectedProduct.id === productId) {
                     console.log("[PRODUCT DETAILS] Falling back to session context product");
+                    // Track "details" interaction for context product in the background
+                    trackInteraction(sessionId, context.selectedProduct.id, context.selectedProduct.name, context.selectedProduct.category, "details").catch(err => {
+                        console.error("[Background Tracking Error] Failed to track get_product_details fallback:", err);
+                    });
                     return formatProductDetails(context.selectedProduct);
                 }
 

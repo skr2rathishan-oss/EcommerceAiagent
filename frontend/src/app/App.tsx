@@ -372,6 +372,21 @@ export default function App() {
       return [...prev, { product: p, qty: 1 }];
     });
     setRightPanel("Cart");
+
+    // Track "add_to_cart" interaction
+    fetch("/api/products/interaction", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-session-id": Li(),
+      },
+      body: JSON.stringify({
+        productId: p.id,
+        productName: p.name,
+        category: p.category,
+        action: "add_to_cart"
+      })
+    }).catch(err => console.error("Failed to track add_to_cart:", err));
   };
 
   const handleBuyNow = (p: Product, variants?: Record<string, string>) => {
@@ -400,6 +415,22 @@ export default function App() {
     const inlineItems = [{ product: targetMsg.orderSummary.product, qty: 1 }];
     const orderDetails = generateOrderConfirmation(updatedDelivery, inlineItems);
     saveOrderToHistory(orderDetails);
+
+    // Track purchase for inline product
+    const inlineProd = targetMsg.orderSummary.product;
+    fetch("/api/products/interaction", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-session-id": Li(),
+      },
+      body: JSON.stringify({
+        productId: inlineProd.id,
+        productName: inlineProd.name,
+        category: inlineProd.category,
+        action: "purchase"
+      })
+    }).catch(err => console.error("Failed to track purchase:", err));
 
     setTimeout(() => {
       setMessages(prev => [
@@ -1378,6 +1409,24 @@ export default function App() {
             onCheckoutComplete={(info) => {
               const orderDetails = generateOrderConfirmation(info, cartItems);
               saveOrderToHistory(orderDetails);
+
+              // Track purchase for each item in cart
+              cartItems.forEach(item => {
+                fetch("/api/products/interaction", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "x-session-id": Li(),
+                  },
+                  body: JSON.stringify({
+                    productId: item.product.id,
+                    productName: item.product.name,
+                    category: item.product.category,
+                    action: "purchase"
+                  })
+                }).catch(err => console.error("Failed to track purchase:", err));
+              });
+
               setMessages(prev => [
                 ...prev,
                 {

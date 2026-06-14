@@ -1,4 +1,5 @@
 import { getProductDetails } from "../services/mcp.service.mjs";
+import { trackInteraction } from "../services/productInteraction.service.mjs";
 
 export const getProduct = async (req, res) => {
   // TEMP DEBUG LOG - SAFE TO REMOVE LATER
@@ -30,6 +31,12 @@ export const getProduct = async (req, res) => {
       });
     }
 
+    // Track "details" interaction in the background asynchronously
+    const sessionId = req.headers["x-session-id"] || "default";
+    trackInteraction(sessionId, details.id, details.name, details.category, "details").catch(err => {
+      console.error("[Background Tracking Error] Direct detail tracking failed:", err);
+    });
+
     // TEMP DEBUG LOG - SAFE TO REMOVE LATER
     console.log("[FINAL RESPONSE] Payload:", JSON.stringify(details, null, 2));
     return res.json(details);
@@ -48,6 +55,33 @@ export const getProduct = async (req, res) => {
       });
     }
 
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+export const trackInteractionController = async (req, res) => {
+  try {
+    const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
+    const { productId, productName, category, action } = req.body;
+
+    if (!productId || !action) {
+      return res.status(400).json({
+        success: false,
+        message: "productId and action are required"
+      });
+    }
+
+    // Run tracking asynchronously in the background
+    trackInteraction(sessionId, productId, productName, category, action).catch(err => {
+      console.error("[Background Tracking Error] Failed to track action:", err);
+    });
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("[Interaction Controller Error] Failed to process tracking:", error);
     return res.status(500).json({
       success: false,
       message: "Internal Server Error"
