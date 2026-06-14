@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Heart, ShoppingCart, Bookmark, Package, ChevronDown, PanelLeft, Sparkles,
-  DollarSign, Euro, PoundSterling, IndianRupee, Coins
+  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle
 } from "lucide-react";
 import { useApp, type RightPanelId } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
@@ -22,19 +22,38 @@ interface TopNavbarProps {
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder }) => {
-  const { sidebarOpen, setSidebarOpen, orderedItems } = useApp();
+  const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+
+  const [langOpen, setLangOpen] = useState(false);
+  const [selectedLang, setSelectedLang] = useState({ code: "EN", name: "English", flag: "🇺🇸" });
+  const langRef = useRef<HTMLDivElement>(null);
+
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
+      if (langRef.current && !langRef.current.contains(e.target as Node)) {
+        setLangOpen(false);
+      }
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleHomeClick = () => {
+    setPhase("centered");
+    setMessages([]);
+    setValue("");
+  };
 
   return (
     <div
@@ -47,13 +66,110 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
         flexShrink: 0,
       }}
     >
-      <ToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} />
+      <div className="flex items-center gap-3">
+        <ToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} />
+        
+        {/* Brand Identity Text */}
+        <div 
+          onClick={handleHomeClick}
+          className="flex flex-col justify-center select-none font-['Nunito'] cursor-pointer group"
+          title="Go to Home"
+        >
+          <div className="flex items-center gap-1.5">
+            <span 
+              className="group-hover:text-[#7c4dba] transition-colors duration-200"
+              style={{ fontSize: 13.5, fontWeight: 800, color: "#1a1025", letterSpacing: "0.05em" }}
+            >
+              VELORA AI
+            </span>
+          </div>
+          <span style={{ fontSize: 10, fontWeight: 600, color: "#7c6a9e", marginTop: -1 }}>Smart Shopping Assistant</span>
+        </div>
+      </div>
 
       <div className="flex items-center gap-1">
         <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => onRightPanel("Wishlist")} />
         <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => onRightPanel("Cart")} />
         <NavbarIconBtn icon={<Bookmark size={19} strokeWidth={1.9} />} label="Saved" onClick={() => onRightPanel("Saved")} />
         <div style={{ width: 1, height: 22, background: "rgba(64,41,112,0.15)", margin: "0 6px" }} />
+
+        {/* Language Selector */}
+        <div ref={langRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setLangOpen(o => !o)}
+            className="flex items-center gap-1 hover:bg-[rgba(64,41,112,0.08)] transition-all"
+            style={{
+              height: 34,
+              padding: "0 10px",
+              borderRadius: 9999,
+              border: `1px solid ${langOpen ? "rgba(124, 77, 186, 0.45)" : "rgba(64, 41, 112, 0.15)"}`,
+              background: langOpen ? "rgba(124, 77, 186, 0.08)" : "rgba(255, 255, 255, 0.7)",
+              color: "#402970",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+              fontSize: 12.5,
+              fontWeight: 600,
+            }}
+          >
+            <Globe size={14} strokeWidth={2} />
+            <span>{selectedLang.code}</span>
+          </button>
+          
+          <AnimatePresence>
+            {langOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  width: 140,
+                  background: "rgba(255, 255, 255, 0.98)",
+                  backdropFilter: "blur(20px)",
+                  borderRadius: 12,
+                  border: "1px solid rgba(124, 77, 186, 0.18)",
+                  boxShadow: "0 10px 30px rgba(64, 41, 112, 0.12)",
+                  zIndex: 100,
+                  padding: "6px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                }}
+              >
+                {[
+                  { code: "EN", name: "English", flag: "🇺🇸" },
+                  { code: "TA", name: "தமிழ்", flag: "🇱🇰" },
+                  { code: "SI", name: "සිංහල", flag: "🇱🇰" }
+                ].map((lang) => (
+                  <button
+                    key={lang.code}
+                    onClick={() => {
+                      setSelectedLang(lang);
+                      setLangOpen(false);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors"
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color: selectedLang.code === lang.code ? "#7c4dba" : "#402970",
+                      fontSize: 12.5,
+                      fontWeight: selectedLang.code === lang.code ? 800 : 600,
+                      cursor: "pointer",
+                      fontFamily: "'Nunito', sans-serif",
+                    }}
+                  >
+                    <span>{lang.flag}</span>
+                    <span>{lang.name}</span>
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         <div ref={dropRef} className="relative">
           <button
@@ -253,6 +369,70 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
                     ))}
                   </div>
                 )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Profile Button */}
+        <div ref={profileRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setProfileOpen(o => !o)}
+            className="flex items-center justify-center hover:bg-[rgba(64,41,112,0.08)] transition-all"
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: 9999,
+              border: "none",
+              cursor: "pointer",
+              background: profileOpen ? "rgba(124, 77, 186, 0.08)" : "transparent",
+              color: profileOpen ? "#402970" : "#7c6a9e",
+              transition: "background 0.15s, color 0.15s",
+            }}
+          >
+            <UserCircle size={22} strokeWidth={1.8} />
+          </button>
+          
+          <AnimatePresence>
+            {profileOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: "easeOut" }}
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  width: 200,
+                  background: "rgba(255, 255, 255, 0.98)",
+                  backdropFilter: "blur(20px)",
+                  borderRadius: 14,
+                  border: "1px solid rgba(124, 77, 186, 0.18)",
+                  boxShadow: "0 10px 30px rgba(64, 41, 112, 0.12)",
+                  zIndex: 100,
+                  padding: "10px 12px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid rgba(64, 41, 112, 0.08)", paddingBottom: 8 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #7c4dba, #402970)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>
+                    AJ
+                  </div>
+                  <div style={{ minWidth: 0, textAlign: "left" }}>
+                    <h5 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito', sans-serif" }}>Alex Johnson</h5>
+                    <p style={{ color: "#7c6a9e", fontSize: 10, margin: 0, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "'Nunito', sans-serif" }}>alex@example.com</p>
+                  </div>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
+                  <button onClick={() => { setProfileOpen(false); }} className="px-2 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors" style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, color: "#402970", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>My Account</button>
+                  <button onClick={() => { setProfileOpen(false); }} className="px-2 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors" style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, color: "#402970", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>Purchase History</button>
+                  <button onClick={() => { setProfileOpen(false); }} className="px-2 py-1.5 rounded-lg text-left hover:bg-red-50 text-red-600 transition-colors" style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>Sign Out</button>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

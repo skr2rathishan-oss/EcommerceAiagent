@@ -9,6 +9,7 @@ import { OrderConfirmationCard } from "./OrderConfirmationCard";
 import { OrderTrackingCard } from "./OrderTrackingCard";
 import { AgentActivityBar } from "./AgentActivityBar";
 import { type Message } from "../contexts/AppContext";
+import { GuidedWorkflowPanel } from "./GuidedWorkflowPanel";
 
 interface MessageAreaProps {
   messages: Message[];
@@ -198,6 +199,19 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                   <OrderTrackingCard
                     orderNumber={msg.orderNumber}
                     onContinueShopping={onContinueShopping}
+                  />
+                </motion.div>
+              )}
+              {msg.role === "ai" && msg.type === "guided_workflow" && msg.workflow && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  <GuidedWorkflowPanel
+                    messageIndex={i}
+                    workflow={msg.workflow}
                   />
                 </motion.div>
               )}

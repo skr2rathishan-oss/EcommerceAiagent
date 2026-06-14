@@ -14,10 +14,20 @@ export interface AnchorPos {
   y: number;
 }
 
+export interface GuidedWorkflowState {
+  type: "find_products" | "find_gift" | "track_order";
+  step: number;
+  answers: Record<string, any>;
+  isCompleted: boolean;
+  loading: boolean;
+  error: string | null;
+  currentQuestion?: string;
+}
+
 export interface Message {
   role: "user" | "ai";
   text: string;
-  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error" | "product_details";
+  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error" | "product_details" | "guided_workflow";
   products?: Product[];
   orderSummary?: {
     product: Product;
@@ -30,6 +40,7 @@ export interface Message {
   tracking?: OrderTrackingDetails;
   orderNumber?: string;
   productDetails?: { content: string; product: Product };
+  workflow?: GuidedWorkflowState;
 }
 
 export interface CartItem {

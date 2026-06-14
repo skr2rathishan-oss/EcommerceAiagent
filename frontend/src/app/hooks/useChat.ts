@@ -1,10 +1,11 @@
 import React from "react";
 import { useApp } from "../contexts/AppContext";
-import { sendMessage, selectProduct, fetchProductDetails } from "../services/chatServices";
+import { sendMessage, selectProduct, fetchProductDetails, abortActiveRequest } from "../services/chatServices";
 import { checkDelivery } from "../services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "../services/mapping";
 import { type Product } from "../components/products";
 import { type DeliveryInfo, getDefaultSeller } from "../components/InteractiveOrderSummary";
+import { trackQueryUsage } from "../components/SuggestedPrompts";
 
 export const useChat = () => {
   const {
@@ -224,6 +225,12 @@ export const useChat = () => {
         }, 1000);
       })
       .catch((err) => {
+        if (err && (err.name === "AbortError" || err.message === "The user aborted a request.")) {
+          console.log("Search request aborted by user.");
+          setActivity(null);
+          setIsTyping(false);
+          return;
+        }
         console.error("API Error:", err);
         setActivity(prev => {
           const baseLogs = prev?.logs || [
@@ -250,9 +257,13 @@ export const useChat = () => {
     }
   };
 
-  const handleSend = () => {
-    const trimmed = value.trim();
+  const handleSend = (textOverride?: string) => {
+    const trimmed = typeof textOverride === "string" ? textOverride.trim() : value.trim();
     if (!trimmed) return;
+
+    // Track query usage for suggested prompts
+    trackQueryUsage(trimmed);
+
     if (phase === "centered") setPhase("bottom");
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");
@@ -366,6 +377,12 @@ export const useChat = () => {
     }
   };
 
+  const handleStop = () => {
+    abortActiveRequest();
+    setIsTyping(false);
+    setActivity(null);
+  };
+
   return {
     handleProductSelect,
     handleProductAction,
@@ -373,6 +390,7 @@ export const useChat = () => {
     handleRetry,
     handleSend,
     handleKeyDown,
+    handleStop,
     getSessionId,
   };
 };

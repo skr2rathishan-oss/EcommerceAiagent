@@ -13,76 +13,95 @@ function getSessionId(): string {
 
 const API_URL = "/api/chat";
 
+let activeAbortController: AbortController | null = null;
+
+export const abortActiveRequest = () => {
+    if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+    }
+};
+
 // Helper to handle streaming POST requests to /api/chat
 const fetchStream = async (body: any, onProgress?: (payload: any) => void): Promise<any> => {
-    const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "x-session-id": getSessionId(),
-        },
-        body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-        throw new Error("Failed to fetch response");
+    if (activeAbortController) {
+        activeAbortController.abort();
     }
+    activeAbortController = new AbortController();
 
-    const reader = response.body?.getReader();
-    if (!reader) {
-        throw new Error("ReadableStream not supported by browser");
-    }
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-session-id": getSessionId(),
+            },
+            body: JSON.stringify(body),
+            signal: activeAbortController.signal,
+        });
 
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let finalResult: any = null;
+        if (!response.ok) {
+            throw new Error("Failed to fetch response");
+        }
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error("ReadableStream not supported by browser");
+        }
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let finalResult: any = null;
 
-        for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-            if (trimmedLine.startsWith("data: ")) {
-                try {
-                    const payload = JSON.parse(trimmedLine.slice(6));
-                    if (payload.type === "progress") {
-                        onProgress?.(payload);
-                    } else if (payload.type === "complete") {
-                        finalResult = payload.data;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
+
+            for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) continue;
+
+                if (trimmedLine.startsWith("data: ")) {
+                    try {
+                        const payload = JSON.parse(trimmedLine.slice(6));
+                        if (payload.type === "progress") {
+                            onProgress?.(payload);
+                        } else if (payload.type === "complete") {
+                            finalResult = payload.data;
+                        }
+                    } catch (err) {
+                        console.error("Failed to parse SSE line:", trimmedLine, err);
                     }
-                } catch (err) {
-                    console.error("Failed to parse SSE line:", trimmedLine, err);
                 }
             }
         }
-    }
 
-    // Process any remaining buffered text
-    if (buffer && buffer.trim().startsWith("data: ")) {
-        try {
-            const payload = JSON.parse(buffer.trim().slice(6));
-            if (payload.type === "progress") {
-                onProgress?.(payload);
-            } else if (payload.type === "complete") {
-                finalResult = payload.data;
+        // Process any remaining buffered text
+        if (buffer && buffer.trim().startsWith("data: ")) {
+            try {
+                const payload = JSON.parse(buffer.trim().slice(6));
+                if (payload.type === "progress") {
+                    onProgress?.(payload);
+                } else if (payload.type === "complete") {
+                    finalResult = payload.data;
+                }
+            } catch (err) {
+                console.error("Failed to parse trailing buffer:", buffer, err);
             }
-        } catch (err) {
-            console.error("Failed to parse trailing buffer:", buffer, err);
         }
-    }
 
-    if (!finalResult) {
-        throw new Error("Stream closed without complete response");
-    }
+        if (!finalResult) {
+            throw new Error("Stream closed without complete response");
+        }
 
-    return finalResult;
+        return finalResult;
+    } finally {
+        activeAbortController = null;
+    }
 };
 
 // ── General Chat / Intent Message ────────────────────────────────────────────
@@ -90,6 +109,20 @@ export const sendMessage = async (message: string, onProgress?: (payload: any) =
     return fetchStream({
         message,
         sessionId: getSessionId(),
+    }, onProgress);
+};
+
+export const sendIntentMessage = async (
+    message: string,
+    intent: string,
+    parameters: any,
+    onProgress?: (payload: any) => void
+) => {
+    return fetchStream({
+        message,
+        sessionId: getSessionId(),
+        intent,
+        parameters,
     }, onProgress);
 };
 
