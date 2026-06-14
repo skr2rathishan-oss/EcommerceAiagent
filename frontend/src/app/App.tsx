@@ -95,6 +95,36 @@ function MainApp() {
     setActivePanel(label as PanelId);
   };
 
+  const handleStartWorkflow = (type: "find_products" | "find_gift" | "track_order") => {
+    setPhase("bottom");
+    
+    let text = "";
+    if (type === "find_products") {
+      text = "Let's find the right products for you! I will guide you through a few quick questions to gather your requirements.";
+    } else if (type === "find_gift") {
+      text = "Let's find the perfect gift! Tell me a bit about who this is for and what the occasion is.";
+    } else if (type === "track_order") {
+      text = "How would you like to track your order? You can look it up using your Order ID or view recent orders.";
+    }
+
+    setMessages(prev => [
+      ...prev,
+      {
+        role: "ai",
+        type: "guided_workflow",
+        text: text,
+        workflow: {
+          type,
+          step: 0,
+          answers: {},
+          isCompleted: false,
+          loading: false,
+          error: null
+        }
+      }
+    ]);
+  };
+
   const canSend = value.trim().length > 0;
 
   return (
@@ -204,9 +234,9 @@ function MainApp() {
                 {/* Quick Actions (Pill Buttons) */}
                 <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
                   {[
-                    { title: "Find Products", emoji: "🛍️", query: "Find me the best products" },
-                    { title: "Best Deals Today", emoji: "🔥", query: "Show me the best deals today" },
-                    { title: "Gift Finder", emoji: "🎁", query: "Help me find a gift for a friend" }
+                    { title: "Find Products", emoji: "🛍️", type: "find_products" as const },
+                    { title: "Find Gift", emoji: "🎁", type: "find_gift" as const },
+                    { title: "Track My Order", emoji: "📦", type: "track_order" as const }
                   ].map((act, idx) => (
                     <motion.button
                       key={idx}
@@ -217,7 +247,7 @@ function MainApp() {
                         boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
                       }}
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => handleSend(act.query)}
+                      onClick={() => handleStartWorkflow(act.type)}
                       className="cursor-pointer border transition-all duration-150 inline-flex items-center"
                       style={{
                         padding: "6px 12px",

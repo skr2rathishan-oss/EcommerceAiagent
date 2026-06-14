@@ -2,7 +2,7 @@ import { getProductDetails } from "../services/mcp.service.mjs";
 import { trackInteraction } from "../services/productInteraction.service.mjs";
 import logger from "../utils/logger.mjs";
 
-const MOCK_PRODUCTS = {
+export const MOCK_PRODUCTS = {
   p1: {
     id: "p1",
     name: "SoundFlow Pro X",
@@ -13,9 +13,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 2–3 business days",
-    url: ""
+    url: "",
+    brand: "SoundFlow",
+    category: "Electronics",
+    color: "Black",
+    type: "Headphones"
   },
   p2: {
     id: "p2",
@@ -27,9 +32,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1631863552122-3072cf599a46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1542541864-4abf21a55761?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1631863552122-3072cf599a46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 1–2 business days",
-    url: ""
+    url: "",
+    brand: "Vega",
+    category: "Wearables",
+    color: "Black",
+    type: "Smart Watch"
   },
   p3: {
     id: "p3",
@@ -41,9 +51,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1560769629-975ec94e6a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1608231387042-66d1773070a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 3–5 business days",
-    url: ""
+    url: "",
+    brand: "AirStep",
+    category: "Footwear",
+    color: "Orange",
+    type: "Shoes"
   },
   p4: {
     id: "p4",
@@ -55,9 +70,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 2–4 business days",
-    url: ""
+    url: "",
+    brand: "ProBook",
+    category: "Computers",
+    color: "Grey",
+    type: "Laptop"
   },
   p5: {
     id: "p5",
@@ -69,9 +89,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 1–2 business days",
-    url: ""
+    url: "",
+    brand: "ClearSound",
+    category: "Electronics",
+    color: "Cream",
+    type: "Earbuds"
   },
   p6: {
     id: "p6",
@@ -83,9 +108,14 @@ const MOCK_PRODUCTS = {
       "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
       "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
     ],
+    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
     stock: true,
     shippingInfo: "Free delivery in 3–5 business days",
-    url: ""
+    url: "",
+    brand: "Flux",
+    category: "Accessories",
+    color: "Black",
+    type: "Keyboard"
   }
 };
 

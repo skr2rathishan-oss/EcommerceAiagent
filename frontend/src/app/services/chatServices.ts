@@ -112,6 +112,20 @@ export const sendMessage = async (message: string, onProgress?: (payload: any) =
     }, onProgress);
 };
 
+export const sendIntentMessage = async (
+    message: string,
+    intent: string,
+    parameters: any,
+    onProgress?: (payload: any) => void
+) => {
+    return fetchStream({
+        message,
+        sessionId: getSessionId(),
+        intent,
+        parameters,
+    }, onProgress);
+};
+
 // ── Product Selection ─────────────────────────────────────────────────────────
 // Called when the user clicks a product card. Sends the selected product
 // to the backend so it can be saved to session memory and a follow-up

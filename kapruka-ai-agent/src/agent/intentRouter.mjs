@@ -4,6 +4,7 @@ import { getShoppingContext, updateShoppingContext } from "./memoryManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
 import { trackInteraction } from "../services/productInteraction.service.mjs";
+import { MOCK_PRODUCTS } from "../controllers/products.controller.mjs";
 
 // ── Intent Router ────────────────────────────────────────────────────────────
 // Routes a detected intent to the appropriate service.
@@ -22,16 +23,35 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             onProgress?.("SEARCHING", "active");
 
             let results;
+            let usingFallback = false;
             try {
                 results = await searchProducts(
                     parameters.query || parameters.q
                 );
             } catch (err) {
-                onProgress?.("SEARCHING", "error", ["Catalog service unavailable"]);
-                throw err;
+                console.error("[SEARCH PRODUCTS] MCP Search failed, falling back to mock catalog:", err.message);
+                usingFallback = true;
+                const queryStr = (parameters.query || parameters.q || "").toLowerCase().trim();
+                const allMockProducts = Object.values(MOCK_PRODUCTS).map(p => ({
+                    ...p,
+                    inStock: p.stock === true
+                }));
+                results = allMockProducts.filter(p => {
+                    if (!queryStr) return true;
+                    return (
+                        p.name.toLowerCase().includes(queryStr) ||
+                        p.description.toLowerCase().includes(queryStr) ||
+                        p.brand.toLowerCase().includes(queryStr) ||
+                        p.category.toLowerCase().includes(queryStr)
+                    );
+                });
             }
 
-            onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
+            if (usingFallback) {
+                onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products from offline catalog`]);
+            } else {
+                onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
+            }
             onProgress?.("FILTERING", "active");
 
             // Store results in shopping context for future filtering
@@ -152,7 +172,17 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             } catch (err) {
                 console.error("[PRODUCT DETAILS] Failed to fetch details:", err.message);
 
-                // Fallback: use product from shopping context if MCP call fails
+                // Fallback 1: check if it's in MOCK_PRODUCTS
+                if (MOCK_PRODUCTS[productId]) {
+                    console.log("[PRODUCT DETAILS] Falling back to offline MOCK_PRODUCTS database for ID:", productId);
+                    const mockProd = MOCK_PRODUCTS[productId];
+                    trackInteraction(sessionId, mockProd.id, mockProd.name, mockProd.category, "details").catch(err => {
+                        console.error("[Background Tracking Error] Failed to track fallback mock product details:", err);
+                    });
+                    return formatProductDetails(mockProd);
+                }
+
+                // Fallback 2: use product from shopping context if MCP call fails
                 if (context.selectedProduct && context.selectedProduct.id === productId) {
                     console.log("[PRODUCT DETAILS] Falling back to session context product");
                     // Track "details" interaction for context product in the background
