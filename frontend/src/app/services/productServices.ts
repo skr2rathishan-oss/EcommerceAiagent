@@ -25,7 +25,12 @@ export interface DeliveryResponse {
 }
 
 export const fetchProductDetails = async (productId: string): Promise<ProductDetail> => {
-  const response = await fetch(`/api/products/${productId}`);
+  const sessionId = sessionStorage.getItem("velora_session_id") || "default";
+  const response = await fetch(`/api/products/${productId}`, {
+    headers: {
+      "x-session-id": sessionId
+    }
+  });
   if (!response.ok) {
     throw new Error("Failed to fetch product details");
   }

@@ -70,6 +70,18 @@ function MiniCard({
         <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>
           {formatUIPrice(product.price, product.currency)}
         </p>
+        {product.explanation && product.explanation.length > 0 && (
+          <div style={{ marginTop: 6, padding: "5px 6px", borderRadius: 6, background: "rgba(124,77,186,0.05)", borderLeft: "2px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
+            <p style={{ color: "#7c4dba", fontSize: 7.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
+              Recommended:
+            </p>
+            {product.explanation.slice(0, 3).map((reason, idx) => (
+              <p key={idx} style={{ color: "#402970", fontSize: 7.5, margin: 0, fontFamily: "'Nunito',sans-serif", lineHeight: 1.1 }}>
+                • {reason}
+              </p>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -211,6 +223,19 @@ function SelectedBanner({
           </div>
 
           <p style={{ color: "#7c6a9e", fontSize: 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
+
+          {product.explanation && product.explanation.length > 0 && (
+            <div style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
+              <p style={{ color: "#7c4dba", fontSize: 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif" }}>
+                Recommended for you because:
+              </p>
+              {product.explanation.slice(0, 3).map((reason, idx) => (
+                <p key={idx} style={{ color: "#402970", fontSize: 10, margin: 0, fontFamily: "'Nunito',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                  • {reason}
+                </p>
+              ))}
+            </div>
+          )}
 
           {product.variants.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

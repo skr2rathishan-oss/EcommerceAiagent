@@ -1,8 +1,25 @@
 import { detectIntent, chatWithLLM } from "../services/llm.service.mjs";
+import { recordIntentDetection, recordMemoryLoad, recordQwenResponse, recordMcpSearch, recordFormatting, recordTotal } from "../services/performance.service.mjs";
 import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
 import { getShoppingContext } from "../agent/memoryManager.mjs";
+import { saveMessage } from "../services/conversation.service.mjs";
+import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
+import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
+import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
+import logger from "../utils/logger.mjs";
+
+
+// Helper to extract message content from assistant response payload
+function extractText(payload) {
+  if (!payload) return "";
+  if (typeof payload === "string") return payload;
+  if (payload.text) return payload.text;
+  if (payload.message) return payload.message;
+  if (payload.content) return payload.content;
+  return "";
+}
 
 
 
@@ -20,6 +37,11 @@ export const chat = async (req, res) => {
         message: "Message is required and must be a non-empty string."
       });
     }
+
+    // Save user message (non-blocking)
+    saveMessage(sessionId, "user", message).catch(err => {
+      console.error("[Persistence Error] Failed to save user message:", err);
+    });
 
     // ── Direct-intent fast path ───────────────────────────────────────────
     // When the frontend sends an explicit `intent` field (e.g. for product
@@ -47,6 +69,22 @@ export const chat = async (req, res) => {
 
       const directResult = await routeIntent(req.body.intent, directParameters, sessionId);
       console.log("[CONTROLLER] Direct intent result type:", directResult?.type);
+
+      // Save assistant response (non-blocking)
+      const assistantText = extractText(directResult);
+      if (assistantText) {
+        saveMessage(sessionId, "assistant", assistantText)
+          .then((updatedConvo) => {
+            if (updatedConvo) {
+              checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
+                console.error("[Background Summarization Error] Trigger failed in direct intent path:", err);
+              });
+            }
+          })
+          .catch(err => {
+            console.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
+          });
+      }
 
       res.write(`data: ${JSON.stringify({
         type: "complete",
@@ -109,13 +147,56 @@ export const chat = async (req, res) => {
 
     try {
       console.log("[INTENT] Detecting intent for message:", message);
+      const intentDetectStart = Date.now();
       intentResult = await detectIntent(message);
+      recordIntentDetection(Date.now() - intentDetectStart);
       console.log("[INTENT] Raw intent result:", intentResult);
       parsedIntent = JSON.parse(intentResult);
     } catch (parseErr) {
       console.warn("Failed to parse intent JSON, falling back to general chat:", parseErr);
       parsedIntent = { intent: "general_chat", parameters: {} };
     }
+
+    // Determine fast path status
+    const isFastPath = shouldBypassQwen(parsedIntent.intent, message);
+    const pathType = getFastPathType(parsedIntent.intent, message);
+
+    if (isFastPath) {
+      console.log(JSON.stringify({
+        sessionId,
+        fastPath: true,
+        pathType: pathType
+      }));
+    } else {
+      console.log(JSON.stringify({
+        sessionId,
+        fastPath: false,
+        model: "Qwen"
+      }));
+    }
+
+    // Determine the intentType for logging and memory check
+    let intentType = parsedIntent.intent;
+    if (intentType === "general_chat") {
+      intentType = getMessageIntent(message, intentType);
+    } else {
+      if (intentType === "search_products") intentType = "product_search";
+      else if (intentType === "check_delivery") intentType = "delivery_queries";
+      else if (intentType === "get_product_details") intentType = "product_search";
+    }
+
+    let memoryLoaded = false;
+    let memoryContext = "";
+
+    if (shouldUseMemory(intentType)) {
+      memoryContext = await buildPersonalizedContext(sessionId);
+      if (memoryContext) {
+        memoryLoaded = true;
+      }
+    }
+
+    // Lightweight log: sessionId, memoryLoaded (true/false), intentType. Do not log profile/summaries/messages
+    console.log(`[Memory Context Log] sessionId: ${sessionId} | memoryLoaded: ${memoryLoaded} | intentType: ${intentType}`);
 
     // Extract details from parsed intent filters
     const intentDetails = [];
@@ -170,14 +251,14 @@ export const chat = async (req, res) => {
 
     let result;
     if (parsedIntent.intent === "general_chat") {
-      const history = getRecentHistory(sessionId);
-      addMessage(sessionId, "user", message);
+      const history = await getRecentHistory(sessionId);
+      await addMessage(sessionId, "user", message);
       const memory = getShoppingContext(sessionId);
 
-      result = await chatWithLLM({ message, history, memory });
+      result = await chatWithLLM({ message, history, memory, memoryContext });
 
       if (typeof result === "string") {
-        addMessage(sessionId, "assistant", result);
+        await addMessage(sessionId, "assistant", result);
       }
 
       if (result && typeof result === "object" && result.error) {
@@ -241,10 +322,15 @@ export const chat = async (req, res) => {
 
     let finalPayload;
     if (Array.isArray(result)) {
-      addMessage(sessionId, "user", message);
-      const history = getRecentHistory(sessionId);
-      const text = await formatRecommendations(message, result, history);
-      addMessage(sessionId, "assistant", text);
+      await addMessage(sessionId, "user", message);
+      const history = await getRecentHistory(sessionId);
+      let text;
+      if (isFastPath) {
+        text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
+      } else {
+        text = await formatRecommendations(message, result, history);
+      }
+      await addMessage(sessionId, "assistant", text);
       finalPayload = {
         type: "product_grid",
         text,
@@ -252,8 +338,8 @@ export const chat = async (req, res) => {
       };
     } else if (result && typeof result === "object" && result.type) {
       if (result.type === "product_grid") {
-        addMessage(sessionId, "user", message);
-        addMessage(sessionId, "assistant", result.text || "");
+        await addMessage(sessionId, "user", message);
+        await addMessage(sessionId, "assistant", result.text || "");
       }
       finalPayload = result;
     } else if (typeof result === "string") {
@@ -267,6 +353,22 @@ export const chat = async (req, res) => {
 
     // Complete the final step
     updateProgress("READY", "completed");
+
+    // Save assistant response (non-blocking)
+    const assistantText = extractText(finalPayload);
+    if (assistantText) {
+      saveMessage(sessionId, "assistant", assistantText)
+        .then((updatedConvo) => {
+          if (updatedConvo) {
+            checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
+              console.error("[Background Summarization Error] Trigger failed:", err);
+            });
+          }
+        })
+        .catch(err => {
+          console.error("[Persistence Error] Failed to save assistant message:", err);
+        });
+    }
 
     res.write(`data: ${JSON.stringify({
       type: "complete",

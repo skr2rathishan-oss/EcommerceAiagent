@@ -19,6 +19,7 @@ export interface Product {
   category: string;
   isMcp?: boolean;
   currency?: string;
+  explanation?: string[];
 }
 
 export const PRODUCTS: Product[] = [
