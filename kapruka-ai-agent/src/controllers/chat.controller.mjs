@@ -7,6 +7,7 @@ import { getShoppingContext } from "../agent/memoryManager.mjs";
 import { saveMessage } from "../services/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
+import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
 
 
 // Helper to extract message content from assistant response payload
@@ -153,6 +154,24 @@ export const chat = async (req, res) => {
     } catch (parseErr) {
       console.warn("Failed to parse intent JSON, falling back to general chat:", parseErr);
       parsedIntent = { intent: "general_chat", parameters: {} };
+    }
+
+    // Determine fast path status
+    const isFastPath = shouldBypassQwen(parsedIntent.intent, message);
+    const pathType = getFastPathType(parsedIntent.intent, message);
+
+    if (isFastPath) {
+      console.log(JSON.stringify({
+        sessionId,
+        fastPath: true,
+        pathType: pathType
+      }));
+    } else {
+      console.log(JSON.stringify({
+        sessionId,
+        fastPath: false,
+        model: "Qwen"
+      }));
     }
 
     // Determine the intentType for logging and memory check
@@ -304,7 +323,12 @@ export const chat = async (req, res) => {
     if (Array.isArray(result)) {
       addMessage(sessionId, "user", message);
       const history = getRecentHistory(sessionId);
-      const text = await formatRecommendations(message, result, history);
+      let text;
+      if (isFastPath) {
+        text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
+      } else {
+        text = await formatRecommendations(message, result, history);
+      }
       addMessage(sessionId, "assistant", text);
       finalPayload = {
         type: "product_grid",

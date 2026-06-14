@@ -16,3 +16,11 @@
 2026-06-14T06:17:50.764Z | [Velora Router] | Message Type: Greeting | Model: nvidia/nemotron-3-nano-30b-a3b | Stats: {"selectedModel":"nvidia/nemotron-3-nano-30b-a3b","messageType":"Greeting","latencyMs":1843}
 2026-06-14T06:19:14.551Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":6576}
 2026-06-14T06:30:37.063Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":14736}
+2026-06-14T08:03:36.749Z | [Velora Router] | Message Type: Greeting | Model: nvidia/nemotron-3-nano-30b-a3b | Stats: {"selectedModel":"nvidia/nemotron-3-nano-30b-a3b","messageType":"Greeting","latencyMs":2465}
+2026-06-14T08:04:21.877Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":1623}
+2026-06-14T08:04:53.893Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":2597}
+2026-06-14T08:11:32.309Z | [Velora Router] | Message Type: Greeting | Model: nvidia/nemotron-3-nano-30b-a3b | Stats: {"selectedModel":"nvidia/nemotron-3-nano-30b-a3b","messageType":"Greeting","latencyMs":1450}
+2026-06-14T08:11:38.199Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":1578}
+2026-06-14T08:12:31.660Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":2206}
+2026-06-14T08:14:38.097Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":3078}
+2026-06-14T08:15:44.676Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3-next-80b-a3b-instruct | Stats: {"selectedModel":"qwen/qwen3-next-80b-a3b-instruct","messageType":"Shopping","latencyMs":4125}

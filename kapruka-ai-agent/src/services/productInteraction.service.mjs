@@ -1,6 +1,7 @@
 import ProductInteraction from "../database/ProductInteraction.mjs";
 import UserProfile from "../database/UserProfile.mjs";
 import { generateUserInsights } from "./insights.service.mjs";
+import { refreshRecommendationCache } from "./recommendationCache.service.mjs";
 
 /**
  * Maps actions to their respective weight scores.
@@ -55,6 +56,9 @@ export async function trackInteraction(sessionId, productId, productName, catego
       generateUserInsights(sessionId).catch(err => {
         console.error(`[Background Insights Error] Insights generation on purchase failed for session ${sessionId}:`, err);
       });
+      refreshRecommendationCache(sessionId).catch(err => {
+        console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on purchase for session ${sessionId}:`, err);
+      });
     }
 
     // Trigger score updates in user profile asynchronously
@@ -88,6 +92,13 @@ export async function updateInteractionScores(sessionId, category, action) {
       { $inc: { [`interactionScores.${normalizedCategory}`]: scoreChange } },
       { upsert: true, new: true }
     );
+
+    // Trigger cache refresh on significant interaction score changes (scoreChange >= 3)
+    if (scoreChange >= 3) {
+      refreshRecommendationCache(sessionId).catch(err => {
+        console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on significant score change for session ${sessionId}:`, err);
+      });
+    }
   } catch (error) {
     console.error(`[Interaction Score Update Error] Failed to update score for session ${sessionId}:`, error);
   }

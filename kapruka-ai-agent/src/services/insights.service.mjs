@@ -7,6 +7,7 @@ import UserInsights from "../database/UserInsights.mjs";
 import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
 import { generateInsightsWithNemotron } from "./llm.service.mjs";
+import { refreshRecommendationCache } from "./recommendationCache.service.mjs";
 
 /**
  * Extracts a JSON object from a raw LLM response string.
@@ -74,6 +75,11 @@ export async function generateUserInsights(sessionId) {
       { upsert: true, new: true }
     );
 
+    // Trigger recommendation cache refresh asynchronously
+    refreshRecommendationCache(sessionId).catch(err => {
+      console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache in generateUserInsights for session ${sessionId}:`, err);
+    });
+
     // 5. Structured log — sessionId, insightsGenerated, version only
     console.log(JSON.stringify({
       sessionId,
@@ -114,7 +120,7 @@ export async function updateUserInsights(sessionId, data) {
     const existing    = await UserInsights.findOne({ sessionId }, { version: 1 }).lean().exec();
     const nextVersion = existing ? (existing.version || 1) + 1 : 1;
 
-    return await UserInsights.findOneAndUpdate(
+    const updatedDoc = await UserInsights.findOneAndUpdate(
       { sessionId },
       {
         $set: {
@@ -125,6 +131,13 @@ export async function updateUserInsights(sessionId, data) {
       },
       { upsert: true, new: true }
     );
+
+    // Trigger recommendation cache refresh asynchronously
+    refreshRecommendationCache(sessionId).catch(err => {
+      console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache in updateUserInsights for session ${sessionId}:`, err);
+    });
+
+    return updatedDoc;
   } catch (err) {
     console.error(`[Insights Service Error] updateUserInsights failed for session ${sessionId}:`, err);
     return null;

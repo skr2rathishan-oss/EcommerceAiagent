@@ -1,5 +1,6 @@
 import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
+import { getCachedRecommendations, refreshRecommendationCache } from "./recommendationCache.service.mjs";
 
 /**
  * Retrieves a combined recommendation profile for the given session.
@@ -7,19 +8,55 @@ import MemorySummary from "../database/MemorySummary.mjs";
  * Returns null if the profile cannot be built.
  */
 export async function getUserRecommendationProfile(sessionId) {
+  const start = Date.now();
   try {
+    // 1. Try cache (Fast Path)
+    const cachedProfile = await getCachedRecommendations(sessionId);
+    if (cachedProfile) {
+      const elapsed = Date.now() - start;
+      console.log(JSON.stringify({
+        event: "cacheHit",
+        sessionId,
+        durationMs: elapsed,
+        timestamp: new Date().toISOString()
+      }));
+      // Map cached schema keys to recommendation scoring expected format
+      return {
+        favoriteCategories: cachedProfile.topCategories || [],
+        interactionScores: cachedProfile.affinityScores || {},
+        averageBudget: cachedProfile.preferredBudget,
+        favoriteRecipients: cachedProfile.preferredRecipients || [],
+        favoriteOccasions: cachedProfile.preferredOccasions || []
+      };
+    }
+
+    // 2. Cache Miss: Log and generate profile normally (Fail Safe)
+    console.log(JSON.stringify({
+      event: "cacheMiss",
+      sessionId,
+      timestamp: new Date().toISOString()
+    }));
+
     const [profile, memory] = await Promise.all([
       UserProfile.findOne({ sessionId }).lean().exec(),
       MemorySummary.findOne({ sessionId }, { currentSummary: 0 }).lean().exec()
     ]);
     if (!profile) return null;
-    return {
+
+    const normalProfile = {
       favoriteCategories: profile.favoriteCategories || [],
       interactionScores: profile.interactionScores || {},
       averageBudget: profile.averageBudget,
       favoriteRecipients: profile.favoriteRecipients || [],
       favoriteOccasions: profile.favoriteOccasions || []
     };
+
+    // Asynchronously trigger refresh to populate cache for future requests
+    refreshRecommendationCache(sessionId).catch(err => {
+      console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache for session ${sessionId}:`, err);
+    });
+
+    return normalProfile;
   } catch (err) {
     console.error(`[Recommendation] Failed to build profile for ${sessionId}:`, err);
     return null;
