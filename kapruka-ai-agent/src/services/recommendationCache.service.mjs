@@ -1,22 +1,44 @@
-import RecommendationCache from "../database/RecommendationCache.mjs";
+import { redisService } from "./redis.service.mjs";
 import UserProfile from "../database/UserProfile.mjs";
 import UserInsights from "../database/UserInsights.mjs";
 import ProductInteraction from "../database/ProductInteraction.mjs";
+import RecommendationCache from "../database/RecommendationCache.mjs";
+import logger from "../utils/logger.mjs";
+
+const CACHE_TTL_SECONDS = 24 * 60 * 60; // 24 hours
+const getRecCacheKey = (sessionId) => `velora:reccache:${sessionId}`;
+
+// Request Deduplication Lock Map
+const activeGenerations = new Map();
 
 /**
  * Retrieves the precomputed recommendation profile for the given sessionId from cache.
- * Returns null if not found or expired.
+ * Returns null if not found.
  * 
  * @param {string} sessionId 
  * @returns {Promise<Object|null>}
  */
 export async function getCachedRecommendations(sessionId) {
   try {
-    const cached = await RecommendationCache.findOne({ sessionId }).lean().exec();
-    if (!cached) return null;
-    return cached.recommendationProfile || null;
+    const key = getRecCacheKey(sessionId);
+    const cached = await redisService.get(key);
+    if (cached) {
+      return cached;
+    }
+
+    // Fallback to MongoDB on Redis cache miss or Redis down
+    const dbCached = await RecommendationCache.findOne({ sessionId }).lean().exec();
+    if (dbCached && dbCached.recommendationProfile) {
+      // Repopulate Redis in background
+      redisService.set(key, dbCached.recommendationProfile, CACHE_TTL_SECONDS).catch(err => {
+        logger.error("Failed to repopulate Redis from MongoDB backup", { sessionId, error: err.message });
+      });
+      return dbCached.recommendationProfile;
+    }
+
+    return null;
   } catch (err) {
-    console.error(`[RecommendationCache] Failed to get cache for session ${sessionId}:`, err);
+    logger.error("Failed to read recommendation cache", { sessionId, error: err.message });
     return null;
   }
 }
@@ -122,47 +144,58 @@ export async function generateRecommendationProfile(sessionId) {
       preferredRecipients
     };
   } catch (err) {
-    console.error(`[RecommendationCache] Failed to generate profile for session ${sessionId}:`, err);
+    logger.error("Failed to generate recommendation profile", { sessionId, error: err.message });
     return null;
   }
 }
 
 /**
  * Regenerates the recommendation profile and updates the cache with a 24-hour TTL.
+ * Implement request deduplication to prevent N+1 database queries.
  * 
  * @param {string} sessionId 
  * @returns {Promise<Object|null>}
  */
 export async function refreshRecommendationCache(sessionId) {
-  try {
-    const profile = await generateRecommendationProfile(sessionId);
-    if (!profile) return null;
-
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-    const cachedDoc = await RecommendationCache.findOneAndUpdate(
-      { sessionId },
-      {
-        $set: {
-          recommendationProfile: profile,
-          generatedAt: now,
-          expiresAt: expiresAt
-        }
-      },
-      { upsert: true, new: true }
-    );
-
-    // Structured Log for Cache Refresh
-    console.log(JSON.stringify({
-      event: "cacheRefresh",
-      sessionId,
-      timestamp: now.toISOString()
-    }));
-
-    return cachedDoc;
-  } catch (err) {
-    console.error(`[RecommendationCache] Failed to refresh cache for session ${sessionId}:`, err);
-    return null;
+  // Check if there is already an active generation promise running for this session
+  if (activeGenerations.has(sessionId)) {
+    logger.info("Deduplicating recommendation cache generation request", { sessionId });
+    return activeGenerations.get(sessionId);
   }
+
+  const generationPromise = (async () => {
+    try {
+      const profile = await generateRecommendationProfile(sessionId);
+      if (!profile) return null;
+
+      const key = getRecCacheKey(sessionId);
+      await redisService.set(key, profile, CACHE_TTL_SECONDS);
+
+      // Write to MongoDB for persistent backup
+      const expiresAt = new Date(Date.now() + CACHE_TTL_SECONDS * 1000);
+      await RecommendationCache.findOneAndUpdate(
+        { sessionId },
+        { recommendationProfile: profile, expiresAt, generatedAt: new Date() },
+        { upsert: true, new: true }
+      ).exec();
+
+      // Structured Log for Cache Refresh
+      logger.info("Recommendation cache refreshed successfully", { sessionId });
+
+      return { recommendationProfile: profile };
+    } catch (err) {
+      logger.error("Failed to refresh recommendation cache", { sessionId, error: err.message });
+      return null;
+    }
+  })();
+
+  // Track the running promise in the lock map
+  activeGenerations.set(sessionId, generationPromise);
+
+  // Clean up lock when promise resolves/rejects
+  generationPromise.finally(() => {
+    activeGenerations.delete(sessionId);
+  });
+
+  return generationPromise;
 }

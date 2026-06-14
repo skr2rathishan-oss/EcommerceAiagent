@@ -8,6 +8,7 @@ import { saveMessage } from "../services/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
+import logger from "../utils/logger.mjs";
 
 
 // Helper to extract message content from assistant response payload
@@ -250,14 +251,14 @@ export const chat = async (req, res) => {
 
     let result;
     if (parsedIntent.intent === "general_chat") {
-      const history = getRecentHistory(sessionId);
-      addMessage(sessionId, "user", message);
+      const history = await getRecentHistory(sessionId);
+      await addMessage(sessionId, "user", message);
       const memory = getShoppingContext(sessionId);
 
       result = await chatWithLLM({ message, history, memory, memoryContext });
 
       if (typeof result === "string") {
-        addMessage(sessionId, "assistant", result);
+        await addMessage(sessionId, "assistant", result);
       }
 
       if (result && typeof result === "object" && result.error) {
@@ -321,15 +322,15 @@ export const chat = async (req, res) => {
 
     let finalPayload;
     if (Array.isArray(result)) {
-      addMessage(sessionId, "user", message);
-      const history = getRecentHistory(sessionId);
+      await addMessage(sessionId, "user", message);
+      const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
         text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
       } else {
         text = await formatRecommendations(message, result, history);
       }
-      addMessage(sessionId, "assistant", text);
+      await addMessage(sessionId, "assistant", text);
       finalPayload = {
         type: "product_grid",
         text,
@@ -337,8 +338,8 @@ export const chat = async (req, res) => {
       };
     } else if (result && typeof result === "object" && result.type) {
       if (result.type === "product_grid") {
-        addMessage(sessionId, "user", message);
-        addMessage(sessionId, "assistant", result.text || "");
+        await addMessage(sessionId, "user", message);
+        await addMessage(sessionId, "assistant", result.text || "");
       }
       finalPayload = result;
     } else if (typeof result === "string") {

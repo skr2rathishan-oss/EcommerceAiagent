@@ -1,6 +1,7 @@
 import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
 import { getCachedRecommendations, refreshRecommendationCache } from "./recommendationCache.service.mjs";
+import { explainRecommendation } from "./recommendationExplanation.service.mjs";
 
 /**
  * Retrieves a combined recommendation profile for the given session.
@@ -124,6 +125,19 @@ export async function rankProducts(products, sessionId) {
   }
   const scored = products.map(p => ({ ...p, _score: calculateRecommendationScore(p, profile) }));
   scored.sort((a, b) => b._score - a._score);
-  // Remove temporary score field before returning
-  return scored.map(({ _score, ...rest }) => rest);
+  
+  const ranked = scored.map(({ _score, ...rest }) => rest);
+
+  // Attach explanation reasons to each product asynchronously (Fail Safe)
+  const explainedProducts = await Promise.all(ranked.map(async (product) => {
+    try {
+      const explanation = await explainRecommendation(product, sessionId);
+      return { ...product, explanation };
+    } catch (err) {
+      console.error(`[Recommendation Integration Error] Failed to generate reasons for product ${product.id || product.name}:`, err);
+      return product;
+    }
+  }));
+
+  return explainedProducts;
 }

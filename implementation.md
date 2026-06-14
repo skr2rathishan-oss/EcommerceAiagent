@@ -1,355 +1,663 @@
-FULL PROJECT ARCHITECTURE & CODEBASE AUDIT
+ROLE
 
-You are a Senior Software Architect, Staff Backend Engineer, AI Systems Engineer, and DevOps Reviewer.
+You are a Principal Software Architect, Staff AI Engineer, Senior Backend Engineer, Performance Engineer, Security Auditor, DevOps Architect, and Technical Due Diligence Reviewer.
 
-Analyze the ENTIRE project codebase.
+Your task is to perform a COMPLETE ENGINEERING AUDIT of the repository.
 
-Do NOT only explain files individually.
+IMPORTANT:
 
-Perform a complete architectural review and produce a professional technical documentation report.
+Do NOT generate a file-by-file description.
 
-PHASE 1 — PROJECT DISCOVERY
+Do NOT summarize code blindly.
 
-First scan the entire repository and identify:
+Think like a senior architect reviewing a production AI system before launch.
 
-Project Overview
-Project name
-Purpose
-Business goal
-Main user workflow
-Core features
-Technology Stack
+Focus on:
+
+* Architecture
+* Data Flow
+* AI Pipeline
+* Scalability
+* Performance
+* Security
+* Maintainability
+* Production Readiness
+
+Every conclusion must be supported by actual code evidence.
+
+Where possible provide:
+
+* file paths
+* functions
+* services
+* dependencies
+
+---
+
+PHASE 0 — REPOSITORY MAPPING
+
+Before analysis:
+
+Generate a repository map.
 
 Identify:
 
-Frontend framework
-Backend framework
-Database
-Authentication
-AI/LLM providers
-Memory systems
-Vector databases
-External APIs
-Cloud services
-Deployment methods
-Docker usage
+* major modules
+* frontend modules
+* backend modules
+* AI modules
+* memory modules
+* analytics modules
+* infrastructure modules
 
-Generate a technology inventory table.
+Create:
 
-PHASE 2 — ARCHITECTURE ANALYSIS
+Repository Structure Diagram
 
-Create a detailed architecture document.
+Show:
+
+System Boundaries
+Dependencies
+Data Ownership
+
+---
+
+PHASE 1 — BUSINESS UNDERSTANDING
+
+Determine:
+
+Project Name
+
+Business Purpose
+
+Target Users
+
+Core User Journey
+
+Primary Value Proposition
+
+Main Use Cases
+
+Generate:
+
+Business Workflow Diagram
+
+Example:
+
+User
+→ Search
+→ Recommendation
+→ Product Details
+→ Checkout
+→ Tracking
+
+---
+
+PHASE 2 — COMPLETE SYSTEM ARCHITECTURE
+
+Create a professional architecture document.
+
+Generate:
+
+System Context Diagram
+
+Frontend
+↔ Backend
+↔ LLM
+↔ MCP
+↔ MongoDB
 
 Explain:
 
-Frontend Architecture
+Responsibilities
+
+Dependencies
+
+Communication Patterns
+
+Ownership Boundaries
 
 Identify:
+
+Tight Coupling
+Hidden Dependencies
+Architectural Risks
+
+---
+
+PHASE 3 — FRONTEND AUDIT
+
+Analyze:
 
 Routing
-Components
-State management
-UI flow
-API communication
+
+State Management
+
+Data Fetching
+
+Streaming Logic
+
+UI Components
+
+Session Management
+
+Recommendation Rendering
+
+Checkout Flow
 
 Generate:
 
-Component hierarchy
-Data flow diagram
-Backend Architecture
+Component Hierarchy
 
-Identify:
+UI Data Flow
 
-Entry points
-Routes
-Services
-Controllers
-Repositories
-Utilities
-Middleware
+State Flow Diagram
+
+Review:
+
+Performance
+
+Re-render Risks
+
+Component Reuse
+
+Code Organization
+
+Score:
+
+Architecture
+Performance
+Maintainability
+
+---
+
+PHASE 4 — BACKEND AUDIT
+
+Trace:
+
+Request Lifecycle
+
+User Request
+→ Route
+→ Controller
+→ Service
+→ MCP
+→ LLM
+→ Database
+→ Response
 
 Generate:
 
-Request flow diagram
-Service dependency diagram
-Database Architecture
+Request Flow Diagram
 
-Identify:
+Dependency Diagram
 
-Collections
-Tables
-Models
+Controller-Service Relationships
+
+Review:
+
+Layer Separation
+
+Business Logic Placement
+
+Coupling
+
+Error Handling
+
+Async Design
+
+Score:
+
+Architecture
+Performance
+Maintainability
+
+---
+
+PHASE 5 — DATABASE AUDIT
+
+Document ALL collections.
+
+For every collection:
+
+Purpose
+
+Indexes
+
+Growth Pattern
+
+Retention Strategy
+
 Relationships
 
 Generate:
 
-Database schema documentation
-ER diagram description
-PHASE 3 — AI AGENT ANALYSIS
+Database Schema Documentation
 
-Identify the complete AI workflow.
-
-Document:
-
-Request Pipeline
-
-Trace:
-
-User Message
-→ Frontend
-→ Backend
-→ Memory
-→ LLM
-→ Tools
-→ Response
-
-Step-by-step.
-
-Memory System
-
-Identify:
-
-Conversation memory
-Session memory
-Summaries
-Persistence
-Retrieval strategy
-
-Explain:
-
-How memory works
-When memory is updated
-When memory is retrieved
-Memory limitations
-Prompt Engineering
-
-Find:
-
-System prompts
-Dynamic prompts
-Prompt builders
-
-Analyze:
-
-Token efficiency
-Context structure
-Risks
-Tool Calling
-
-Identify:
-
-MCP tools
-External APIs
-Function calling
-
-Document:
-
-Tool flow
-Tool execution lifecycle
-Tool dependencies
-PHASE 4 — PERFORMANCE AUDIT
-
-Analyze:
-
-Slow Response Causes
-
-Measure possible bottlenecks:
-
-Database queries
-Memory retrieval
-LLM calls
-Multiple LLM calls
-Tool calls
-Network requests
-Large payloads
-Blocking operations
-
-For every bottleneck provide:
-
-Cause
-Impact
-Severity
-Suggested Fix
-
-Token Usage Audit
-
-Identify:
-
-Excessive history usage
-Prompt bloat
-Duplicate context
-Repeated summarization
-
-Estimate:
-
-Wasted tokens
-Potential savings
-Scalability Review
-
-Estimate:
-
-10 users
-100 users
-1000 users
-10000 users
-
-Identify breaking points.
-
-PHASE 5 — PIPELINE LEAK DETECTION
-
-Search entire project for:
-
-Memory Leaks
-
-Examples:
-
-Unbounded message history
-Large objects retained
-Missing cleanup
-Token Leaks
-
-Examples:
-
-Sending full history repeatedly
-Duplicate prompts
-Redundant summaries
-Database Leaks
-
-Examples:
-
-Unlimited growth
-Missing indexes
-Duplicate storage
-API Leaks
-
-Examples:
-
-Repeated API calls
-Unnecessary retries
-N+1 requests
-Context Leaks
-
-Examples:
-
-Same context reconstructed every request
-Duplicate memory retrieval
-
-For each leak provide:
-
-Location
-Problem
-Impact
-Recommended Solution
-
-PHASE 6 — SECURITY AUDIT
-
-Analyze:
-
-Authentication
-Authorization
-Secrets Management
-Environment Variables
-Prompt Injection Risks
-API Abuse Risks
-Session Risks
-Data Exposure Risks
-Rate Limiting
-
-Provide severity:
-
-Critical
-High
-Medium
-Low
-
-PHASE 7 — CODE QUALITY REVIEW
+ER Diagram Description
 
 Review:
 
-Folder structure
-Naming conventions
-Reusability
-Modularity
-Technical debt
-Dead code
-Duplicate code
+Missing Indexes
 
-Score each area from 1–10.
+Hot Collections
 
-PHASE 8 — DEVOPS REVIEW
+Write Amplification
 
-Analyze:
+Duplicate Storage
 
-Docker
-Azure VM
-Deployment Process
-CI/CD
-Monitoring
-Logging
-Error Tracking
-Backups
+Data Consistency Risks
 
-Provide improvement recommendations.
+Storage Growth Forecast
 
-PHASE 9 — FEATURE COMPLETION AUDIT
+Estimate:
 
-Identify:
+1K Users
 
-Completed Features
-Partially Completed Features
-Missing Features
-Planned Features
+10K Users
 
-Create:
+100K Users
 
-Feature	Status	Completion %
-PHASE 10 — IMPROVEMENT ROADMAP
+---
+
+PHASE 6 — AI AGENT ARCHITECTURE AUDIT
+
+Document COMPLETE AI Pipeline.
+
+Trace:
+
+User
+→ Intent Detection
+→ Fast Path Router
+→ Memory
+→ Recommendation Cache
+→ LLM
+→ MCP
+→ Response
 
 Generate:
 
-Immediate Fixes (1–3 days)
-Short-Term Improvements (1–2 weeks)
-Medium-Term Improvements (1 month)
-Long-Term Improvements (3+ months)
+AI Pipeline Diagram
 
-Prioritize by:
+Intent Flow Diagram
+
+Memory Flow Diagram
+
+Recommendation Flow Diagram
+
+---
+
+PHASE 7 — MEMORY SYSTEM REVIEW
+
+Analyze:
+
+Conversation Persistence
+
+Memory Summaries
+
+User Profiles
+
+Insights
+
+Recommendation Cache
+
+Analytics
+
+Explain:
+
+Creation Flow
+
+Update Flow
+
+Retrieval Flow
+
+Expiration Strategy
+
+Token Reduction Strategy
+
+Review:
+
+Memory Efficiency
+
+Token Efficiency
+
+Context Quality
+
+Potential Failure Modes
+
+---
+
+PHASE 8 — PERFORMANCE ENGINEERING AUDIT
+
+Identify:
+
+Critical Latency Sources
+
+Measure:
+
+Intent Detection
+
+Memory Retrieval
+
+MongoDB
+
+MCP
+
+Nemotron
+
+Qwen
+
+Formatting
+
+Response Streaming
+
+For each:
+
+Latency Impact
+
+Severity
+
+Optimization Potential
+
+Expected Gain
+
+Generate:
+
+Performance Bottleneck Ranking
+
+---
+
+PHASE 9 — PIPELINE LEAK DETECTION
+
+Search entire system for:
+
+Memory Leaks
+
+Context Leaks
+
+Prompt Leaks
+
+Token Leaks
+
+Database Leaks
+
+Cache Leaks
+
+Connection Leaks
+
+Async Leaks
+
+N+1 Query Problems
+
+Repeated Computation
+
+Redundant Context Construction
+
+For each finding:
+
+Location
+
+Severity
 
 Impact
+
+Recommended Fix
+
+Expected Improvement
+
+---
+
+PHASE 10 — SECURITY REVIEW
+
+Audit:
+
+Authentication
+
+Authorization
+
+Session Security
+
+MongoDB Security
+
+Secrets Management
+
+Environment Variables
+
+Prompt Injection
+
+Tool Injection
+
+Data Exposure
+
+Rate Limiting
+
+Abuse Prevention
+
+Assign:
+
+Critical
+
+High
+
+Medium
+
+Low
+
+---
+
+PHASE 11 — SCALABILITY REVIEW
+
+Estimate behavior at:
+
+10 Users
+
+100 Users
+
+1000 Users
+
+10000 Users
+
+100000 Users
+
+Identify:
+
+First Breaking Point
+
+Second Breaking Point
+
+Database Limits
+
+LLM Limits
+
+Infrastructure Limits
+
+Provide scaling strategy.
+
+---
+
+PHASE 12 — DEVOPS REVIEW
+
+Review:
+
+Docker
+
+Azure VM
+
+Deployment
+
+Environment Management
+
+Backups
+
+Logging
+
+Monitoring
+
+Health Checks
+
+Recovery Procedures
+
+CI/CD
+
+Provide maturity score.
+
+---
+
+PHASE 13 — FEATURE COMPLETION AUDIT
+
+Classify:
+
+Completed Features
+
+Partially Completed Features
+
+Missing Features
+
+Experimental Features
+
+Create:
+
+Feature Matrix
+
+Feature
+Status
+Completion %
+Risk Level
+
+---
+
+PHASE 14 — TECHNICAL DEBT AUDIT
+
+Identify:
+
+Dead Code
+
+Duplicate Logic
+
+Large Files
+
+God Classes
+
+Tight Coupling
+
+Missing Abstractions
+
+Overengineering
+
+Underengineering
+
+Rank by severity.
+
+---
+
+PHASE 15 — PRODUCTION READINESS ASSESSMENT
+
+Evaluate:
+
+Reliability
+
+Observability
+
+Scalability
+
+Security
+
+Maintainability
+
+Performance
+
+AI Architecture
+
+Memory Design
+
+Recommendation System
+
+Overall Production Readiness
+
+Provide:
+
+Ready for Demo
+Ready for Beta
+Ready for Production
+
+Justify each conclusion.
+
+---
+
+PHASE 16 — EXECUTIVE SUMMARY
+
+Generate:
+
+Architecture Overview
+
+System Flow
+
+AI Agent Flow
+
+Database Design
+
+Performance Findings
+
+Security Findings
+
+Leak Findings
+
+Technical Debt Findings
+
+Scalability Findings
+
+Top Risks
+
+Top Strengths
+
+---
+
+PHASE 17 — TOP 25 IMPROVEMENTS
+
+Prioritize:
+
+Immediate (1-3 Days)
+
+Short Term (1-2 Weeks)
+
+Medium Term (1 Month)
+
+Long Term (3+ Months)
+
+Provide:
+
+Impact
+
 Effort
+
 Risk
 
-PHASE 11 — FINAL REPORT
+ROI
 
-Generate a professional report containing:
+---
 
-Executive Summary
-Architecture Overview
-System Flow
-AI Agent Workflow
-Memory Architecture
-Database Design
-Security Findings
-Performance Findings
-Pipeline Leak Findings
-Scalability Assessment
-Feature Completion Matrix
-Technical Debt Analysis
-Production Readiness Score
-Top 20 Recommended Improvements
-
-Also provide:
-
-Overall Project Score
+FINAL SCORECARD
 
 Architecture: /10
-Performance: /10
-Security: /10
-Scalability: /10
-Maintainability: /10
+
 AI Design: /10
 
-Final Overall Score: /100
+Performance: /10
 
-Do not skip any files.
-Analyze the entire repository before producing conclusions.
-Support findings with exact file paths and code references where possible.
+Security: /10
+
+Scalability: /10
+
+Maintainability: /10
+
+DevOps: /10
+
+Production Readiness: /10
+
+OVERALL SCORE: /100
+
+Provide brutally honest conclusions.
+
+Do not inflate scores.
+
+Think like an investor performing technical due diligence before funding.
