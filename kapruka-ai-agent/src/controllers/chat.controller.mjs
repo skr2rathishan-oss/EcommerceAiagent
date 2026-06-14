@@ -8,6 +8,8 @@ import { saveMessage } from "../services/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
+import { detectLanguage } from "../services/languageDetector.js";
+import { translateToEnglish, translateToSinhala, translateToTamil } from "../services/translationService.js";
 import logger from "../utils/logger.mjs";
 
 
@@ -19,6 +21,43 @@ function extractText(payload) {
   if (payload.message) return payload.message;
   if (payload.content) return payload.content;
   return "";
+}
+
+// Helper to translate final response payload to target language (Sinhala/Tamil)
+async function translateResponsePayload(payload, targetLang) {
+  if (!payload || targetLang === "en") {
+    return payload;
+  }
+
+  const copy = { ...payload };
+
+  let translateFn = null;
+  if (targetLang === "si" || targetLang === "mixed-si") {
+    translateFn = translateToSinhala;
+  } else if (targetLang === "ta" || targetLang === "mixed-ta") {
+    translateFn = translateToTamil;
+  }
+
+  if (!translateFn) {
+    return payload;
+  }
+
+  try {
+    if (typeof copy.text === "string" && copy.text.trim()) {
+      copy.text = await translateFn(copy.text);
+    }
+    if (typeof copy.message === "string" && copy.message.trim()) {
+      copy.message = await translateFn(copy.message);
+    }
+    // Do NOT translate copy.content for product_details to avoid modifying descriptions
+    if (copy.type !== "product_details" && typeof copy.content === "string" && copy.content.trim()) {
+      copy.content = await translateFn(copy.content);
+    }
+  } catch (err) {
+    logger.error(`[Translation Payload Error] Failed to translate response payload:`, err);
+  }
+
+  return copy;
 }
 
 
@@ -38,8 +77,18 @@ export const chat = async (req, res) => {
       });
     }
 
-    // Save user message (non-blocking)
-    saveMessage(sessionId, "user", message).catch(err => {
+    // Detect user language
+    const detectedLang = await detectLanguage(message);
+
+    // Translate user message to English if it is in Sinhala, Tamil, or mixed
+    let englishMessage = message;
+    if (detectedLang !== "en") {
+      englishMessage = await translateToEnglish(message);
+      logger.info(`[Translation] Original: "${message}" -> English: "${englishMessage}" (Lang: ${detectedLang})`);
+    }
+
+    // Save user message (non-blocking) - save the English version for consistent agent history
+    saveMessage(sessionId, "user", englishMessage).catch(err => {
       console.error("[Persistence Error] Failed to save user message:", err);
     });
 
@@ -146,9 +195,9 @@ export const chat = async (req, res) => {
     let parsedIntent = { intent: "general_chat", parameters: {} };
 
     try {
-      console.log("[INTENT] Detecting intent for message:", message);
+      console.log("[INTENT] Detecting intent for message:", englishMessage);
       const intentDetectStart = Date.now();
-      intentResult = await detectIntent(message);
+      intentResult = await detectIntent(englishMessage);
       recordIntentDetection(Date.now() - intentDetectStart);
       console.log("[INTENT] Raw intent result:", intentResult);
       parsedIntent = JSON.parse(intentResult);
@@ -158,8 +207,8 @@ export const chat = async (req, res) => {
     }
 
     // Determine fast path status
-    const isFastPath = shouldBypassQwen(parsedIntent.intent, message);
-    const pathType = getFastPathType(parsedIntent.intent, message);
+    const isFastPath = shouldBypassQwen(parsedIntent.intent, englishMessage);
+    const pathType = getFastPathType(parsedIntent.intent, englishMessage);
 
     if (isFastPath) {
       console.log(JSON.stringify({
@@ -178,7 +227,7 @@ export const chat = async (req, res) => {
     // Determine the intentType for logging and memory check
     let intentType = parsedIntent.intent;
     if (intentType === "general_chat") {
-      intentType = getMessageIntent(message, intentType);
+      intentType = getMessageIntent(englishMessage, intentType);
     } else {
       if (intentType === "search_products") intentType = "product_search";
       else if (intentType === "check_delivery") intentType = "delivery_queries";
@@ -252,10 +301,10 @@ export const chat = async (req, res) => {
     let result;
     if (parsedIntent.intent === "general_chat") {
       const history = await getRecentHistory(sessionId);
-      await addMessage(sessionId, "user", message);
+      await addMessage(sessionId, "user", englishMessage);
       const memory = getShoppingContext(sessionId);
 
-      result = await chatWithLLM({ message, history, memory, memoryContext });
+      result = await chatWithLLM({ message: englishMessage, history, memory, memoryContext });
 
       if (typeof result === "string") {
         await addMessage(sessionId, "assistant", result);
@@ -322,13 +371,13 @@ export const chat = async (req, res) => {
 
     let finalPayload;
     if (Array.isArray(result)) {
-      await addMessage(sessionId, "user", message);
+      await addMessage(sessionId, "user", englishMessage);
       const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
         text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
       } else {
-        text = await formatRecommendations(message, result, history);
+        text = await formatRecommendations(englishMessage, result, history);
       }
       await addMessage(sessionId, "assistant", text);
       finalPayload = {
@@ -338,7 +387,7 @@ export const chat = async (req, res) => {
       };
     } else if (result && typeof result === "object" && result.type) {
       if (result.type === "product_grid") {
-        await addMessage(sessionId, "user", message);
+        await addMessage(sessionId, "user", englishMessage);
         await addMessage(sessionId, "assistant", result.text || "");
       }
       finalPayload = result;
@@ -370,9 +419,11 @@ export const chat = async (req, res) => {
         });
     }
 
+    const translatedPayload = await translateResponsePayload(finalPayload, detectedLang);
+
     res.write(`data: ${JSON.stringify({
       type: "complete",
-      data: finalPayload
+      data: translatedPayload
     })}\n\n`);
     res.end();
 
