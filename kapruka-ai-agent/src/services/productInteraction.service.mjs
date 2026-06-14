@@ -1,5 +1,6 @@
 import ProductInteraction from "../database/ProductInteraction.mjs";
 import UserProfile from "../database/UserProfile.mjs";
+import { generateUserInsights } from "./insights.service.mjs";
 
 /**
  * Maps actions to their respective weight scores.
@@ -48,6 +49,13 @@ export async function trackInteraction(sessionId, productId, productName, catego
       timestamp: new Date()
     });
     await interaction.save();
+
+    // Phase 5: Trigger insights generation on purchase events (background, non-blocking)
+    if (action === "purchase") {
+      generateUserInsights(sessionId).catch(err => {
+        console.error(`[Background Insights Error] Insights generation on purchase failed for session ${sessionId}:`, err);
+      });
+    }
 
     // Trigger score updates in user profile asynchronously
     if (category) {

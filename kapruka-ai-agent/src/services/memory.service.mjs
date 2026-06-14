@@ -2,6 +2,7 @@ import MemorySummary from "../database/MemorySummary.mjs";
 import UserProfile from "../database/UserProfile.mjs";
 import { getConversation } from "./conversation.service.mjs";
 import { generateSummaryWithNemotron } from "./llm.service.mjs";
+import { generateUserInsights } from "./insights.service.mjs";
 
 /**
  * Retrieves the memory summary for a sessionId.
@@ -189,6 +190,11 @@ async function runBackgroundSummarization(sessionId, messageCount, summaryDoc) {
       profileDoc.averageBudget = mergeBudget(profileDoc.averageBudget, averageBudget);
     }
     await profileDoc.save();
+
+    // Phase 5: Trigger insights generation asynchronously after each summarization cycle
+    generateUserInsights(sessionId).catch(err => {
+      console.error(`[Background Insights Error] Insights generation failed for session ${sessionId}:`, err);
+    });
 
     const completionTime = new Date().toISOString();
     console.log(JSON.stringify({

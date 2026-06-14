@@ -1,4 +1,5 @@
 import { detectIntent, chatWithLLM } from "../services/llm.service.mjs";
+import { recordIntentDetection, recordMemoryLoad, recordQwenResponse, recordMcpSearch, recordFormatting, recordTotal } from "../services/performance.service.mjs";
 import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
@@ -144,7 +145,9 @@ export const chat = async (req, res) => {
 
     try {
       console.log("[INTENT] Detecting intent for message:", message);
+      const intentDetectStart = Date.now();
       intentResult = await detectIntent(message);
+      recordIntentDetection(Date.now() - intentDetectStart);
       console.log("[INTENT] Raw intent result:", intentResult);
       parsedIntent = JSON.parse(intentResult);
     } catch (parseErr) {

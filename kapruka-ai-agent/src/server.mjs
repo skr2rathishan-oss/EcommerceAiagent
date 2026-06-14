@@ -9,7 +9,9 @@ import orderTrackingRoutes from "./routes/orderTracking.routes.mjs";
 import morgan from "morgan";
 import cors from "cors";
 import { connectDB } from "./database/mongo.mjs";
+import { startAnalyticsScheduler } from "./utils/analyticsScheduler.mjs";
 await connectDB();
+startAnalyticsScheduler();
 
 const app = express();
 
