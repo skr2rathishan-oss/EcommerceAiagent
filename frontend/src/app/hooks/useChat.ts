@@ -5,6 +5,7 @@ import { checkDelivery } from "../services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "../services/mapping";
 import { type Product } from "../components/products";
 import { type DeliveryInfo, getDefaultSeller } from "../components/InteractiveOrderSummary";
+import { trackQueryUsage } from "../components/SuggestedPrompts";
 
 export const useChat = () => {
   const {
@@ -250,9 +251,13 @@ export const useChat = () => {
     }
   };
 
-  const handleSend = () => {
-    const trimmed = value.trim();
+  const handleSend = (textOverride?: string) => {
+    const trimmed = typeof textOverride === "string" ? textOverride.trim() : value.trim();
     if (!trimmed) return;
+
+    // Track query usage for suggested prompts
+    trackQueryUsage(trimmed);
+
     if (phase === "centered") setPhase("bottom");
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");

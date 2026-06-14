@@ -13,6 +13,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
 import { ChatInputBox } from "./components/ChatInputBox";
+import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
 import { RightSidebar } from "./components/RightSidebar";
 
@@ -179,6 +180,7 @@ function MainApp() {
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
                   textareaRef={textareaRef} fileInputRef={fileInputRef} />
+                <SuggestedPrompts onSelect={handleSend} />
               </motion.div>
             </motion.div>
           )}
