@@ -43,6 +43,16 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     return () => clearInterval(timer);
   }, [voiceChatOpen]);
 
+  // Auto-resize textarea height dynamically based on content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const nextHeight = Math.min(el.scrollHeight, 120);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > 120 ? "auto" : "hidden";
+  }, [value, textareaRef]);
+
   const formatDuration = (sec: number) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
     const s = (sec % 60).toString().padStart(2, '0');
@@ -86,13 +96,13 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
         style={{
           background: "rgba(255,255,255,0.92)",
           backdropFilter: "blur(12px)",
-          borderRadius: 9999,
+          borderRadius: 24,
           border: `1.5px solid ${focused ? "rgba(64,41,112,0.55)" : "rgba(64,41,112,0.15)"}`,
           boxShadow: "none",
           transition: "border-color 0.18s",
         }}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-end gap-2 px-3 py-2">
           <input ref={fileInputRef} type="file" multiple className="hidden" aria-label="Upload file" />
           <IconBtn onClick={() => fileInputRef.current?.click()} title="Attach file">
             <Paperclip size={18} strokeWidth={2} />
@@ -104,7 +114,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             onKeyDown={onKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder={isListening ? "Listening..." : "Message…"}
+            placeholder={isListening ? "Listening..." : "Ask for products, comparisons, or shopping advice..."}
             disabled={isListening}
             rows={1}
             className="flex-1 bg-transparent resize-none outline-none text-foreground placeholder:text-muted-foreground"

@@ -52,3 +52,25 @@ export const checkDelivery = async (req: DeliveryRequest): Promise<DeliveryRespo
   return response.json();
 };
 
+export interface BackendRecommendationProduct {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  image: string;
+  url: string;
+  inStock: boolean;
+  description: string;
+  brand: string;
+  category: string;
+}
+
+export const fetchRecommendations = async (): Promise<BackendRecommendationProduct[]> => {
+  const response = await fetch("/api/products/recommendations");
+  if (!response.ok) {
+    throw new Error("Failed to fetch recommendations");
+  }
+  const data = await response.json();
+  return data.products || [];
+};
+
