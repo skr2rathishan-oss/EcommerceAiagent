@@ -54,8 +54,16 @@ export const chatWithLLM = async ({
   message,
   history = [],
   memory = {},
+  memoryContext = "",
 }) => {
   try {
+    const selectedModel = selectModel(message);
+
+    let userContent = message;
+    if (memoryContext && selectedModel === PRIMARY_MODEL) {
+      userContent = `Memory Context:\n${memoryContext}\n\nCurrent User Request:\n${message}`;
+    }
+
     const messagesArray = [
       {
         role: "system",
@@ -71,11 +79,9 @@ ${JSON.stringify(memory, null, 2)}
 
       {
         role: "user",
-        content: message,
+        content: userContent,
       },
     ];
-
-    const selectedModel = selectModel(message);
 
     // TEMP DEBUG LOG - SAFE TO REMOVE LATER
     console.log("[LLM REQUEST] Model:", selectedModel);
@@ -153,6 +159,39 @@ export const detectIntent = async (message) => {
   // TEMP DEBUG LOG - SAFE TO REMOVE LATER
   console.log("[INTENT] detectIntent response time:", Date.now() - start, "ms");
   console.log("[INTENT] Raw LLM intent response:", completion.choices[0].message.content);
+
+  return completion.choices[0].message.content;
+};
+
+export const generateSummaryWithNemotron = async (messages) => {
+  const formattedConvo = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+
+  const systemContent = `You are a helpful AI that analyzes ecommerce chat logs and extracts user profile insights.
+Your output must be a single, valid JSON object containing user profile summary and preferences.
+Do not include any explanations, markdown code blocks, or conversational filler. Return ONLY the JSON object.
+
+The JSON object must have this exact structure:
+{
+  "summary": "A concise paragraph summarizing the user's shopping history, interests, and behavior.",
+  "favoriteCategories": ["cakes", "flowers"],
+  "favoriteRecipients": ["mother", "friend"],
+  "favoriteOccasions": ["birthday", "anniversary"],
+  "deliveryCities": ["Colombo", "Kandy"],
+  "averageBudget": 5000
+}
+
+If any preference field cannot be determined, return an empty array or null for averageBudget.
+Ensure all JSON is correctly formatted.`;
+
+  const completion = await client.chat.completions.create({
+    model: LIGHT_MODEL,
+    temperature: 0.1,
+    max_tokens: 1000,
+    messages: [
+      { role: "system", content: systemContent },
+      { role: "user", content: `Here is the conversation log to analyze:\n\n${formattedConvo}` }
+    ]
+  });
 
   return completion.choices[0].message.content;
 };

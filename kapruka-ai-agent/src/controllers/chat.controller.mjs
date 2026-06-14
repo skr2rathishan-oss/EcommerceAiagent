@@ -4,6 +4,9 @@ import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
 import { getShoppingContext } from "../agent/memoryManager.mjs";
 import { saveMessage } from "../services/conversation.service.mjs";
+import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
+import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
+
 
 // Helper to extract message content from assistant response payload
 function extractText(payload) {
@@ -67,9 +70,17 @@ export const chat = async (req, res) => {
       // Save assistant response (non-blocking)
       const assistantText = extractText(directResult);
       if (assistantText) {
-        saveMessage(sessionId, "assistant", assistantText).catch(err => {
-          console.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
-        });
+        saveMessage(sessionId, "assistant", assistantText)
+          .then((updatedConvo) => {
+            if (updatedConvo) {
+              checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
+                console.error("[Background Summarization Error] Trigger failed in direct intent path:", err);
+              });
+            }
+          })
+          .catch(err => {
+            console.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
+          });
       }
 
       res.write(`data: ${JSON.stringify({
@@ -141,6 +152,29 @@ export const chat = async (req, res) => {
       parsedIntent = { intent: "general_chat", parameters: {} };
     }
 
+    // Determine the intentType for logging and memory check
+    let intentType = parsedIntent.intent;
+    if (intentType === "general_chat") {
+      intentType = getMessageIntent(message, intentType);
+    } else {
+      if (intentType === "search_products") intentType = "product_search";
+      else if (intentType === "check_delivery") intentType = "delivery_queries";
+      else if (intentType === "get_product_details") intentType = "product_search";
+    }
+
+    let memoryLoaded = false;
+    let memoryContext = "";
+
+    if (shouldUseMemory(intentType)) {
+      memoryContext = await buildPersonalizedContext(sessionId);
+      if (memoryContext) {
+        memoryLoaded = true;
+      }
+    }
+
+    // Lightweight log: sessionId, memoryLoaded (true/false), intentType. Do not log profile/summaries/messages
+    console.log(`[Memory Context Log] sessionId: ${sessionId} | memoryLoaded: ${memoryLoaded} | intentType: ${intentType}`);
+
     // Extract details from parsed intent filters
     const intentDetails = [];
     if (parsedIntent.intent === "search_products" && parsedIntent.parameters?.filters) {
@@ -198,7 +232,7 @@ export const chat = async (req, res) => {
       addMessage(sessionId, "user", message);
       const memory = getShoppingContext(sessionId);
 
-      result = await chatWithLLM({ message, history, memory });
+      result = await chatWithLLM({ message, history, memory, memoryContext });
 
       if (typeof result === "string") {
         addMessage(sessionId, "assistant", result);
@@ -295,9 +329,17 @@ export const chat = async (req, res) => {
     // Save assistant response (non-blocking)
     const assistantText = extractText(finalPayload);
     if (assistantText) {
-      saveMessage(sessionId, "assistant", assistantText).catch(err => {
-        console.error("[Persistence Error] Failed to save assistant message:", err);
-      });
+      saveMessage(sessionId, "assistant", assistantText)
+        .then((updatedConvo) => {
+          if (updatedConvo) {
+            checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
+              console.error("[Background Summarization Error] Trigger failed:", err);
+            });
+          }
+        })
+        .catch(err => {
+          console.error("[Persistence Error] Failed to save assistant message:", err);
+        });
     }
 
     res.write(`data: ${JSON.stringify({
