@@ -2,6 +2,93 @@ import { getProductDetails } from "../services/mcp.service.mjs";
 import { trackInteraction } from "../services/productInteraction.service.mjs";
 import logger from "../utils/logger.mjs";
 
+const MOCK_PRODUCTS = {
+  p1: {
+    id: "p1",
+    name: "SoundFlow Pro X",
+    description: "Experience audio like never before with the SoundFlow Pro X. Featuring advanced Active Noise Cancellation, 40-hour battery life, and Hi-Res audio certification, these headphones deliver studio-quality sound in any environment. The ergonomic over-ear design ensures comfort during extended listening sessions.",
+    price: 89.99,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 2–3 business days",
+    url: ""
+  },
+  p2: {
+    id: "p2",
+    name: "Vega S2 Smart Watch",
+    description: "The Vega S2 redefines what a smartwatch can do. With a stunning 1.4\" AMOLED display, built-in GPS, ECG monitoring, SpO2 sensor, and 7-day battery life, it's the perfect companion for an active lifestyle. Compatible with iOS and Android.",
+    price: 199.00,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1631863552122-3072cf599a46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1542541864-4abf21a55761?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 1–2 business days",
+    url: ""
+  },
+  p3: {
+    id: "p3",
+    name: "AirStep Runner 2.0",
+    description: "The AirStep Runner 2.0 is engineered for performance and comfort. Built with a breathable mesh upper and energy-returning foam midsole, these shoes provide the perfect blend of cushioning and speed. Ideal for road running, gym workouts, and everyday wear.",
+    price: 119.00,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1560769629-975ec94e6a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1608231387042-66d1773070a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 3–5 business days",
+    url: ""
+  },
+  p4: {
+    id: "p4",
+    name: "ProBook Ultra 14",
+    description: "The ProBook Ultra 14 packs desktop-class performance into a 14mm slim chassis. Powered by the latest M-class processor, 16GB unified memory, and a 2K IPS display with 100% sRGB coverage, it's built for professionals who demand the best. Whisper-quiet, all-day battery life.",
+    price: 1099.00,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 2–4 business days",
+    url: ""
+  },
+  p5: {
+    id: "p5",
+    name: "ClearSound Buds Pro",
+    description: "ClearSound Buds Pro deliver immersive stereo sound in a compact form factor. With IPX5 water resistance, 8hr bud battery plus 24hr from the case, and seamless device switching, they're perfect for commuters, gym-goers, and remote workers alike.",
+    price: 49.99,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 1–2 business days",
+    url: ""
+  },
+  p6: {
+    id: "p6",
+    name: "Flux 3 Mechanical Keyboard",
+    description: "The Flux 3 is a tenkeyless mechanical keyboard built for typists and gamers. Hot-swappable switch sockets let you tune the feel without soldering. Full per-key RGB, PBT double-shot keycaps, and a gasket-mounted plate deliver a premium tactile and auditory experience.",
+    price: 129.99,
+    currency: "USD",
+    images: [
+      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
+      "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
+    ],
+    stock: true,
+    shippingInfo: "Free delivery in 3–5 business days",
+    url: ""
+  }
+};
+
 export const getProduct = async (req, res) => {
   logger.info("[CONTROLLER] Entry: getProduct", { params: req.params });
 
@@ -16,7 +103,13 @@ export const getProduct = async (req, res) => {
       });
     }
 
-    const details = await getProductDetails(id.trim());
+    const trimmedId = id.trim();
+    if (MOCK_PRODUCTS[trimmedId]) {
+      logger.info("[CONTROLLER] Returning mock product details for ID", { trimmedId });
+      return res.json(MOCK_PRODUCTS[trimmedId]);
+    }
+
+    const details = await getProductDetails(trimmedId);
 
     if (!details || !details.id) {
       logger.warn("[ERROR] Product details not found or invalid response for ID", { id });

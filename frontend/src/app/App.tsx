@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { X, ChevronLeft, MapPin } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
-import { type Product } from "./components/products";
+import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { ProductDetailPanel } from "./components/ProductDetailPanel";
@@ -58,7 +58,8 @@ function MainApp() {
     handleProductAction,
     handleRetry,
     handleKeyDown,
-    handleSend
+    handleSend,
+    handleStop
   } = useChat();
 
   const {
@@ -160,27 +161,81 @@ function MainApp() {
         {/* Centered phase */}
         <AnimatePresence>
           {phase === "centered" && (
-            <motion.div key="centered" className="flex-1 flex flex-col items-center justify-center px-4"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            <motion.div 
+              key="centered" 
+              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-center px-4 py-8 custom-scrollbar no-scrollbar"
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
+              style={{
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
             >
-              <motion.div className="text-center mb-8 select-none"
-                initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
+              <style>{`
+                .custom-scrollbar::-webkit-scrollbar {
+                  display: none;
+                }
+              `}</style>
+              
+              {/* Hero Section */}
+              <motion.div 
+                className="text-center mb-6 select-none w-full max-w-2xl"
+                initial={{ opacity: 0, y: 16 }} 
+                animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
               >
-                <h1 style={{ color: "#1a1025", fontSize: "clamp(22px,4vw,32px)", fontWeight: 700, letterSpacing: "-0.3px", lineHeight: 1.25, marginBottom: 10 }}>
-                  How can I help you today?
+                <h1 style={{ color: "#1a1025", fontSize: "clamp(24px, 5vw, 36px)", fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.2, marginBottom: 8 }}>
+                  Discover Smart Shopping with Velora
                 </h1>
-                <p style={{ color: "#7c6a9e", fontSize: 15, maxWidth: 340, margin: "0 auto", lineHeight: 1.6 }}>
-                  Ask me anything — I'm ready to assist you.
+                <p style={{ color: "#7c6a9e", fontSize: 15.5, maxWidth: 460, margin: "0 auto 20px", lineHeight: 1.5 }}>
+                  Your intelligent shopping assistant. Ask questions, compare products, find deals, and track orders in one place.
                 </p>
               </motion.div>
-              <motion.div className="w-full" style={{ maxWidth: 620 }}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.1 } }}
+
+              {/* Chat Input & Suggested Searches Box */}
+              <motion.div className="w-full mb-8" style={{ maxWidth: 620 }}
+                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.15 } }}
               >
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
-                  textareaRef={textareaRef} fileInputRef={fileInputRef} />
-                <SuggestedPrompts onSelect={handleSend} />
+                  textareaRef={textareaRef} fileInputRef={fileInputRef}
+                  isTyping={isTyping} onStop={handleStop} />
+                
+                {/* Quick Actions (Pill Buttons) */}
+                <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
+                  {[
+                    { title: "Find Products", emoji: "🛍️", query: "Find me the best products" },
+                    { title: "Best Deals Today", emoji: "🔥", query: "Show me the best deals today" },
+                    { title: "Gift Finder", emoji: "🎁", query: "Help me find a gift for a friend" }
+                  ].map((act, idx) => (
+                    <motion.button
+                      key={idx}
+                      whileHover={{ 
+                        y: -1.5, 
+                        backgroundColor: "rgba(255, 255, 255, 0.95)",
+                        borderColor: "rgba(124, 77, 186, 0.35)",
+                        boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
+                      }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => handleSend(act.query)}
+                      className="cursor-pointer border transition-all duration-150 inline-flex items-center"
+                      style={{
+                        padding: "6px 12px",
+                        background: "rgba(255, 255, 255, 0.65)",
+                        backdropFilter: "blur(8px)",
+                        borderColor: "rgba(64, 41, 112, 0.12)",
+                        borderRadius: 9999,
+                        color: "#1a1025",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        fontFamily: "'Nunito', sans-serif"
+                      }}
+                    >
+                      <span style={{ marginRight: 5, fontSize: 13.5, display: "inline-flex", alignItems: "center" }}>{act.emoji}</span>
+                      <span>{act.title}</span>
+                    </motion.button>
+                  ))}
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -592,7 +647,8 @@ function MainApp() {
                     </AnimatePresence>
                     <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                       onKeyDown={handleKeyDown} canSend={canSend}
-                      textareaRef={textareaRef} fileInputRef={fileInputRef} />
+                      textareaRef={textareaRef} fileInputRef={fileInputRef}
+                      isTyping={isTyping} onStop={handleStop} />
                     <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
                       Enter to send · Shift + Enter for new line
                     </p>
