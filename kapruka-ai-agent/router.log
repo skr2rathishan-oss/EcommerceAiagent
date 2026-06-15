@@ -60,3 +60,5 @@
 2026-06-15T06:09:21.567Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Shopping","latencyMs":6125}
 2026-06-15T06:37:47.370Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":9513}
 2026-06-15T06:38:04.744Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":4339}
+2026-06-15T08:46:01.980Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":6076}
+2026-06-15T08:49:21.578Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":5144}
