@@ -304,7 +304,7 @@ export const chat = async (req, res) => {
       await addMessage(sessionId, "user", englishMessage);
       const memory = getShoppingContext(sessionId);
 
-      result = await chatWithLLM({ message: englishMessage, history, memory, memoryContext });
+      result = await chatWithLLM({ message: englishMessage, history, memory, memoryContext, detectedLang });
 
       if (typeof result === "string") {
         await addMessage(sessionId, "assistant", result);

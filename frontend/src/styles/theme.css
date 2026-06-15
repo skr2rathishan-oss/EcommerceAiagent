@@ -3,6 +3,13 @@
 :root {
   --font-size: 16px;
   --background: #f7f5fb;
+  --app-bg: #f0ebfa;
+  --card-bg: rgba(255, 255, 255, 0.65);
+  --card-border: rgba(124, 77, 186, 0.15);
+  --card-hover-bg: rgba(255, 255, 255, 0.95);
+  --card-hover-border: rgba(124, 77, 186, 0.35);
+  --text-primary: #1a1025;
+  --text-secondary: #7c6a9e;
   --foreground: #1a1025;
   --card: #ffffff;
   --card-foreground: #1a1025;
@@ -39,10 +46,20 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --banner-bg-start: #efeaff;
+  --banner-bg-end: #e2d7fc;
+  --banner-border: rgba(124, 77, 186, 0.15);
 }
 
 .dark {
   --background: oklch(0.145 0 0);
+  --app-bg: #07040f;
+  --card-bg: rgba(20, 12, 36, 0.7);
+  --card-border: rgba(167, 139, 250, 0.22);
+  --card-hover-bg: rgba(30, 20, 50, 0.85);
+  --card-hover-border: rgba(167, 139, 250, 0.45);
+  --text-primary: #f5f2fa;
+  --text-secondary: #a093be;
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.145 0 0);
   --card-foreground: oklch(0.985 0 0);
@@ -76,6 +93,9 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+  --banner-bg-start: #1c1435;
+  --banner-bg-end: #120924;
+  --banner-border: rgba(167, 139, 250, 0.22);
 }
 
 @theme inline {

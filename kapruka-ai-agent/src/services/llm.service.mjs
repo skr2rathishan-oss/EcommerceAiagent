@@ -17,7 +17,13 @@ const client = new OpenAI({
     apiKey: process.env.NVIDIA_API_KEY,
 });
 
-export const PRIMARY_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
+const generalClient = new OpenAI({
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKey: process.env.GENERAL_CHAT_API_KEY || process.env.NVIDIA_API_KEY,
+});
+
+export const PRIMARY_MODEL = "qwen/qwen3.5-122b-a10b";
+export const GENERAL_MODEL = "openai/gpt-oss-20b";
 export const LIGHT_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 
 export function isSimpleConversation(message) {
@@ -39,15 +45,12 @@ export function isSimpleConversation(message) {
   return simpleGreetings.includes(cleaned);
 }
 
-export function selectModel(message) {
-  const enableRouting = process.env.ENABLE_MODEL_ROUTING === "true";
-  if (!enableRouting) {
+export function selectModel(message, detectedLang = "en") {
+  const isQwenLang = ["en", "si", "ta", "mixed-si", "mixed-ta"].includes(detectedLang);
+  if (isQwenLang) {
     return PRIMARY_MODEL;
   }
-  if (isSimpleConversation(message)) {
-    return LIGHT_MODEL;
-  }
-  return PRIMARY_MODEL;
+  return GENERAL_MODEL;
 }
 
 export const chatWithLLM = async ({
@@ -55,9 +58,11 @@ export const chatWithLLM = async ({
   history = [],
   memory = {},
   memoryContext = "",
+  detectedLang = "en",
 }) => {
   try {
-    const selectedModel = selectModel(message);
+    const selectedModel = selectModel(message, detectedLang);
+    const activeClient = selectedModel === PRIMARY_MODEL ? client : generalClient;
 
     let userContent = message;
     if (memoryContext && selectedModel === PRIMARY_MODEL) {
@@ -89,12 +94,23 @@ ${JSON.stringify(memory, null, 2)}
     console.log("[LLM REQUEST] Full messages array:", JSON.stringify(messagesArray, null, 2));
     const llmCallStart = Date.now();
 
-    const completion = await client.chat.completions.create({
+    const isGeneral = selectedModel === GENERAL_MODEL;
+    const completionOptions = {
       model: selectedModel,
-      temperature: 0.8,
-      max_tokens: 200,
+      temperature: isGeneral ? 1.0 : 0.8,
+      max_tokens: isGeneral ? 4096 : 200,
       messages: messagesArray,
-    });
+    };
+    if (isGeneral) {
+      completionOptions.top_p = 1.0;
+    }
+
+    const completion = await activeClient.chat.completions.create(completionOptions);
+
+    const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+    if (reasoning) {
+      console.log("[LLM RESPONSE] Reasoning Content:\n", reasoning);
+    }
 
     const latencyMs = Date.now() - llmCallStart;
     // TEMP DEBUG LOG - SAFE TO REMOVE LATER
@@ -183,8 +199,8 @@ The JSON object must have this exact structure:
 If any preference field cannot be determined, return an empty array or null for averageBudget.
 Ensure all JSON is correctly formatted.`;
 
-  const completion = await client.chat.completions.create({
-    model: LIGHT_MODEL,
+  const completion = await generalClient.chat.completions.create({
+    model: GENERAL_MODEL,
     temperature: 0.1,
     max_tokens: 1000,
     messages: [
@@ -192,6 +208,11 @@ Ensure all JSON is correctly formatted.`;
       { role: "user", content: `Here is the conversation log to analyze:\n\n${formattedConvo}` }
     ]
   });
+
+  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+  if (reasoning) {
+    console.log("[MongoDB Summary] Reasoning Content:\n", reasoning);
+  }
 
   return completion.choices[0].message.content;
 };
@@ -245,8 +266,8 @@ ${currentSummary || "(none)"}
 Interaction Scores (category → score):
 ${scoresBlock}`;
 
-  const completion = await client.chat.completions.create({
-    model: LIGHT_MODEL,
+  const completion = await generalClient.chat.completions.create({
+    model: GENERAL_MODEL,
     temperature: 0.1,
     max_tokens: 300,
     messages: [
@@ -254,6 +275,11 @@ ${scoresBlock}`;
       { role: "user",   content: userContent }
     ]
   });
+
+  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+  if (reasoning) {
+    console.log("[MongoDB Insights] Reasoning Content:\n", reasoning);
+  }
 
   return completion.choices[0].message.content;
 };

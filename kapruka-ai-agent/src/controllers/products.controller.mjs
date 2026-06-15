@@ -220,7 +220,7 @@ export const getRecommendationsController = async (req, res) => {
   logger.info("[CONTROLLER] Entry: getRecommendationsController");
 
   try {
-    const cacheKey = "top_recommendations_v2";
+    const cacheKey = "top_recommendations_v3";
     const cachedRecs = await redisService.get(cacheKey);
     if (cachedRecs) {
       logger.info("[CONTROLLER] Returning cached recommendations");
@@ -230,7 +230,7 @@ export const getRecommendationsController = async (req, res) => {
     logger.info("[CONTROLLER] Fetching recommendations from MCP");
     
     // Fetch multiple product categories in parallel for a rich recommendations list
-    const categories = ["chocolate", "tea", "cake", "toy"];
+    const categories = ["chocolate", "tea", "cake", "toy", "perfume", "flowers", "biscuit", "fruit"];
     const results = await Promise.allSettled(
       categories.map(cat => searchProducts(cat))
     );
@@ -238,8 +238,8 @@ export const getRecommendationsController = async (req, res) => {
     const mergedProducts = [];
     results.forEach(res => {
       if (res.status === "fulfilled" && Array.isArray(res.value)) {
-        // Take up to 4 items from each category to ensure diversity
-        mergedProducts.push(...res.value.slice(0, 4));
+        // Take up to 12 items from each category to ensure diversity
+        mergedProducts.push(...res.value.slice(0, 12));
       }
     });
 

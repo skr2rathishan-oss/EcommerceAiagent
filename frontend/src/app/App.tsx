@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronLeft, MapPin, Sparkles } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
@@ -18,20 +18,74 @@ import { RightSidebar } from "./components/RightSidebar";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 
-function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => void }) {
-  const [imgErr, setImgErr] = useState(false);
+function SpeechBubble({ children, style, tailPosition }: { children: React.ReactNode; style: React.CSSProperties; tailPosition: "bottom-left" | "bottom-right" }) {
   return (
     <motion.div
-      whileHover={{ y: -4, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 6px 16px rgba(64, 41, 112, 0.1)" }}
-      whileTap={{ scale: 0.97 }}
+      animate={{ y: [0, -6, 0] }}
+      transition={{ repeat: Infinity, duration: 3.5, ease: "easeInOut", delay: Math.random() }}
+      className="absolute flex items-center justify-center bg-white rounded-full pointer-events-none z-20"
+      style={{
+        width: 32,
+        height: 32,
+        boxShadow: "0 6px 16px rgba(64, 41, 112, 0.12)",
+        border: "1px solid rgba(124, 77, 186, 0.15)",
+        ...style
+      }}
+    >
+      {children}
+      <div
+        style={{
+          position: "absolute",
+          bottom: -4,
+          left: tailPosition === "bottom-left" ? 8 : "auto",
+          right: tailPosition === "bottom-right" ? 8 : "auto",
+          width: 0,
+          height: 0,
+          borderLeft: "5px solid transparent",
+          borderRight: "5px solid transparent",
+          borderTop: "5px solid white",
+        }}
+      />
+    </motion.div>
+  );
+}
+
+const getRatingInfo = (id: string) => {
+  const idNum = parseInt(id.replace(/\D/g, "")) || 0;
+  const ratings = [4.8, 4.7, 4.9, 4.6, 4.7];
+  const reviews = [120, 95, 78, 64, 88];
+  const idx = idNum % 5;
+  return {
+    rating: ratings[idx],
+    reviews: reviews[idx]
+  };
+};
+
+function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => void }) {
+  const [imgErr, setImgErr] = useState(false);
+  const { wishlistItems, handleWishlist } = useApp();
+  const isWishlisted = wishlistItems.some(item => item.id === prod.id);
+
+  // Simulated discount for visual completeness matching design
+  const hasDiscount = (prod.originalPrice && prod.originalPrice > prod.price) || (parseInt(prod.id.replace(/\D/g, "")) % 3 === 0);
+  const discountPct = prod.originalPrice && prod.originalPrice > prod.price
+    ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100)
+    : 10;
+
+  const mockRating = getRatingInfo(prod.id);
+
+  return (
+    <motion.div
+      whileHover={{ y: -4, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 8px 24px rgba(64, 41, 112, 0.08)" }}
+      whileTap={{ scale: 0.98 }}
       onClick={onClick}
       style={{
-        width: 120,
+        width: 180,
         flexShrink: 0,
-        background: "rgba(255, 255, 255, 0.65)",
+        background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
         backdropFilter: "blur(10px)",
-        border: "1.5px solid rgba(124, 77, 186, 0.15)",
-        borderRadius: 14,
+        border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+        borderRadius: 16,
         overflow: "hidden",
         cursor: "pointer",
         display: "flex",
@@ -41,7 +95,24 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
       }}
     >
       {/* Product Image */}
-      <div style={{ width: "100%", aspectRatio: "1/1", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", position: "relative" }}>
+      <div style={{ width: "100%", aspectRatio: "1.4/1", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", position: "relative" }}>
+        {hasDiscount && (
+          <div style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            background: "#7c4dba",
+            color: "#ffffff",
+            fontSize: "8.5px",
+            fontWeight: 800,
+            padding: "2px 5px",
+            borderRadius: 4,
+            zIndex: 2,
+            fontFamily: "'Nunito', sans-serif",
+          }}>
+            {discountPct}% OFF
+          </div>
+        )}
         {!imgErr ? (
           <img
             src={prod.images[0]}
@@ -57,14 +128,14 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
       </div>
 
       {/* Info */}
-      <div style={{ padding: "8px 10px 10px", display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
-        <span style={{ color: "#9e8dc0", fontSize: 7.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
+      <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
+        <span style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
           {prod.brand}
         </span>
         <span
           style={{
-            color: "#1a1025",
-            fontSize: 10.5,
+            color: "var(--text-primary, #1a1025)",
+            fontSize: 11.5,
             fontWeight: 700,
             fontFamily: "'Nunito', sans-serif",
             lineHeight: 1.25,
@@ -72,14 +143,47 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             display: "-webkit-box",
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
-            height: 26
+            height: 28
           }}
         >
           {prod.name}
         </span>
-        <span style={{ color: "#7c4dba", fontSize: 11.5, fontWeight: 800, fontFamily: "'Nunito', sans-serif", marginTop: "auto" }}>
-          {formatUIPrice(prod.price, prod.currency)}
-        </span>
+        
+        {/* Rating and Reviews */}
+        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 1 }}>
+          <span style={{ color: "#fbbf24", fontSize: 12, lineHeight: 1 }}>★</span>
+          <span style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+            {mockRating.rating} ({mockRating.reviews})
+          </span>
+        </div>
+        
+        {/* Bottom Row */}
+        <div style={{ display: "flex", alignItems: "center", justifycontent: "space-between", justifyContent: "space-between", marginTop: "auto", paddingTop: 2 }}>
+          <span style={{ color: "#7c4dba", fontSize: 12.5, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
+            {formatUIPrice(prod.price, prod.currency)}
+          </span>
+          
+          <motion.button
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.85 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleWishlist(prod);
+            }}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              padding: 4,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: isWishlisted ? "#ec4899" : "#7c6a9e",
+            }}
+          >
+            <Heart size={15} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   );
@@ -140,11 +244,51 @@ function MainApp() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const recsContainerRef = useRef<HTMLDivElement>(null);
-  const recsHoveredRef = useRef(false);
 
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollLimits = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      setCanScrollLeft(el.scrollLeft > 10);
+      setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 10);
+    }
+  };
+
+  useEffect(() => {
+    if (!loadingRecs) {
+      const timer = setTimeout(checkScrollLimits, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [loadingRecs, recommendations]);
+
+  useEffect(() => {
+    window.addEventListener("resize", checkScrollLimits);
+    return () => window.removeEventListener("resize", checkScrollLimits);
+  }, []);
+
+  const handleScrollEvent = () => {
+    checkScrollLimits();
+  };
+
+  const scrollLeft = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollBy({ left: -360, behavior: "smooth" });
+    }
+  };
+
+  const scrollRight = () => {
+    const el = scrollContainerRef.current;
+    if (el) {
+      el.scrollBy({ left: 360, behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -165,91 +309,7 @@ function MainApp() {
     };
   }, []);
 
-  // Frame-rate independent infinite horizontal auto-scroll and center-magnified scaling
-  useEffect(() => {
-    if (loadingRecs || recommendations.length === 0) return;
-    const container = recsContainerRef.current;
-    if (!container) return;
 
-    // Force instant scroll updates, bypass any CSS-level smooth scroll delays
-    container.style.scrollBehavior = "auto";
-
-    let animationId: number;
-    let lastTime: number | null = null;
-    const scrollSpeed = 35; // Continuous elegant speed (px/sec)
-
-    const updateCardTransforms = () => {
-      const containerWidth = container.clientWidth;
-      const containerCenter = containerWidth / 2;
-      if (container.children.length === 0) return;
-
-      Array.from(container.children).forEach((childNode) => {
-        const child = childNode as HTMLElement;
-        const childLeft = child.offsetLeft - container.scrollLeft;
-        const childCenter = childLeft + child.clientWidth / 2;
-
-        const dist = childCenter - containerCenter;
-        const maxDist = containerWidth / 2 || 1;
-        const normalizedDist = Math.max(-1, Math.min(1, dist / maxDist));
-
-        // Scale: center card is enlarged (1.12), edge cards are smaller (0.90)
-        const scale = 1.12 - 0.22 * (normalizedDist * normalizedDist);
-
-        // Gap expansion: dynamically push cards outward to widen the gap in the center
-        const translateX = normalizedDist * 64 * (1 - Math.abs(normalizedDist));
-
-        child.style.transform = `translateX(${translateX}px) scale(${scale})`;
-        child.style.transformOrigin = "center center";
-        child.style.transition = "transform 0.05s ease-out";
-      });
-    };
-
-    const step = (time: number) => {
-      if (lastTime === null) {
-        lastTime = time;
-      }
-      const rawDelta = (time - lastTime) / 1000;
-      const delta = Math.min(rawDelta, 0.1);
-      lastTime = time;
-
-      if (container && !recsHoveredRef.current) {
-        let nextScroll = container.scrollLeft + scrollSpeed * delta;
-        const N = recommendations.length;
-        if (container.children.length > N) {
-          const firstChildOfFirstCopy = container.children[0] as HTMLElement;
-          const firstChildOfSecondCopy = container.children[N] as HTMLElement;
-          if (firstChildOfFirstCopy && firstChildOfSecondCopy) {
-            const offset = firstChildOfSecondCopy.offsetLeft - firstChildOfFirstCopy.offsetLeft;
-            if (nextScroll >= offset) {
-              nextScroll = nextScroll - offset;
-            } else if (nextScroll < 0) {
-              nextScroll = nextScroll + offset;
-            }
-          }
-        }
-        container.scrollLeft = nextScroll;
-        updateCardTransforms();
-      }
-      animationId = requestAnimationFrame(step);
-    };
-
-    const handleScroll = () => {
-      updateCardTransforms();
-    };
-
-    container.addEventListener("scroll", handleScroll, { passive: true });
-
-    // Initial positioning once elements render
-    requestAnimationFrame(() => {
-      updateCardTransforms();
-    });
-
-    animationId = requestAnimationFrame(step);
-    return () => {
-      cancelAnimationFrame(animationId);
-      container.removeEventListener("scroll", handleScroll);
-    };
-  }, [loadingRecs, recommendations]);
 
   const handleItemClick = (label: string, rect: DOMRect) => {
     if (label === "New Chat") {
@@ -299,31 +359,14 @@ function MainApp() {
   const canSend = value.trim().length > 0;
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden" style={{ background: "#f0ebfa", fontFamily: "'Nunito',sans-serif" }}>
+    <div className="h-screen w-screen flex overflow-hidden" style={{ background: "var(--app-bg, #f0ebfa)", fontFamily: "'Nunito',sans-serif" }}>
       {/* Sidebar */}
       <Sidebar onItemClick={handleItemClick} />
 
       {/* Main */}
       <div className="flex-1 flex flex-col relative overflow-hidden min-h-0">
 
-        {/* Center glow — centered phase only */}
-        {phase === "centered" && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center" aria-hidden>
-            <div style={{
-              width: 560, height: 560, borderRadius: "50%",
-              background: "radial-gradient(circle, rgba(167,139,250,0.25) 0%, rgba(139,92,246,0.12) 45%, transparent 70%)",
-              filter: "blur(60px)",
-            }} />
-          </div>
-        )}
 
-        {/* Static orbs for chat phase */}
-        {phase === "bottom" && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-            <div className="absolute rounded-full blur-3xl opacity-20" style={{ width: 500, height: 500, top: -100, right: -80, background: "radial-gradient(circle,#7c4dba,transparent 70%)" }} />
-            <div className="absolute rounded-full blur-3xl opacity-15" style={{ width: 360, height: 360, bottom: 40, left: -60, background: "radial-gradient(circle,#9b59d0,transparent 70%)" }} />
-          </div>
-        )}
 
         <TopNavbar
           onRightPanel={(id) => setRightPanel(rightPanel === id ? null : id)}
@@ -364,7 +407,7 @@ function MainApp() {
           {phase === "centered" && (
             <motion.div
               key="centered"
-              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-center px-4 py-8 custom-scrollbar no-scrollbar"
+              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-12 pb-16 custom-scrollbar no-scrollbar"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
@@ -382,119 +425,225 @@ function MainApp() {
                 }
               `}</style>
 
-              {/* Hero Section */}
+              {/* Hero Banner Card */}
               <motion.div
-                className="text-center mb-6 select-none w-full max-w-2xl"
+                className="relative w-full max-w-7xl rounded-3xl border p-12 md:py-40 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, var(--banner-bg-start), var(--banner-bg-end))",
+                  borderColor: "var(--banner-border)",
+                  boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
+                }}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
               >
-                <h1 style={{ color: "#1a1025", fontSize: "clamp(24px, 5vw, 36px)", fontWeight: 800, letterSpacing: "-0.5px", lineHeight: 1.2, marginBottom: 8 }}>
-                  Discover Smart Shopping with Velora
-                </h1>
-                <p style={{ color: "#7c6a9e", fontSize: 15.5, maxWidth: 460, margin: "0 auto 20px", lineHeight: 1.5 }}>
-                  Your intelligent shopping assistant. Ask questions, compare products, find deals, and track orders in one place.
-                </p>
-              </motion.div>
-
-              {/* Chat Input & Suggested Searches Box */}
-              <motion.div className="w-full mb-8" style={{ maxWidth: 672 }}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.5, delay: 0.15 } }}
-              >
-                <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                  onKeyDown={handleKeyDown} canSend={canSend}
-                  textareaRef={textareaRef} fileInputRef={fileInputRef}
-                  isTyping={isTyping} onStop={handleStop} />
-
-                {/* Quick Actions (Pill Buttons) */}
-                <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
-                  {[
-                    { title: "Find Products", emoji: "🛍️", type: "find_products" as const },
-                    { title: "Find Gift", emoji: "🎁", type: "find_gift" as const },
-                    { title: "Track My Order", emoji: "📦", type: "track_order" as const }
-                  ].map((act, idx) => (
-                    <motion.button
-                      key={idx}
-                      whileHover={{
-                        y: -1.5,
-                        backgroundColor: "rgba(255, 255, 255, 0.95)",
-                        borderColor: "rgba(124, 77, 186, 0.35)",
-                        boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
-                      }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleStartWorkflow(act.type)}
-                      className="cursor-pointer border transition-all duration-150 inline-flex items-center"
-                      style={{
-                        padding: "6px 12px",
-                        background: "rgba(255, 255, 255, 0.65)",
-                        backdropFilter: "blur(8px)",
-                        borderColor: "rgba(64, 41, 112, 0.12)",
-                        borderRadius: 9999,
-                        color: "#1a1025",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        fontFamily: "'Nunito', sans-serif"
-                      }}
-                    >
-                      <span style={{ marginRight: 5, fontSize: 13.5, display: "inline-flex", alignItems: "center" }}>{act.emoji}</span>
-                      <span>{act.title}</span>
-                    </motion.button>
-                  ))}
+                {/* Decorative Sparkles */}
+                <div className="absolute left-[15%] top-[25%] opacity-40 animate-pulse pointer-events-none hidden lg:block">
+                  <Sparkles size={16} color="#7c4dba" />
+                </div>
+                <div className="absolute right-[15%] top-[15%] opacity-40 animate-pulse pointer-events-none hidden lg:block" style={{ animationDelay: "0.5s" }}>
+                  <Sparkles size={22} color="#7c4dba" />
+                </div>
+                <div className="absolute right-[18%] bottom-[25%] opacity-30 animate-pulse pointer-events-none hidden lg:block" style={{ animationDelay: "1s" }}>
+                  <Sparkles size={14} color="#7c4dba" />
                 </div>
 
-                {/* Product Recommendations */}
-                <div style={{ marginTop: 68, width: "100%" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, padding: "0 4px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <Sparkles size={13} color="#7c4dba" />
-                      <span style={{ fontSize: 12.5, fontWeight: 800, color: "#1a1025", letterSpacing: "0.02em", fontFamily: "'Nunito', sans-serif" }}>
-                        Top Recommendations
-                      </span>
-                    </div>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, color: "#7c6a9e", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
-                      From Kapruka
+                {/* Left 3D-styled Bags & Plant Illustration */}
+                <div className="absolute left-10 bottom-0 w-[300px] h-[225px] hidden lg:block pointer-events-none select-none">
+                  <ShoppingBagsIllustration />
+                </div>
+
+                {/* Right 3D-styled Cart Illustration */}
+                <div className="absolute right-10 bottom-0 w-[300px] h-[225px] hidden lg:block pointer-events-none select-none">
+                  <ShoppingCartIllustration />
+                </div>
+
+                {/* Floating 3D Speech Bubbles around Cart */}
+                <div className="hidden lg:block">
+                  <SpeechBubble tailPosition="bottom-right" style={{ right: 290, bottom: 210 }}>
+                    <Tag size={13} color="#7c4dba" fill="#efeaff" strokeWidth={2.5} />
+                  </SpeechBubble>
+                  <SpeechBubble tailPosition="bottom-left" style={{ right: 90, bottom: 250 }}>
+                    <Gift size={13} color="#7c4dba" fill="#efeaff" strokeWidth={2.5} />
+                  </SpeechBubble>
+                  <SpeechBubble tailPosition="bottom-right" style={{ right: 330, bottom: 120 }}>
+                    <Percent size={13} color="#7c4dba" strokeWidth={2.5} />
+                  </SpeechBubble>
+                </div>
+
+                {/* Content Wrapper */}
+                <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
+                  <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
+                      style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
+                    Discover Smart Shopping
+                    <span className="inline-flex items-center gap-1.5" style={{ color: "#7c4dba" }}>
+                      with Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
                     </span>
+                  </h1>
+                  
+                  <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
+                    Your intelligent shopping assistant. Ask questions, compare products, find deals, and track orders in one place.
+                  </p>
+
+                  <div className="w-full">
+                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                      onKeyDown={handleKeyDown} canSend={canSend}
+                      textareaRef={textareaRef} fileInputRef={fileInputRef}
+                      isTyping={isTyping} onStop={handleStop} variant="centered" />
                   </div>
 
-                  <div
-                    ref={recsContainerRef}
-                    onMouseEnter={() => { recsHoveredRef.current = true; }}
-                    onMouseLeave={() => { recsHoveredRef.current = false; }}
-                    onTouchStart={() => { recsHoveredRef.current = true; }}
-                    onTouchEnd={() => { recsHoveredRef.current = false; }}
-                    style={(!loadingRecs && recommendations.length > 0) ? {
-                      position: "relative",
-                      width: "100%",
-                      height: 220,
-                      cursor: "grab",
-                      userSelect: "none",
-                      touchAction: "pan-y",
+                  {/* Quick Actions (Pill Buttons) */}
+                  <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
+                    {[
+                      { title: "Find Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
+                      { title: "Find Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                      { title: "Track My Order", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
+                    ].map((act, idx) => {
+                      const Icon = act.icon;
+                      return (
+                        <motion.button
+                          key={idx}
+                          whileHover={{
+                            y: -1.5,
+                            backgroundColor: "var(--card-hover-bg, rgba(255, 255, 255, 0.95))",
+                            borderColor: "var(--card-hover-border, rgba(124, 77, 186, 0.35))",
+                            boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
+                          }}
+                          whileTap={{ scale: 0.97 }}
+                          onClick={() => handleStartWorkflow(act.type)}
+                          className="cursor-pointer border transition-all duration-150 inline-flex items-center gap-1.5"
+                          style={{
+                            padding: "8px 16px",
+                            background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
+                            backdropFilter: "blur(8px)",
+                            borderColor: "var(--card-border, rgba(64, 41, 112, 0.12))",
+                            borderRadius: 9999,
+                            color: "var(--text-primary, #1a1025)",
+                            fontSize: 12.5,
+                            fontWeight: 700,
+                            fontFamily: "'Nunito', sans-serif"
+                          }}
+                        >
+                          <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
+                          <span>{act.title}</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Product Recommendations Section */}
+              <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
+                {/* Section Header */}
+                <div style={{ display: "flex", alignItems: "center", justifycontent: "space-between", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
+                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
+                      Top Recommendations
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color: "#7c4dba",
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      cursor: "pointer",
                       display: "flex",
-                      gap: 12,
-                      overflowX: "auto",
-                      paddingBottom: 8,
-                      scrollBehavior: "auto",
-                      WebkitOverflowScrolling: "touch",
-                      scrollbarWidth: "none",
-                    } : {
-                      display: "flex",
-                      gap: 12,
-                      overflowX: "auto",
-                      paddingBottom: 8,
-                      scrollBehavior: "auto",
-                      WebkitOverflowScrolling: "touch",
-                      scrollbarWidth: "none",
+                      alignItems: "center",
+                      gap: 2,
+                      fontFamily: "'Nunito', sans-serif",
                     }}
                   >
+                    View all <ChevronRight size={14} strokeWidth={2.5} />
+                  </button>
+                </div>
+
+                {/* Recommendations Carousel Row with Arrow Buttons */}
+                <div className="relative w-full group">
+                  {/* Left Scroll Button */}
+                  <AnimatePresence>
+                    {canScrollLeft && (
+                      <motion.button
+                        key="left-scroll-btn"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={scrollLeft}
+                        className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 9999,
+                          background: "var(--card-bg, #ffffff)",
+                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                          color: "#7c4dba",
+                        }}
+                      >
+                        <ChevronLeft size={20} strokeWidth={2.5} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Right Scroll Button */}
+                  <AnimatePresence>
+                    {canScrollRight && (
+                      <motion.button
+                        key="right-scroll-btn"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        type="button"
+                        onClick={scrollRight}
+                        className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 9999,
+                          background: "var(--card-bg, #ffffff)",
+                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                          color: "#7c4dba",
+                        }}
+                      >
+                        <ChevronRight size={20} strokeWidth={2.5} />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Card Horizontal Scroll Row */}
+                  <div
+                    ref={scrollContainerRef}
+                    onScroll={handleScrollEvent}
+                    style={{
+                      display: "flex",
+                      gap: 20,
+                      overflowX: "auto",
+                      padding: "8px 4px 16px",
+                      scrollbarWidth: "none",
+                      msOverflowStyle: "none",
+                      WebkitOverflowScrolling: "touch",
+                    }}
+                    className="no-scrollbar"
+                  >
                     {loadingRecs ? (
-                      Array.from({ length: 4 }).map((_, i) => (
+                      Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
                           style={{
-                            width: 120,
-                            height: 175,
-                            borderRadius: 14,
-                            background: "rgba(255, 255, 255, 0.4)",
-                            border: "1.5px solid rgba(124, 77, 186, 0.08)",
+                            width: 200,
+                            height: 280,
+                            borderRadius: 16,
+                            background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
+                            border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
                             boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
                             position: "relative",
                             overflow: "hidden"
@@ -511,13 +660,13 @@ function MainApp() {
                         </div>
                       ))
                     ) : recommendations.length === 0 ? (
-                      <div style={{ width: "100%", padding: "20px 0", textAlign: "center", color: "#7c6a9e", fontSize: 12, fontWeight: 600 }}>
+                      <div style={{ width: "100%", padding: "40px 0", textAlign: "center", color: "var(--text-secondary, #7c6a9e)", fontSize: 13, fontWeight: 600 }}>
                         No recommendations available at the moment.
                       </div>
                     ) : (
-                      [...recommendations, ...recommendations, ...recommendations].map((prod, idx) => (
+                      recommendations.map((prod) => (
                         <RecommendationCard
-                          key={`${prod.id}-${idx}`}
+                          key={prod.id}
                           prod={prod}
                           onClick={() => {
                             handleRequestProductDetails(prod.id, prod.name);
@@ -527,7 +676,7 @@ function MainApp() {
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -979,5 +1128,104 @@ export default function App() {
     <AppProvider>
       <MainApp />
     </AppProvider>
+  );
+}
+
+// ── SVG Illustrations for Hero Banner ────────────────────────────────────────
+
+function ShoppingBagsIllustration() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="bagsShadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="rgba(64, 41, 112, 0.15)" />
+        </filter>
+        <linearGradient id="purpleBagGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#b292f7" />
+          <stop offset="100%" stopColor="#7c4dba" />
+        </linearGradient>
+        <linearGradient id="whiteBagGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="100%" stopColor="#f3effe" />
+        </linearGradient>
+        <linearGradient id="potGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#eae6f5" />
+          <stop offset="100%" stopColor="#d1c9e8" />
+        </linearGradient>
+        <linearGradient id="leafGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#a3e635" />
+          <stop offset="100%" stopColor="#15803d" />
+        </linearGradient>
+      </defs>
+
+      <ellipse cx="110" cy="162" rx="90" ry="7" fill="rgba(64, 41, 112, 0.08)" />
+
+      <g filter="url(#bagsShadow)">
+        <path d="M110 88 C110 70, 130 70, 130 88" fill="none" stroke="#d5cdf3" strokeWidth="4.5" strokeLinecap="round" />
+        <path d="M92 88 L87 154 C87 158 90 160 94 160 L146 160 C150 160 153 158 153 154 L148 88 Z" fill="url(#whiteBagGrad)" />
+        <path d="M120 88 L120 160" stroke="rgba(64, 41, 112, 0.03)" strokeWidth="2" />
+      </g>
+
+      <g filter="url(#bagsShadow)">
+        <path d="M50 72 C50 50, 75 50, 75 72" fill="none" stroke="#dcd0ff" strokeWidth="5.5" strokeLinecap="round" />
+        <path d="M30 72 L24 152 C24 157 28 160 32 160 L92 160 C96 160 100 157 100 152 L94 72 Z" fill="url(#purpleBagGrad)" />
+        <path d="M65 72 L65 160" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="2.5" />
+      </g>
+
+      <g filter="url(#bagsShadow)">
+        <path d="M165 130 Q150 110 135 112 C132 112, 132 125, 142 126 Z" fill="url(#leafGrad)" />
+        <path d="M175 130 Q190 105 198 112 C202 116, 192 128, 182 128 Z" fill="url(#leafGrad)" />
+        <path d="M170 130 Q170 95 160 90 C155 88, 155 108, 162 118 Z" fill="url(#leafGrad)" />
+        <path d="M170 130 Q182 100 178 95 C174 91, 168 112, 172 122 Z" fill="url(#leafGrad)" />
+        <path d="M170 130 Q155 118 152 110 C149 105, 155 122, 164 125 Z" fill="url(#leafGrad)" />
+        <path d="M152 130 L155 158 C155 160 157 162 159 162 L181 162 C183 162 185 160 185 158 L188 130 Z" fill="url(#potGrad)" />
+        <ellipse cx="170" cy="130" rx="19" ry="4" fill="#cfc7ea" />
+      </g>
+    </svg>
+  );
+}
+
+function ShoppingCartIllustration() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 240 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="cartShadow" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="10" stdDeviation="8" floodColor="rgba(124, 77, 186, 0.22)" />
+        </filter>
+        <linearGradient id="cartWireGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#dcd0ff" />
+          <stop offset="50%" stopColor="#a78bfa" />
+          <stop offset="100%" stopColor="#7c4dba" />
+        </linearGradient>
+      </defs>
+
+      <ellipse cx="120" cy="158" rx="85" ry="7" fill="rgba(64, 41, 112, 0.08)" />
+
+      <g filter="url(#cartShadow)">
+        <circle cx="85" cy="148" r="11" fill="#7c4dba" />
+        <circle cx="85" cy="148" r="5" fill="#ffffff" />
+        <path d="M85 137 L85 128" stroke="#7c4dba" strokeWidth="4.5" strokeLinecap="round" />
+
+        <circle cx="155" cy="148" r="11" fill="#7c4dba" />
+        <circle cx="155" cy="148" r="5" fill="#ffffff" />
+        <path d="M155 137 L155 128" stroke="#7c4dba" strokeWidth="4.5" strokeLinecap="round" />
+
+        <path d="M75 128 L165 128 C170 128, 172 125, 172 120" fill="none" stroke="url(#cartWireGrad)" strokeWidth="6" strokeLinecap="round" />
+        <path d="M75 128 L60 85" fill="none" stroke="url(#cartWireGrad)" strokeWidth="6" strokeLinecap="round" />
+
+        <path d="M80 82 L185 82 C192 82 195 85 192 90 L175 130 C173 133 170 135 166 135 L90 135 C85 135 82 132 80 126 L65 82 Z" fill="none" stroke="url(#cartWireGrad)" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+
+        <path d="M72 95 L186 95" stroke="#bda6ff" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M78 110 L180 110" stroke="#bda6ff" strokeWidth="3.5" strokeLinecap="round" />
+        <path d="M84 122 L172 122" stroke="#bda6ff" strokeWidth="3.5" strokeLinecap="round" />
+
+        <path d="M96 82 L98 135" stroke="#bda6ff" strokeWidth="3" />
+        <path d="M120 82 L120 135" stroke="#bda6ff" strokeWidth="3" />
+        <path d="M144 82 L142 135" stroke="#bda6ff" strokeWidth="3" />
+        <path d="M168 82 L164 135" stroke="#bda6ff" strokeWidth="3" />
+
+        <path d="M65 82 L55 82 C50 82 46 86 46 91 L48 102" fill="none" stroke="#7c4dba" strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
   );
 }
