@@ -22,7 +22,7 @@ interface TopNavbarProps {
 }
 
 export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder }) => {
-  const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue } = useApp();
+  const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue, setActiveScreen } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +53,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
     setPhase("centered");
     setMessages([]);
     setValue("");
+    setActiveScreen("chat");
   };
 
   return (

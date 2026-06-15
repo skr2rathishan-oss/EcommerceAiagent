@@ -29,9 +29,16 @@ export function updateMemory(sessionId, updates) {
 
 export function getShoppingContext(sessionId) {
   const memory = getMemory(sessionId);
-  return memory.shoppingContext || {
+  const base = memory.shoppingContext || {
     lastSearchResults: [],
     selectedProduct: null,
+  };
+  return {
+    ...base,
+    cart: memory.cart || [],
+    wishlist: memory.wishlist || [],
+    savedProducts: memory.savedProducts || [],
+    cartSummary: memory.cartSummary || "Current Cart is empty."
   };
 }
 

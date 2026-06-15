@@ -192,20 +192,29 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                           handleListen(i, msg.text);
                         }
                       }}
+                      title={
+                        voiceStates[i] === "generating"
+                          ? "Generating voice"
+                          : voiceStates[i] === "playing"
+                          ? "Pause audio"
+                          : voiceStates[i] === "error"
+                          ? "Error - Retry"
+                          : "Listen to message"
+                      }
                       style={{
                         background: "none",
                         border: "none",
                         color: "#7c4dba",
-                        fontSize: "12px",
-                        fontWeight: 600,
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
-                        gap: "4px",
-                        padding: "4px 10px",
-                        borderRadius: "14px",
+                        justifyContent: "center",
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "50%",
                         backgroundColor: "rgba(124, 77, 186, 0.08)",
                         transition: "all 0.2s ease",
+                        flexShrink: 0,
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = "rgba(124, 77, 186, 0.15)";
@@ -215,28 +224,16 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                       }}
                     >
                       {voiceStates[i] === "generating" && (
-                        <>
-                          <span className="voice-spinner">⏳</span>
-                          Generating voice...
-                        </>
+                        <span className="voice-spinner" style={{ fontSize: "13px" }}>⏳</span>
                       )}
                       {voiceStates[i] === "playing" && (
-                        <>
-                          <span>⏸️</span>
-                          Playing audio...
-                        </>
+                        <span style={{ fontSize: "13px" }}>⏸️</span>
                       )}
                       {(voiceStates[i] === "idle" || !voiceStates[i]) && (
-                        <>
-                          <span>🔊</span>
-                          Listen
-                        </>
+                        <span style={{ fontSize: "13px" }}>🔊</span>
                       )}
                       {voiceStates[i] === "error" && (
-                        <>
-                          <span>⚠️</span>
-                          Retry
-                        </>
+                        <span style={{ fontSize: "13px" }}>⚠️</span>
                       )}
                     </button>
                     {voiceErrors[i] && (

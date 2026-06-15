@@ -3,7 +3,7 @@ import { recordIntentDetection, recordMemoryLoad, recordQwenResponse, recordMcpS
 import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
-import { getShoppingContext } from "../agent/memoryManager.mjs";
+import { getShoppingContext, updateMemory } from "../agent/memoryManager.mjs";
 import { saveMessage } from "../services/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
@@ -58,10 +58,27 @@ export const chat = async (req, res) => {
 
   let logs = [];
   try {
-    const { message } = req.body;
+    const { message, commerceState } = req.body;
 
     // Resolve session ID from header, body, or fall back to a default key
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
+
+    if (commerceState) {
+      const { cart, wishlist, saved } = commerceState;
+      let cartSummary = "Current Cart is empty.";
+      if (cart && cart.length > 0) {
+        const itemsText = cart.map(item => `${item.quantity}x ${item.name} - Rs.${item.price}`).join("\n");
+        const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        cartSummary = `Current Cart:\n${itemsText}\n\nTotal:\nRs.${total}`;
+      }
+
+      updateMemory(sessionId, {
+        cart: cart || [],
+        wishlist: wishlist || [],
+        savedProducts: saved || [],
+        cartSummary
+      });
+    }
 
     if (!message || typeof message !== "string" || message.trim() === "") {
       return res.status(400).json({

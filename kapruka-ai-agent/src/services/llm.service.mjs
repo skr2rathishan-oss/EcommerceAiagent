@@ -28,29 +28,77 @@ const generalClient = new OpenAI({
 export const PRIMARY_MODEL = "qwen/qwen3.5-122b-a10b";
 export const GENERAL_MODEL = "openai/gpt-oss-20b";
 export const LIGHT_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
+export const LLAMA_MODEL = "meta/llama-3.1-8b-instruct";
 
 export function isSimpleConversation(message) {
   if (!message || typeof message !== "string") return false;
-  const cleaned = message.trim().toLowerCase().replace(/[.,!?]+$/, "").trim();
+  const cleaned = message.trim().toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "").replace(/\s+/g, " ").trim();
   const simpleGreetings = [
     "hello",
     "hi",
     "hey",
     "thanks",
     "thank you",
+    "thank you so much",
     "bye",
+    "goodbye",
     "good morning",
     "good evening",
     "good night",
     "who are you",
-    "what can you do"
+    "what can you do",
+    "how are you",
+    "how are you doing",
+    "hows it going",
+    "how is it going",
+    "how are things",
+    "how have you been",
+    "hi how are you",
+    "hello how are you",
+    "hey how are you",
+    "hi how are you doing",
+    "hello how are you doing",
+    "what is your name",
+    "whats your name",
+    "whats up",
+    "what up",
+    "yo"
   ];
   return simpleGreetings.includes(cleaned);
 }
 
-export function selectModel(message, detectedLang = "en") {
-  const isQwenLang = ["en", "si", "ta", "mixed-si", "mixed-ta"].includes(detectedLang);
-  if (isQwenLang) {
+export async function detectLanguageWithGPT(message) {
+  if (!message || typeof message !== "string") return "en";
+  try {
+    const completion = await generalClient.chat.completions.create({
+      model: GENERAL_MODEL,
+      temperature: 0,
+      max_tokens: 10,
+      messages: [
+        {
+          role: "system",
+          content: "You are a language detection engine. Analyze the user's message and determine its language. Respond ONLY with one of the following language codes:\n- 'si': for Sinhala script (e.g. මට කේක් ඕනේ) or Singlish/Sinhala written in English alphabet (e.g. 'kohomada', 'oyata', 'subha dawasak', 'machan', 'mokada karanne').\n- 'ta': for Tamil script (e.g. எனக்கு கேக் வேண்டும்) or Tanglish/Tamil written in English alphabet (e.g. 'eppadi irukkinga', 'nandri', 'vanakkam', 'enanga').\n- 'en': for English or any other language (e.g. 'hi how are you', 'hello', 'thank you').\n\nDo not output any other text, punctuation, or explanation. Respond with just the two-letter code."
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ]
+    });
+    const result = completion.choices[0].message.content.trim().toLowerCase();
+    logger.info(`GPT language detection result for "${message}": "${result}"`);
+    if (result.includes("si")) return "si";
+    if (result.includes("ta")) return "ta";
+    return "en";
+  } catch (err) {
+    logger.error("Failed to detect language with GPT", { error: err.message });
+    return "en"; // Default fallback
+  }
+}
+
+export async function selectModel(message, detectedLang = "en") {
+  const gptLang = await detectLanguageWithGPT(message);
+  if (gptLang === "si" || gptLang === "ta") {
     return PRIMARY_MODEL;
   }
   return GENERAL_MODEL;
@@ -65,7 +113,7 @@ export const chatWithLLM = async ({
 }) => {
   let selectedModel = PRIMARY_MODEL;
   try {
-    selectedModel = selectModel(message, detectedLang);
+    selectedModel = await selectModel(message, detectedLang);
     const activeClient = selectedModel === PRIMARY_MODEL ? client : generalClient;
 
     let userContent = message;
@@ -214,11 +262,11 @@ ${JSON.stringify(memory, null, 2)}
 
 
 export const detectIntent = async (message) => {
-  logger.info(`Running intent detection via model Qwen...`);
+  logger.info(`Running intent detection via model Llama...`);
   const start = Date.now();
 
   const completion = await client.chat.completions.create({
-    model: PRIMARY_MODEL,
+    model: LLAMA_MODEL,
     temperature: 0,
     max_tokens: 200,
     messages: [
@@ -257,7 +305,7 @@ If any preference field cannot be determined, return an empty array or null for 
 Ensure all JSON is correctly formatted.`;
 
   const completion = await generalClient.chat.completions.create({
-    model: GENERAL_MODEL,
+    model: LLAMA_MODEL,
     temperature: 0.1,
     max_tokens: 1000,
     messages: [
@@ -324,7 +372,7 @@ Interaction Scores (category → score):
 ${scoresBlock}`;
 
   const completion = await generalClient.chat.completions.create({
-    model: GENERAL_MODEL,
+    model: LLAMA_MODEL,
     temperature: 0.1,
     max_tokens: 300,
     messages: [

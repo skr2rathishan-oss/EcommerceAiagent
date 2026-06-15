@@ -65,6 +65,24 @@ try {
   nimStatus = "offline";
 }
 
+// Ping NVIDIA NIM API for GPT Model (General Chat)
+const gptStart = Date.now();
+let gptStatus = "offline";
+let gptLatency = null;
+try {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000);
+  const response = await fetch("https://integrate.api.nvidia.com/v1/models", {
+    headers: { "Authorization": `Bearer ${process.env.GENERAL_CHAT_API_KEY || process.env.NVIDIA_API_KEY}` },
+    signal: controller.signal
+  });
+  clearTimeout(timeout);
+  gptStatus = response.ok ? "connected" : "warning";
+  gptLatency = Date.now() - gptStart;
+} catch (err) {
+  gptStatus = "offline";
+}
+
 // Ping MCP
 const mcpStart = Date.now();
 let mcpStatus = "offline";
@@ -124,6 +142,7 @@ drawStartupDashboard({
   { name: "NVIDIA NIM API Gateway", status: nimStatus, latency: nimLatency },
   { name: "Qwen 3.5 Model", status: nimStatus, latency: nimLatency },
   { name: "Llama 3.1 Model", status: nimStatus, latency: nimLatency },
+  { name: "GPT Model (General Chat)", status: gptStatus, latency: gptLatency },
   { name: "Gemini Translate API", status: "decommissioned", latency: null },
   { name: "Kapruka MCP Service", status: mcpStatus, latency: mcpLatency },
   { name: "External Kapruka Web Server", status: extStatus, latency: extLatency }

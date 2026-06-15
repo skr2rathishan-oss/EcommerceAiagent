@@ -62,3 +62,14 @@
 2026-06-15T06:38:04.744Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":4339}
 2026-06-15T08:46:01.980Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":6076}
 2026-06-15T08:49:21.578Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":5144}
+2026-06-15T10:52:07.365Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":897}
+2026-06-15T10:52:27.841Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":970}
+2026-06-15T10:53:16.948Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Shopping","latencyMs":23294}
+2026-06-15T11:00:48.752Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":1368}
+2026-06-15T11:01:49.508Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1865}
+2026-06-15T11:02:33.723Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1984}
+2026-06-15T11:04:11.747Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1576}
+2026-06-15T11:08:04.281Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1417}
+2026-06-15T11:08:22.749Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1288}
+2026-06-15T11:09:18.436Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":885}
+2026-06-15T11:10:45.791Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1357}

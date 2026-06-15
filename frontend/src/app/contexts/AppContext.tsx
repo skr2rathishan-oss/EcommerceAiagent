@@ -1,9 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { type Product } from "../components/products";
 import { type DeliveryInfo, type SellerInfo } from "../components/InteractiveOrderSummary";
 import { type OrderConfirmationDetails } from "../components/OrderConfirmationCard";
 import { type OrderTrackingDetails } from "../types/orderTracking";
 import { type LogItem } from "../components/AgentActivityBar";
+import { CartProvider, useCart, type CartItem } from "./CartContext";
+import { WishlistProvider, useWishlist } from "./WishlistContext";
+import { SavedProductsProvider, useSavedProducts } from "./SavedProductsContext";
+import { RecentlyViewedProvider, useRecentlyViewed } from "./RecentlyViewedContext";
 
 export type Phase = "centered" | "bottom";
 export type PanelId = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
@@ -43,10 +47,7 @@ export interface Message {
   workflow?: GuidedWorkflowState;
 }
 
-export interface CartItem {
-  product: Product;
-  qty: number;
-}
+export type { CartItem };
 
 export interface ActivityState {
   currentStep: string;
@@ -123,6 +124,8 @@ export interface AppContextType {
   setAddressError: (err: string) => void;
   checkingAddress: boolean;
   setCheckingAddress: (checking: boolean) => void;
+  activeScreen: "chat" | "cart";
+  setActiveScreen: (screen: "chat" | "cart") => void;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -133,17 +136,25 @@ export interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [phase, setPhase] = useState<Phase>("centered");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const [anchorPos, setAnchorPos] = useState<AnchorPos>({ x: 0, y: 0 });
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [value, setValue] = useState("");
+  const [activeScreen, setActiveScreen] = useState<"chat" | "cart">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
-  const [savedItems, setSavedItems] = useState<Product[]>([]);
+
+  // Consume new independent contexts
+  const { cartItems, addToCart } = useCart();
+  const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
+  const { savedProducts } = useSavedProducts();
+
+  // Bridge state lists
+  const wishlistItemsProducts = useMemo(() => wishlistItems.map(item => item.product), [wishlistItems]);
+  const savedItemsProducts = useMemo(() => savedProducts.map(item => item.product), [savedProducts]);
+
   const [orderedItems, setOrderedItems] = useState<OrderConfirmationDetails[]>(() => {
     try {
       const stored = localStorage.getItem("ordered_items");
@@ -179,36 +190,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [addressError, setAddressError] = useState("");
   const [checkingAddress, setCheckingAddress] = useState(false);
 
-  // Common operations
+  // Bridged operations
   const handleAddToCart = (p: Product) => {
-    setCartItems(prev => {
-      const exists = prev.find(i => i.product.id === p.id);
-      if (exists) return prev.map(i => i.product.id === p.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { product: p, qty: 1 }];
-    });
+    addToCart(p, 1);
     setRightPanel("Cart");
-
-    // Track "add_to_cart" interaction
-    const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
-    fetch("/api/products/interaction", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-session-id": getSessionId(),
-      },
-      body: JSON.stringify({
-        productId: p.id,
-        productName: p.name,
-        category: p.category,
-        action: "add_to_cart"
-      })
-    }).catch(err => console.error("Failed to track add_to_cart:", err));
   };
 
   const handleWishlist = (p: Product) => {
-    setWishlistItems(prev =>
-      prev.find(i => i.id === p.id) ? prev.filter(i => i.id !== p.id) : [...prev, p]
-    );
+    const isWishlisted = wishlistItems.some(item => item.productId === p.id);
+    if (isWishlisted) {
+      removeFromWishlist(p.id);
+    } else {
+      addToWishlist(p);
+    }
     setRightPanel("Wishlist");
   };
 
@@ -247,9 +241,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rightPanel, setRightPanel,
         value, setValue,
         messages, setMessages,
-        cartItems, setCartItems,
-        wishlistItems, setWishlistItems,
-        savedItems, setSavedItems,
+        cartItems, setCartItems: () => {}, // NO-OP since managed by CartContext
+        wishlistItems: wishlistItemsProducts, setWishlistItems: () => {}, // NO-OP since managed by WishlistContext
+        savedItems: savedItemsProducts, setSavedItems: () => {}, // NO-OP since managed by SavedProductsContext
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,
@@ -271,6 +265,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newCity, setNewCity,
         addressError, setAddressError,
         checkingAddress, setCheckingAddress,
+        activeScreen, setActiveScreen,
 
         handleAddToCart,
         handleWishlist,
@@ -280,6 +275,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     >
       {children}
     </AppContext.Provider>
+  );
+};
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <CartProvider>
+      <WishlistProvider>
+        <SavedProductsProvider>
+          <RecentlyViewedProvider>
+            <AppInnerProvider>
+              {children}
+            </AppInnerProvider>
+          </RecentlyViewedProvider>
+        </SavedProductsProvider>
+      </WishlistProvider>
+    </CartProvider>
   );
 };
 

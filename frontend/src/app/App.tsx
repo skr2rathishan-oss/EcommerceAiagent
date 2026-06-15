@@ -8,6 +8,9 @@ import { getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { AppProvider, useApp, type PanelId, type RightPanelId } from "./contexts/AppContext";
 import { useChat } from "./hooks/useChat";
 import { useCheckout } from "./hooks/useCheckout";
+import { useCart } from "./contexts/CartContext";
+import { useWishlist } from "./contexts/WishlistContext";
+import { useSavedProducts } from "./contexts/SavedProductsContext";
 import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
@@ -15,6 +18,7 @@ import { ChatInputBox } from "./components/ChatInputBox";
 import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
 import { RightSidebar } from "./components/RightSidebar";
+import { CartScreen } from "./components/CartScreen";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 
@@ -190,6 +194,9 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
 }
 
 function MainApp() {
+  const { removeFromCart } = useCart();
+  const { removeFromWishlist, moveToCart: moveWishlistToCart } = useWishlist();
+  const { removeProduct: removeSavedProduct } = useSavedProducts();
   const {
     phase, setPhase,
     activePanel, setActivePanel,
@@ -197,10 +204,11 @@ function MainApp() {
     rightPanel, setRightPanel,
     value, setValue,
     messages, setMessages,
-    cartItems, setCartItems,
-    wishlistItems, setWishlistItems,
-    savedItems, setSavedItems,
+    cartItems,
+    wishlistItems,
+    savedItems,
     orderedItems,
+    activeScreen, setActiveScreen,
     selectedIds, setSelectedIds,
     activity,
     activityExpanded, setActivityExpanded,
@@ -369,7 +377,13 @@ function MainApp() {
 
 
         <TopNavbar
-          onRightPanel={(id) => setRightPanel(rightPanel === id ? null : id)}
+          onRightPanel={(id) => {
+            if (id === "Cart") {
+              setActiveScreen("cart");
+            } else {
+              setRightPanel(rightPanel === id ? null : id);
+            }
+          }}
           onTrackOrder={(orderNumber) => {
             if (phase === "centered") setPhase("bottom");
             setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
@@ -402,9 +416,16 @@ function MainApp() {
           }}
         />
 
-        {/* Centered phase */}
-        <AnimatePresence>
-          {phase === "centered" && (
+        {activeScreen === "cart" ? (
+          <CartScreen
+            onContinueShopping={() => setActiveScreen("chat")}
+            onCheckout={() => setCheckoutOpen(true)}
+          />
+        ) : (
+          <>
+            {/* Centered phase */}
+            <AnimatePresence>
+              {phase === "centered" && (
             <motion.div
               key="centered"
               className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
@@ -1051,6 +1072,8 @@ function MainApp() {
             </motion.div>
           </div>
         )}
+          </>
+        )}
       </div>
 
       {/* Floating popup panels */}
@@ -1065,10 +1088,10 @@ function MainApp() {
         {rightPanel && (
           <RightSidebar
             onClose={() => setRightPanel(null)}
-            onRemoveCart={id => setCartItems(prev => prev.filter(i => i.product.id !== id))}
-            onRemoveWishlist={id => setWishlistItems(prev => prev.filter(i => i.id !== id))}
-            onRemoveSaved={id => setSavedItems(prev => prev.filter(i => i.id !== id))}
-            onMoveToCart={p => { handleAddToCart(p); setWishlistItems(prev => prev.filter(i => i.id !== p.id)); }}
+            onRemoveCart={id => removeFromCart(id)}
+            onRemoveWishlist={id => removeFromWishlist(id)}
+            onRemoveSaved={id => removeSavedProduct(id)}
+            onMoveToCart={p => { moveWishlistToCart(p); }}
             onCheckout={() => { setRightPanel(null); setCheckoutOpen(true); }}
           />
         )}

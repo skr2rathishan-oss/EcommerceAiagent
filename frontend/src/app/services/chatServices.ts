@@ -105,10 +105,15 @@ const fetchStream = async (body: any, onProgress?: (payload: any) => void): Prom
 };
 
 // ── General Chat / Intent Message ────────────────────────────────────────────
-export const sendMessage = async (message: string, onProgress?: (payload: any) => void) => {
+export const sendMessage = async (
+    message: string,
+    onProgress?: (payload: any) => void,
+    commerceState?: any
+) => {
     return fetchStream({
         message,
         sessionId: getSessionId(),
+        commerceState,
     }, onProgress);
 };
 
@@ -116,13 +121,15 @@ export const sendIntentMessage = async (
     message: string,
     intent: string,
     parameters: any,
-    onProgress?: (payload: any) => void
+    onProgress?: (payload: any) => void,
+    commerceState?: any
 ) => {
     return fetchStream({
         message,
         sessionId: getSessionId(),
         intent,
         parameters,
+        commerceState,
     }, onProgress);
 };
 
