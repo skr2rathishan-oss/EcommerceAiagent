@@ -8,7 +8,6 @@ import { type DeliveryInfo, getDefaultSeller } from "../components/InteractiveOr
 import { trackQueryUsage } from "../components/SuggestedPrompts";
 import { useCart } from "../contexts/CartContext";
 import { useWishlist } from "../contexts/WishlistContext";
-import { useSavedProducts } from "../contexts/SavedProductsContext";
 import { useRecentlyViewed } from "../contexts/RecentlyViewedContext";
 
 export const useChat = () => {
@@ -35,7 +34,6 @@ export const useChat = () => {
 
   const { cartItems } = useCart();
   const { wishlistItems } = useWishlist();
-  const { savedProducts } = useSavedProducts();
   const { trackView } = useRecentlyViewed();
 
   const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
@@ -123,12 +121,7 @@ export const useChat = () => {
         name: i.product.name,
         price: i.product.price,
       })),
-      saved: savedProducts.map(i => ({
-        productId: i.productId,
-        name: i.product.name,
-        price: i.product.price,
-        source: i.source,
-      })),
+      saved: [],
     };
 
     sendMessage(trimmed, (payload) => {

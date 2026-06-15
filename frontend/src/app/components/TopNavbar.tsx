@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Heart, ShoppingCart, Bookmark, Package, ChevronDown, PanelLeft, Sparkles,
+  Heart, ShoppingCart, Package, ChevronDown, PanelLeft, Sparkles,
   DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle
 } from "lucide-react";
-import { useApp, type RightPanelId } from "../contexts/AppContext";
+import { useApp } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
 import { type OrderConfirmationDetails } from "./OrderConfirmationCard";
 
@@ -17,11 +17,10 @@ export const CURRENCIES = [
 ];
 
 interface TopNavbarProps {
-  onRightPanel: (id: RightPanelId) => void;
   onTrackOrder: (orderNumber: string) => void;
 }
 
-export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder }) => {
+export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
   const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue, setActiveScreen } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -89,9 +88,8 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
       </div>
 
       <div className="flex items-center gap-1">
-        <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => onRightPanel("Wishlist")} />
-        <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => onRightPanel("Cart")} />
-        <NavbarIconBtn icon={<Bookmark size={19} strokeWidth={1.9} />} label="Saved" onClick={() => onRightPanel("Saved")} />
+        <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => setActiveScreen("wishlist")} />
+        <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => setActiveScreen("cart")} />
         <div style={{ width: 1, height: 22, background: "rgba(64,41,112,0.15)", margin: "0 6px" }} />
 
         {/* Language Selector */}

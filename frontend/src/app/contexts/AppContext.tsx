@@ -6,12 +6,11 @@ import { type OrderTrackingDetails } from "../types/orderTracking";
 import { type LogItem } from "../components/AgentActivityBar";
 import { CartProvider, useCart, type CartItem } from "./CartContext";
 import { WishlistProvider, useWishlist } from "./WishlistContext";
-import { SavedProductsProvider, useSavedProducts } from "./SavedProductsContext";
 import { RecentlyViewedProvider, useRecentlyViewed } from "./RecentlyViewedContext";
 
 export type Phase = "centered" | "bottom";
 export type PanelId = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
-export type RightPanelId = "Wishlist" | "Cart" | "Saved" | null;
+export type RightPanelId = null;
 
 export interface AnchorPos {
   x: number;
@@ -124,8 +123,8 @@ export interface AppContextType {
   setAddressError: (err: string) => void;
   checkingAddress: boolean;
   setCheckingAddress: (checking: boolean) => void;
-  activeScreen: "chat" | "cart";
-  setActiveScreen: (screen: "chat" | "cart") => void;
+  activeScreen: "chat" | "cart" | "wishlist";
+  setActiveScreen: (screen: "chat" | "cart" | "wishlist") => void;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -143,17 +142,15 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [anchorPos, setAnchorPos] = useState<AnchorPos>({ x: 0, y: 0 });
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [value, setValue] = useState("");
-  const [activeScreen, setActiveScreen] = useState<"chat" | "cart">("chat");
+  const [activeScreen, setActiveScreen] = useState<"chat" | "cart" | "wishlist">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
   const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
-  const { savedProducts } = useSavedProducts();
 
   // Bridge state lists
   const wishlistItemsProducts = useMemo(() => wishlistItems.map(item => item.product), [wishlistItems]);
-  const savedItemsProducts = useMemo(() => savedProducts.map(item => item.product), [savedProducts]);
 
   const [orderedItems, setOrderedItems] = useState<OrderConfirmationDetails[]>(() => {
     try {
@@ -193,7 +190,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   // Bridged operations
   const handleAddToCart = (p: Product) => {
     addToCart(p, 1);
-    setRightPanel("Cart");
+    setActiveScreen("cart");
   };
 
   const handleWishlist = (p: Product) => {
@@ -203,7 +200,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     } else {
       addToWishlist(p);
     }
-    setRightPanel("Wishlist");
+    setActiveScreen("wishlist");
   };
 
   const saveOrderToHistory = (order: OrderConfirmationDetails) => {
@@ -243,7 +240,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         messages, setMessages,
         cartItems, setCartItems: () => {}, // NO-OP since managed by CartContext
         wishlistItems: wishlistItemsProducts, setWishlistItems: () => {}, // NO-OP since managed by WishlistContext
-        savedItems: savedItemsProducts, setSavedItems: () => {}, // NO-OP since managed by SavedProductsContext
+        savedItems: [], setSavedItems: () => {},
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,
@@ -282,13 +279,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <CartProvider>
       <WishlistProvider>
-        <SavedProductsProvider>
-          <RecentlyViewedProvider>
-            <AppInnerProvider>
-              {children}
-            </AppInnerProvider>
-          </RecentlyViewedProvider>
-        </SavedProductsProvider>
+        <RecentlyViewedProvider>
+          <AppInnerProvider>
+            {children}
+          </AppInnerProvider>
+        </RecentlyViewedProvider>
       </WishlistProvider>
     </CartProvider>
   );

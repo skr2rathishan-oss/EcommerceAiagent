@@ -5,20 +5,19 @@ import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
-import { AppProvider, useApp, type PanelId, type RightPanelId } from "./contexts/AppContext";
+import { AppProvider, useApp, type PanelId } from "./contexts/AppContext";
 import { useChat } from "./hooks/useChat";
 import { useCheckout } from "./hooks/useCheckout";
 import { useCart } from "./contexts/CartContext";
 import { useWishlist } from "./contexts/WishlistContext";
-import { useSavedProducts } from "./contexts/SavedProductsContext";
 import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
 import { ChatInputBox } from "./components/ChatInputBox";
 import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
-import { RightSidebar } from "./components/RightSidebar";
 import { CartScreen } from "./components/CartScreen";
+import { WishlistScreen } from "./components/WishlistScreen";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 
@@ -195,13 +194,10 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
 
 function MainApp() {
   const { removeFromCart } = useCart();
-  const { removeFromWishlist, moveToCart: moveWishlistToCart } = useWishlist();
-  const { removeProduct: removeSavedProduct } = useSavedProducts();
   const {
     phase, setPhase,
     activePanel, setActivePanel,
     anchorPos, setAnchorPos,
-    rightPanel, setRightPanel,
     value, setValue,
     messages, setMessages,
     cartItems,
@@ -377,13 +373,6 @@ function MainApp() {
 
 
         <TopNavbar
-          onRightPanel={(id) => {
-            if (id === "Cart") {
-              setActiveScreen("cart");
-            } else {
-              setRightPanel(rightPanel === id ? null : id);
-            }
-          }}
           onTrackOrder={(orderNumber) => {
             if (phase === "centered") setPhase("bottom");
             setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
@@ -420,6 +409,10 @@ function MainApp() {
           <CartScreen
             onContinueShopping={() => setActiveScreen("chat")}
             onCheckout={() => setCheckoutOpen(true)}
+          />
+        ) : activeScreen === "wishlist" ? (
+          <WishlistScreen
+            onContinueShopping={() => setActiveScreen("chat")}
           />
         ) : (
           <>
@@ -1083,19 +1076,7 @@ function MainApp() {
         )}
       </AnimatePresence>
 
-      {/* Right Drawer */}
-      <AnimatePresence>
-        {rightPanel && (
-          <RightSidebar
-            onClose={() => setRightPanel(null)}
-            onRemoveCart={id => removeFromCart(id)}
-            onRemoveWishlist={id => removeFromWishlist(id)}
-            onRemoveSaved={id => removeSavedProduct(id)}
-            onMoveToCart={p => { moveWishlistToCart(p); }}
-            onCheckout={() => { setRightPanel(null); setCheckoutOpen(true); }}
-          />
-        )}
-      </AnimatePresence>
+
 
       {/* Checkout overlay modal */}
       <AnimatePresence>
