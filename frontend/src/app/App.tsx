@@ -18,6 +18,7 @@ import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
 import { CartScreen } from "./components/CartScreen";
 import { WishlistScreen } from "./components/WishlistScreen";
+import { SmartInputPanel } from "./components/SmartInputPanel";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 
@@ -225,7 +226,9 @@ function MainApp() {
     checkingAddress,
     handleAddToCart,
     handleWishlist,
-    resetPendingPurchaseState
+    resetPendingPurchaseState,
+    activeSmartPanel,
+    setActiveSmartPanel
   } = useApp();
 
   const {
@@ -408,7 +411,11 @@ function MainApp() {
         {activeScreen === "cart" ? (
           <CartScreen
             onContinueShopping={() => setActiveScreen("chat")}
-            onCheckout={() => setCheckoutOpen(true)}
+            onCheckout={() => {
+              setActiveScreen("chat");
+              setPhase("bottom");
+              setActiveSmartPanel("checkout");
+            }}
           />
         ) : activeScreen === "wishlist" ? (
           <WishlistScreen
@@ -692,6 +699,11 @@ function MainApp() {
             >
               <div className="w-full" style={{ maxWidth: 720 }}>
                 <AnimatePresence>
+                  {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
+                  {activeSmartPanel && (
+                    <SmartInputPanel key="smart-input-panel" />
+                  )}
+
                   {/* ── Product Actions Popup ─────────────────────────────────────────── */}
                   {pendingProductActions && !pendingConfirmProduct && (
                     <motion.div

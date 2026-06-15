@@ -30,6 +30,7 @@ export const useChat = () => {
     waitingForAddressInput,
     handleAddToCart,
     handleWishlist,
+    setActiveSmartPanel,
   } = useApp();
 
   const { cartItems } = useCart();
@@ -350,6 +351,28 @@ export const useChat = () => {
           setIsTyping(false);
         });
 
+      return;
+    }
+
+    const lowerText = trimmed.toLowerCase();
+    
+    // 1. Recommendation trigger keywords
+    const recKeywords = ["gift", "birthday gift", "recommend", "present", "surprise", "anniversary gift", "gift idea", "find gift", "shopping recommendation"];
+    if (recKeywords.some(keyword => lowerText.includes(keyword))) {
+      setActiveSmartPanel("recommendation");
+      return;
+    }
+
+    // 2. Delivery check keywords
+    const delKeywords = ["check delivery", "can this be delivered", "delivery cost"];
+    if (delKeywords.some(keyword => lowerText.includes(keyword))) {
+      setActiveSmartPanel("delivery");
+      return;
+    }
+
+    // 3. Track order keywords
+    if (lowerText.includes("track order")) {
+      setActiveSmartPanel("track_order");
       return;
     }
 

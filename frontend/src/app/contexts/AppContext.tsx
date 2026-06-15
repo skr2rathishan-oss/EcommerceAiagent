@@ -125,6 +125,8 @@ export interface AppContextType {
   setCheckingAddress: (checking: boolean) => void;
   activeScreen: "chat" | "cart" | "wishlist";
   setActiveScreen: (screen: "chat" | "cart" | "wishlist") => void;
+  activeSmartPanel: "recommendation" | "delivery" | "track_order" | "checkout" | null;
+  setActiveSmartPanel: (panel: "recommendation" | "delivery" | "track_order" | "checkout" | null) => void;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -144,6 +146,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [value, setValue] = useState("");
   const [activeScreen, setActiveScreen] = useState<"chat" | "cart" | "wishlist">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
+  const [activeSmartPanel, setActiveSmartPanel] = useState<"recommendation" | "delivery" | "track_order" | "checkout" | null>(null);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -263,6 +266,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         addressError, setAddressError,
         checkingAddress, setCheckingAddress,
         activeScreen, setActiveScreen,
+        activeSmartPanel, setActiveSmartPanel,
 
         handleAddToCart,
         handleWishlist,
