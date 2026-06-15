@@ -2,6 +2,7 @@ import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
 import { getCachedRecommendations, refreshRecommendationCache } from "./recommendationCache.service.mjs";
 import { explainRecommendation } from "./recommendationExplanation.service.mjs";
+import logger from "../utils/logger.mjs";
 
 /**
  * Retrieves a combined recommendation profile for the given session.
@@ -15,12 +16,11 @@ export async function getUserRecommendationProfile(sessionId) {
     const cachedProfile = await getCachedRecommendations(sessionId);
     if (cachedProfile) {
       const elapsed = Date.now() - start;
-      console.log(JSON.stringify({
+      logger.info("Recommendation cache hit", {
         event: "cacheHit",
         sessionId,
-        durationMs: elapsed,
-        timestamp: new Date().toISOString()
-      }));
+        durationMs: elapsed
+      });
       // Map cached schema keys to recommendation scoring expected format
       return {
         favoriteCategories: cachedProfile.topCategories || [],
@@ -32,11 +32,10 @@ export async function getUserRecommendationProfile(sessionId) {
     }
 
     // 2. Cache Miss: Log and generate profile normally (Fail Safe)
-    console.log(JSON.stringify({
+    logger.info("Recommendation cache miss", {
       event: "cacheMiss",
-      sessionId,
-      timestamp: new Date().toISOString()
-    }));
+      sessionId
+    });
 
     const [profile, memory] = await Promise.all([
       UserProfile.findOne({ sessionId }).lean().exec(),
@@ -54,12 +53,12 @@ export async function getUserRecommendationProfile(sessionId) {
 
     // Asynchronously trigger refresh to populate cache for future requests
     refreshRecommendationCache(sessionId).catch(err => {
-      console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache for session ${sessionId}:`, err);
+      logger.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache for session ${sessionId}:`, err);
     });
 
     return normalProfile;
   } catch (err) {
-    console.error(`[Recommendation] Failed to build profile for ${sessionId}:`, err);
+    logger.error(`[Recommendation] Failed to build profile for ${sessionId}:`, err);
     return null;
   }
 }
@@ -120,7 +119,7 @@ export function calculateRecommendationScore(product, profile) {
 export async function rankProducts(products, sessionId) {
   const profile = await getUserRecommendationProfile(sessionId);
   if (!profile) {
-    console.warn(`[Recommendation] No profile for session ${sessionId}, returning unranked results.`);
+    logger.warn(`[Recommendation] No profile for session ${sessionId}, returning unranked results.`);
     return products;
   }
   const scored = products.map(p => ({ ...p, _score: calculateRecommendationScore(p, profile) }));
@@ -134,7 +133,7 @@ export async function rankProducts(products, sessionId) {
       const explanation = await explainRecommendation(product, sessionId);
       return { ...product, explanation };
     } catch (err) {
-      console.error(`[Recommendation Integration Error] Failed to generate reasons for product ${product.id || product.name}:`, err);
+      logger.error(`[Recommendation Integration Error] Failed to generate reasons for product ${product.id || product.name}:`, err);
       return product;
     }
   }));

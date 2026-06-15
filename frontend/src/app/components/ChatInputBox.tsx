@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Paperclip, Mic, ArrowUp, Square, Headphones } from "lucide-react";
+import { Paperclip, Mic, ArrowUp, Square, Headphones, Sparkles } from "lucide-react";
 
 interface ChatInputBoxProps {
   value: string;
@@ -12,6 +12,7 @@ interface ChatInputBoxProps {
   fileInputRef: React.RefObject<HTMLInputElement | null>;
   isTyping?: boolean;
   onStop?: () => void;
+  variant?: "centered" | "bottom";
 }
 
 export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
@@ -24,6 +25,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   fileInputRef,
   isTyping,
   onStop,
+  variant = "bottom",
 }) => {
   const [focused, setFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -42,6 +44,16 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     }
     return () => clearInterval(timer);
   }, [voiceChatOpen]);
+
+  // Auto-resize textarea height dynamically based on content
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const nextHeight = Math.min(el.scrollHeight, 120);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > 120 ? "auto" : "hidden";
+  }, [value, textareaRef]);
 
   const formatDuration = (sec: number) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -84,19 +96,30 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     <>
       <div
         style={{
-          background: "rgba(255,255,255,0.92)",
+          background: variant === "centered" ? "var(--card-bg, #ffffff)" : "rgba(255,255,255,0.92)",
           backdropFilter: "blur(12px)",
           borderRadius: 9999,
-          border: `1.5px solid ${focused ? "rgba(64,41,112,0.55)" : "rgba(64,41,112,0.15)"}`,
-          boxShadow: "none",
-          transition: "border-color 0.18s",
+          border: variant === "centered"
+            ? `1.5px solid ${focused ? "rgba(124, 77, 186, 0.45)" : "var(--card-border, rgba(124, 77, 186, 0.18))"}`
+            : `1.5px solid ${focused ? "rgba(64,41,112,0.55)" : "rgba(64,41,112,0.15)"}`,
+          boxShadow: variant === "centered" ? "0 8px 30px rgba(64, 41, 112, 0.06)" : "none",
+          transition: "border-color 0.18s, box-shadow 0.18s",
         }}
       >
-        <div className="flex items-center gap-2 px-3 py-2">
-          <input ref={fileInputRef} type="file" multiple className="hidden" aria-label="Upload file" />
-          <IconBtn onClick={() => fileInputRef.current?.click()} title="Attach file">
-            <Paperclip size={18} strokeWidth={2} />
-          </IconBtn>
+        <div className="flex items-center gap-2 px-4 py-2">
+          {variant === "centered" ? (
+            <div style={{ display: "flex", alignItems: "center", color: "#7c4dba", paddingLeft: 6 }} className="flex-none">
+              <Sparkles size={16} strokeWidth={2.5} />
+            </div>
+          ) : (
+            <>
+              <input ref={fileInputRef} type="file" multiple className="hidden" aria-label="Upload file" />
+              <IconBtn onClick={() => fileInputRef.current?.click()} title="Attach file" className="flex-none">
+                <Paperclip size={18} strokeWidth={2} />
+              </IconBtn>
+            </>
+          )}
+
           <textarea
             ref={textareaRef}
             value={value}
@@ -104,7 +127,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             onKeyDown={onKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder={isListening ? "Listening..." : "Message…"}
+            placeholder={isListening ? "Listening..." : "Ask for products, comparisons, or shopping advice..."}
             disabled={isListening}
             rows={1}
             className="flex-1 bg-transparent resize-none outline-none text-foreground placeholder:text-muted-foreground"
@@ -113,12 +136,13 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
               minHeight: 28,
               maxHeight: 120,
               fontFamily: "'Nunito',sans-serif",
-              fontSize: 14,
-              paddingTop: 2,
-              paddingBottom: 2,
+              fontSize: 13.5,
+              paddingTop: 4,
+              paddingBottom: 4,
+              border: "none",
             }}
           />
-          <div className="flex items-center gap-1.5" style={{ flexShrink: 0 }}>
+          <div className="flex items-center gap-1.5 flex-none" style={{ flexShrink: 0 }}>
             {/* Recording / Voice Message Button (visible next to the main button when empty) */}
             {!isTyping && !canSend && (
               <motion.button

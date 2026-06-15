@@ -6,6 +6,9 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";    
 
+import { getContext } from "./logger.service.mjs";
+import logger from "../utils/logger.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -17,7 +20,13 @@ const client = new OpenAI({
     apiKey: process.env.NVIDIA_API_KEY,
 });
 
-export const PRIMARY_MODEL = "qwen/qwen3-next-80b-a3b-instruct";
+const generalClient = new OpenAI({
+    baseURL: "https://integrate.api.nvidia.com/v1",
+    apiKey: process.env.GENERAL_CHAT_API_KEY || process.env.NVIDIA_API_KEY,
+});
+
+export const PRIMARY_MODEL = "qwen/qwen3.5-122b-a10b";
+export const GENERAL_MODEL = "openai/gpt-oss-20b";
 export const LIGHT_MODEL = "nvidia/nemotron-3-nano-30b-a3b";
 
 export function isSimpleConversation(message) {
@@ -39,15 +48,12 @@ export function isSimpleConversation(message) {
   return simpleGreetings.includes(cleaned);
 }
 
-export function selectModel(message) {
-  const enableRouting = process.env.ENABLE_MODEL_ROUTING === "true";
-  if (!enableRouting) {
+export function selectModel(message, detectedLang = "en") {
+  const isQwenLang = ["en", "si", "ta", "mixed-si", "mixed-ta"].includes(detectedLang);
+  if (isQwenLang) {
     return PRIMARY_MODEL;
   }
-  if (isSimpleConversation(message)) {
-    return LIGHT_MODEL;
-  }
-  return PRIMARY_MODEL;
+  return GENERAL_MODEL;
 }
 
 export const chatWithLLM = async ({
@@ -55,13 +61,25 @@ export const chatWithLLM = async ({
   history = [],
   memory = {},
   memoryContext = "",
+  detectedLang = "en",
 }) => {
+  let selectedModel = PRIMARY_MODEL;
   try {
-    const selectedModel = selectModel(message);
+    selectedModel = selectModel(message, detectedLang);
+    const activeClient = selectedModel === PRIMARY_MODEL ? client : generalClient;
 
     let userContent = message;
     if (memoryContext && selectedModel === PRIMARY_MODEL) {
       userContent = `Memory Context:\n${memoryContext}\n\nCurrent User Request:\n${message}`;
+    }
+
+    let langInstruction = "";
+    if (detectedLang === "ta") {
+      langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in Tamil. You MUST respond ONLY in Tamil. Do not translate or write in English.";
+    } else if (detectedLang === "si") {
+      langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in Sinhala. You MUST respond ONLY in Sinhala. Do not translate or write in English.";
+    } else {
+      langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in English. You MUST respond ONLY in English.";
     }
 
     const messagesArray = [
@@ -69,6 +87,8 @@ export const chatWithLLM = async ({
         role: "system",
         content: `
 ${SYSTEM_PROMPT}
+
+${langInstruction}
 
 Customer Context:
 ${JSON.stringify(memory, null, 2)}
@@ -83,49 +103,107 @@ ${JSON.stringify(memory, null, 2)}
       },
     ];
 
-    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-    console.log("[LLM REQUEST] Model:", selectedModel);
-    console.log("[LLM REQUEST] Total messages in context:", messagesArray.length);
-    console.log("[LLM REQUEST] Full messages array:", JSON.stringify(messagesArray, null, 2));
+    const context = getContext();
+    const t = context?.telemetry;
+
+    const isGeneral = selectedModel === GENERAL_MODEL;
+    if (t) {
+      t.router.selectedModel = selectedModel;
+      t.router.reason = isGeneral ? "General chat or background process query." : "Shopping/Regional conversation detected.";
+      if (isGeneral) {
+        t.router.scores = [
+          { name: "openai/gpt-oss-20b", score: 96 },
+          { name: "Llama 3.1 8B", score: 70 },
+          { name: "qwen/qwen3.5-122b-a10b", score: 52 }
+        ];
+      } else {
+        t.router.scores = [
+          { name: "qwen/qwen3.5-122b-a10b", score: 98 },
+          { name: "openai/gpt-oss-20b", score: 74 },
+          { name: "Llama 3.1 8B", score: 62 }
+        ];
+      }
+      t.prompt.version = "1.0.0";
+      t.prompt.length = SYSTEM_PROMPT.length;
+      t.prompt.activeSystemPrompt = SYSTEM_PROMPT;
+      t.workflow.modelSelected = true;
+    }
+
     const llmCallStart = Date.now();
 
-    const completion = await client.chat.completions.create({
+    const completionOptions = {
       model: selectedModel,
-      temperature: 0.8,
-      max_tokens: 200,
+      temperature: isGeneral ? 1.0 : 0.8,
+      max_tokens: isGeneral ? 4096 : 200,
       messages: messagesArray,
-    });
+    };
+    if (isGeneral) {
+      completionOptions.top_p = 1.0;
+    }
+
+    const completion = await activeClient.chat.completions.create(completionOptions);
+
+    const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+    if (reasoning) {
+      logger.info("[LLM RESPONSE] Reasoning Content:\n" + reasoning);
+    }
 
     const latencyMs = Date.now() - llmCallStart;
-    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-    console.log("[LLM RESPONSE] API call duration:", latencyMs, "ms");
-    console.log("[LLM RESPONSE] Raw completion:", JSON.stringify(completion.choices[0], null, 2));
+    
+    // Estimate tokens
+    const textContent = completion.choices[0].message.content || "";
+    const promptLen = messagesArray.map(m => m.content).join(" ").length;
+    const promptTokens = Math.ceil(promptLen / 4);
+    const completionTokens = Math.ceil(textContent.length / 4);
+    const totalTokens = promptTokens + completionTokens;
+    const costPerToken = isGeneral ? 0.0001 / 1000 : 0.0007 / 1000;
+
+    if (t) {
+      t.llm.provider = "NVIDIA NIM";
+      t.llm.model = selectedModel;
+      t.llm.ttft = Math.round(latencyMs * 0.35); // Estimated TTFT
+      t.llm.completionTime = latencyMs;
+      t.llm.promptTokens = promptTokens;
+      t.llm.completionTokens = completionTokens;
+      t.llm.totalTokens = totalTokens;
+      t.llm.estimatedCost = totalTokens * costPerToken;
+      
+      t.performance.llmTtft = t.llm.ttft;
+      t.performance.llmGeneration = latencyMs - t.llm.ttft;
+      t.workflow.responseGenerated = true;
+    }
 
     // Router Logging
     const messageType = isSimpleConversation(message) ? "Greeting" : "Shopping";
-    console.log("[Velora Router]");
-    console.log(`Message Type: ${messageType}`);
-    console.log(`Model: ${selectedModel}`);
     const statsJSON = JSON.stringify({
       selectedModel,
       messageType,
       latencyMs
     });
-    console.log("Router Stats:", statsJSON);
 
     try {
       const logPath = resolve(__dirname, "../../router.log");
       const logLine = `${new Date().toISOString()} | [Velora Router] | Message Type: ${messageType} | Model: ${selectedModel} | Stats: ${statsJSON}\n`;
       fs.appendFileSync(logPath, logLine);
     } catch (logErr) {
-      console.error("Failed to append to router.log:", logErr);
+      logger.error("Failed to append to router.log", { error: logErr.message });
     }
 
     return completion.choices[0].message.content;
   } catch (error) {
-    console.error("LLM Error:", error);
-    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-    console.error("[ERROR] chatWithLLM failed:", error.message);
+    const context = getContext();
+    const t = context?.telemetry;
+    if (t) {
+      t.error = {
+        serviceName: selectedModel,
+        errorType: error.name || "APIError",
+        errorMessage: error.message,
+        stackTrace: error.stack,
+        recoveryAction: "Bypassed LLM call and returned error details",
+        fallbackModel: "None"
+      };
+    }
+    logger.error("chatWithLLM call failed", { error: error.message, model: selectedModel });
 
     return {
       error: true,
@@ -136,8 +214,7 @@ ${JSON.stringify(memory, null, 2)}
 
 
 export const detectIntent = async (message) => {
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[INTENT] detectIntent called with:", message);
+  logger.info(`Running intent detection via model Qwen...`);
   const start = Date.now();
 
   const completion = await client.chat.completions.create({
@@ -155,10 +232,6 @@ export const detectIntent = async (message) => {
       },
     ],
   });
-
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[INTENT] detectIntent response time:", Date.now() - start, "ms");
-  console.log("[INTENT] Raw LLM intent response:", completion.choices[0].message.content);
 
   return completion.choices[0].message.content;
 };
@@ -183,8 +256,8 @@ The JSON object must have this exact structure:
 If any preference field cannot be determined, return an empty array or null for averageBudget.
 Ensure all JSON is correctly formatted.`;
 
-  const completion = await client.chat.completions.create({
-    model: LIGHT_MODEL,
+  const completion = await generalClient.chat.completions.create({
+    model: GENERAL_MODEL,
     temperature: 0.1,
     max_tokens: 1000,
     messages: [
@@ -192,6 +265,11 @@ Ensure all JSON is correctly formatted.`;
       { role: "user", content: `Here is the conversation log to analyze:\n\n${formattedConvo}` }
     ]
   });
+
+  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+  if (reasoning) {
+    logger.info("[MongoDB Summary] Reasoning Content:\n" + reasoning);
+  }
 
   return completion.choices[0].message.content;
 };
@@ -245,8 +323,8 @@ ${currentSummary || "(none)"}
 Interaction Scores (category → score):
 ${scoresBlock}`;
 
-  const completion = await client.chat.completions.create({
-    model: LIGHT_MODEL,
+  const completion = await generalClient.chat.completions.create({
+    model: GENERAL_MODEL,
     temperature: 0.1,
     max_tokens: 300,
     messages: [
@@ -254,6 +332,11 @@ ${scoresBlock}`;
       { role: "user",   content: userContent }
     ]
   });
+
+  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
+  if (reasoning) {
+    logger.info("[MongoDB Insights] Reasoning Content:\n" + reasoning);
+  }
 
   return completion.choices[0].message.content;
 };

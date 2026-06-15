@@ -105,8 +105,6 @@ export interface AppContextType {
   setPendingAddressChoice: (choice: boolean) => void;
   waitingForAddressInput: boolean;
   setWaitingForAddressInput: (wait: boolean) => void;
-  selectedDetailProductId: string | null;
-  setSelectedDetailProductId: (id: string | null) => void;
   isEnteringCustomDetails: boolean;
   setIsEnteringCustomDetails: (entering: boolean) => void;
   customName: string;
@@ -171,7 +169,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isTyping, setIsTyping] = useState(false);
   const [pendingAddressChoice, setPendingAddressChoice] = useState(false);
   const [waitingForAddressInput, setWaitingForAddressInput] = useState(false);
-  const [selectedDetailProductId, setSelectedDetailProductId] = useState<string | null>(null);
   const [isEnteringCustomDetails, setIsEnteringCustomDetails] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customPhone, setCustomPhone] = useState("");
@@ -265,7 +262,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isTyping, setIsTyping,
         pendingAddressChoice, setPendingAddressChoice,
         waitingForAddressInput, setWaitingForAddressInput,
-        selectedDetailProductId, setSelectedDetailProductId,
         isEnteringCustomDetails, setIsEnteringCustomDetails,
         customName, setCustomName,
         customPhone, setCustomPhone,

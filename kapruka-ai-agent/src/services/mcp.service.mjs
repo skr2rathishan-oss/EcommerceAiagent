@@ -1,13 +1,14 @@
 import { getMcpClient } from "./mcp.client.mjs";
 import { trackOrder } from "./orderTracking.service.mjs";
+import logger from "../utils/logger.mjs";
 
 export const searchProducts = async (query) => {
   const client = await getMcpClient();
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("\n[PRODUCT SEARCH] Initiating product search for query:", query);
-  console.log("[MCP REQUEST] Tool: kapruka_search_products");
-  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ q: query, in_stock_only: true }, null, 2));
+  logger.info(`[PRODUCT SEARCH] Initiating product search for query: "${query}"`, {
+    tool: "kapruka_search_products",
+    arguments: { q: query, in_stock_only: true }
+  });
   const mcpStart = Date.now();
 
   const result = await client.callTool({
@@ -22,10 +23,7 @@ export const searchProducts = async (query) => {
     }
   });
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[MCP RESPONSE] Tool: kapruka_search_products");
-  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
-  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
+  const durationMs = Date.now() - mcpStart;
 
   // Safely extract the raw string — prefer structuredContent, fall back to content text
   const raw =
@@ -38,7 +36,7 @@ export const searchProducts = async (query) => {
     data = JSON.parse(raw);
   } catch {
     // MCP returned a plain-text message like "No products found"
-    console.warn("[MCP] searchProducts: non-JSON response:", raw);
+    logger.warn(`[MCP] searchProducts: non-JSON response: ${raw.substring(0, 100)}...`);
     return [];
   }
 
@@ -65,8 +63,10 @@ export const searchProducts = async (query) => {
     weight: product.weight || ""
   }));
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[PRODUCT SEARCH] Mapped results count:", mappedResults.length);
+  logger.info(`[PRODUCT SEARCH] Mapped ${mappedResults.length} results from MCP`, {
+    durationMs,
+    resultsCount: mappedResults.length
+  });
   return mappedResults;
 };
 
@@ -97,9 +97,10 @@ export const processMessage = async (message) => {
 export const getProductDetails = async (productId) => {
   const client = await getMcpClient();
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("\n[MCP REQUEST] Tool: kapruka_get_product");
-  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ product_id: productId }, null, 2));
+  logger.info(`[MCP REQUEST] Tool: kapruka_get_product for product ID: ${productId}`, {
+    tool: "kapruka_get_product",
+    arguments: { product_id: productId }
+  });
   const mcpStart = Date.now();
 
   const result = await client.callTool({
@@ -112,10 +113,7 @@ export const getProductDetails = async (productId) => {
     }
   });
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[MCP RESPONSE] Tool: kapruka_get_product");
-  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
-  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
+  const durationMs = Date.now() - mcpStart;
 
   const raw =
     result?.structuredContent?.result ??
@@ -126,9 +124,14 @@ export const getProductDetails = async (productId) => {
   try {
     data = JSON.parse(raw);
   } catch {
-    console.warn("[MCP] getProductDetails: non-JSON response:", raw);
+    logger.warn(`[MCP] getProductDetails: non-JSON response: ${raw.substring(0, 100)}...`);
     throw new Error("Product details not available");
   }
+
+  logger.info(`[MCP RESPONSE] Tool: kapruka_get_product completed in ${durationMs}ms`, {
+    durationMs,
+    productId
+  });
 
   return {
     id: data.id,

@@ -55,10 +55,10 @@ export const PanelPopup: React.FC<PanelPopupProps> = ({ id, anchor, onClose }) =
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
-        background: "#ffffff",
+        background: "var(--card-bg, #ffffff)",
         borderRadius: 16,
         boxShadow: "0 8px 40px rgba(64,41,112,0.22), 0 2px 8px rgba(64,41,112,0.10)",
-        border: "1px solid rgba(64,41,112,0.10)",
+        border: "1px solid var(--card-border, rgba(64,41,112,0.10))",
         overflow: "hidden",
       }}
     >
@@ -72,7 +72,7 @@ export const PanelPopup: React.FC<PanelPopupProps> = ({ id, anchor, onClose }) =
           height: 0,
           borderTop: `${ARROW_SIZE}px solid transparent`,
           borderBottom: `${ARROW_SIZE}px solid transparent`,
-          borderRight: `${ARROW_SIZE}px solid #ffffff`,
+          borderRight: `${ARROW_SIZE}px solid var(--card-bg, #ffffff)`,
           filter: "drop-shadow(-2px 0 2px rgba(64,41,112,0.08))",
           pointerEvents: "none",
         }}
@@ -87,7 +87,7 @@ export const PanelPopup: React.FC<PanelPopupProps> = ({ id, anchor, onClose }) =
           background: "linear-gradient(135deg,rgba(124,77,186,0.06),rgba(64,41,112,0.04))",
         }}
       >
-        <h3 style={{ color: "#1a1025", fontWeight: 700, fontSize: 14, fontFamily: "'Nunito',sans-serif", letterSpacing: "-0.1px" }}>{id}</h3>
+        <h3 style={{ color: "var(--text-primary, #1a1025)", fontWeight: 700, fontSize: 14, fontFamily: "'Nunito',sans-serif", letterSpacing: "-0.1px" }}>{id}</h3>
         <motion.button
           type="button"
           onClick={onClose}
@@ -167,7 +167,7 @@ const PanelHistory: React.FC = () => {
             <div className="min-w-0">
               <p
                 style={{
-                  color: "#1a1025",
+                  color: "var(--text-primary, #1a1025)",
                   fontSize: 13,
                   fontWeight: 600,
                   fontFamily: "'Nunito',sans-serif",
@@ -178,7 +178,7 @@ const PanelHistory: React.FC = () => {
               >
                 {h.title}
               </p>
-              <p style={{ color: "#9e8dc0", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 2 }}>{h.time}</p>
+              <p style={{ color: "var(--text-secondary, #9e8dc0)", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 2 }}>{h.time}</p>
             </div>
           </div>
           <div style={{ flexShrink: 0 }}>
@@ -205,7 +205,12 @@ const PanelHistory: React.FC = () => {
 
 // ── Panel: Settings ────────────────────────────────────────────────────────
 const PanelSettings: React.FC = () => {
-  const [darkMode, setDarkMode] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
   const [notifs, setNotifs] = useState(true);
   const [privacy, setPrivacy] = useState(false);
   const [currency, setCurrency] = useState("USD");
@@ -215,6 +220,19 @@ const PanelSettings: React.FC = () => {
   const [street2, setStreet2] = useState(() => localStorage.getItem("delivery_street2") || "");
   const [city, setCity] = useState(() => localStorage.getItem("delivery_city") || "Colombo 03");
   const [addressSaved, setAddressSaved] = useState(false);
+
+  const toggleDarkMode = (val: boolean) => {
+    setDarkMode(val);
+    if (typeof window !== "undefined") {
+      if (val) {
+        document.documentElement.classList.add("dark");
+        localStorage.setItem("theme", "dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        localStorage.setItem("theme", "light");
+      }
+    }
+  };
 
   const saveAddress = () => {
     localStorage.setItem("delivery_address_name", addressName);
@@ -226,7 +244,7 @@ const PanelSettings: React.FC = () => {
   };
 
   const rows = [
-    { icon: <Moon size={18} strokeWidth={2} />, label: "Dark Mode", sub: "Switch to dark theme", value: darkMode, set: setDarkMode },
+    { icon: <Moon size={18} strokeWidth={2} />, label: "Dark Mode", sub: "Switch to dark theme", value: darkMode, set: toggleDarkMode },
     { icon: <Bell size={18} strokeWidth={2} />, label: "Notifications", sub: "Get updates and alerts", value: notifs, set: setNotifs },
     { icon: <Shield size={18} strokeWidth={2} />, label: "Privacy Mode", sub: "Hide chat history", value: privacy, set: setPrivacy },
   ];
@@ -267,8 +285,8 @@ const PanelSettings: React.FC = () => {
                 {r.icon}
               </div>
               <div>
-                <p style={{ color: "#1a1025", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>{r.label}</p>
-                <p style={{ color: "#9e8dc0", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>{r.sub}</p>
+                <p style={{ color: "var(--text-primary, #1a1025)", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>{r.label}</p>
+                <p style={{ color: "var(--text-secondary, #9e8dc0)", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>{r.sub}</p>
               </div>
             </div>
             <button
@@ -308,8 +326,8 @@ const PanelSettings: React.FC = () => {
             <Coins size={18} color="#fff" strokeWidth={2} />
           </div>
           <div>
-            <p style={{ color: "#1a1025", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Currency</p>
-            <p style={{ color: "#9e8dc0", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>Select display currency</p>
+            <p style={{ color: "var(--text-primary, #1a1025)", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Currency</p>
+            <p style={{ color: "var(--text-secondary, #9e8dc0)", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>Select display currency</p>
           </div>
         </div>
         <div className="flex flex-col gap-1">
@@ -353,51 +371,51 @@ const PanelSettings: React.FC = () => {
             <MapPin size={18} color="#fff" strokeWidth={2} />
           </div>
           <div>
-            <p style={{ color: "#1a1025", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Delivery Address</p>
-            <p style={{ color: "#9e8dc0", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>Configure your primary shipping address</p>
+            <p style={{ color: "var(--text-primary, #1a1025)", fontSize: 13, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Delivery Address</p>
+            <p style={{ color: "var(--text-secondary, #9e8dc0)", fontSize: 11, fontFamily: "'Nunito',sans-serif", marginTop: 1 }}>Configure your primary shipping address</p>
           </div>
         </div>
 
         <div className="flex flex-col gap-3">
           <div>
-            <label style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Address Label (e.g. Home, Office)</label>
+            <label style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Address Label (e.g. Home, Office)</label>
             <input
               type="text"
               value={addressName}
               onChange={(e) => setAddressName(e.target.value)}
               placeholder="e.g. Home, Office"
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid var(--card-border, rgba(64,41,112,0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
             />
           </div>
 
           <div>
-            <label style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Street Line 1</label>
+            <label style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Street Line 1</label>
             <input
               type="text"
               value={street1}
               onChange={(e) => setStreet1(e.target.value)}
               placeholder="Street Address, P.O. Box"
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid var(--card-border, rgba(64,41,112,0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
             />
           </div>
 
           <div>
-            <label style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Street Line 2</label>
+            <label style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>Street Line 2</label>
             <input
               type="text"
               value={street2}
               onChange={(e) => setStreet2(e.target.value)}
               placeholder="Apartment, suite, unit, building, floor, etc."
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid var(--card-border, rgba(64,41,112,0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
             />
           </div>
 
           <div>
-            <label style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>City</label>
+            <label style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", display: "block", marginBottom: 4 }}>City</label>
             <select
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", cursor: "pointer", boxSizing: "border-box" }}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: 10, border: "1px solid var(--card-border, rgba(64,41,112,0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", fontSize: 12.5, fontFamily: "'Nunito',sans-serif", outline: "none", cursor: "pointer", boxSizing: "border-box" }}
             >
               <option value="Colombo 03">Colombo 03</option>
               <option value="Colombo 01">Colombo 01</option>

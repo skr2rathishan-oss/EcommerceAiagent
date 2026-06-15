@@ -73,6 +73,23 @@ interface SidebarItemProps {
   onClick?: (label: string, rect: DOMRect) => void;
 }
 
+const getHoverLabel = (lbl: string) => {
+  switch (lbl) {
+    case "New Chat":
+      return "📝 New Chat";
+    case "Recent Conversations":
+      return "🕒 History";
+    case "Settings":
+      return "⚙️ Settings";
+    case "Help & Support":
+      return "❓ Help";
+    case "Profile":
+      return "👤 Profile";
+    default:
+      return lbl;
+  }
+};
+
 const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, onClick }) => {
   const [hovered, setHovered] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -143,7 +160,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, onClick }) => {
                 borderRight: "5px solid rgba(26,16,37,0.92)",
               }}
             />
-            {label}
+            {getHoverLabel(label)}
           </motion.div>
         )}
       </AnimatePresence>

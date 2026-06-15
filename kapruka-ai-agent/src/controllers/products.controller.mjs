@@ -1,5 +1,6 @@
-import { getProductDetails } from "../services/mcp.service.mjs";
+import { getProductDetails, searchProducts } from "../services/mcp.service.mjs";
 import { trackInteraction } from "../services/productInteraction.service.mjs";
+import { redisService } from "../services/redis.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const MOCK_PRODUCTS = {
@@ -139,6 +140,14 @@ export const getProduct = async (req, res) => {
       return res.json(MOCK_PRODUCTS[trimmedId]);
     }
 
+    // Try fetching from cache
+    const cacheKey = `product_detail:${trimmedId}`;
+    const cachedDetails = await redisService.get(cacheKey);
+    if (cachedDetails) {
+      logger.info("[CONTROLLER] Returning cached product details for ID", { trimmedId });
+      return res.json(cachedDetails);
+    }
+
     const details = await getProductDetails(trimmedId);
 
     if (!details || !details.id) {
@@ -148,6 +157,9 @@ export const getProduct = async (req, res) => {
         message: "Product not found"
       });
     }
+
+    // Save to cache
+    await redisService.set(cacheKey, details, 3600); // Cache for 1 hour
 
     // Track "details" interaction in the background asynchronously
     const sessionId = req.headers["x-session-id"] || "default";
@@ -197,6 +209,50 @@ export const trackInteractionController = async (req, res) => {
     return res.json({ success: true });
   } catch (error) {
     logger.error("[Interaction Controller Error] Failed to process tracking", { error: error.message, stack: error.stack });
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+export const getRecommendationsController = async (req, res) => {
+  logger.info("[CONTROLLER] Entry: getRecommendationsController");
+
+  try {
+    const cacheKey = "top_recommendations_v3";
+    const cachedRecs = await redisService.get(cacheKey);
+    if (cachedRecs) {
+      logger.info("[CONTROLLER] Returning cached recommendations");
+      return res.json({ success: true, products: cachedRecs });
+    }
+
+    logger.info("[CONTROLLER] Fetching recommendations from MCP");
+    
+    // Fetch multiple product categories in parallel for a rich recommendations list
+    const categories = ["chocolate", "tea", "cake", "toy", "perfume", "flowers", "biscuit", "fruit"];
+    const results = await Promise.allSettled(
+      categories.map(cat => searchProducts(cat))
+    );
+
+    const mergedProducts = [];
+    results.forEach(res => {
+      if (res.status === "fulfilled" && Array.isArray(res.value)) {
+        // Take up to 12 items from each category to ensure diversity
+        mergedProducts.push(...res.value.slice(0, 12));
+      }
+    });
+
+    // Shuffle the combined products list so it feels fresh on load
+    const products = mergedProducts.sort(() => Math.random() - 0.5);
+
+    // Cache the recommendations list for 1 hour (3600 seconds)
+    await redisService.set(cacheKey, products, 3600);
+
+    logger.info("[CONTROLLER] getRecommendationsController Success", { count: products.length });
+    return res.json({ success: true, products });
+  } catch (error) {
+    logger.error("[ERROR] Failed in getRecommendationsController", { error: error.message, stack: error.stack });
     return res.status(500).json({
       success: false,
       message: "Internal Server Error"

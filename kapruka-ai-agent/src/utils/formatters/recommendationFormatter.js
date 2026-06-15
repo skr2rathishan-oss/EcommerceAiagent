@@ -23,9 +23,23 @@ const client = new OpenAI({
  * @param {Array} history - Recent conversation history
  * @returns {Promise<string>} The formatted conversational recommendation text
  */
-export async function formatRecommendations(query, products, history = []) {
+export async function formatRecommendations(query, products, history = [], detectedLang = "en") {
   if (!products || products.length === 0) {
+    if (detectedLang === "ta") {
+      return "உங்கள் வினவலுக்குப் பொருத்தமான தயாரிப்புகள் எதையும் என்னால் கண்டுபிடிக்க முடியவில்லை.";
+    } else if (detectedLang === "si") {
+      return "ඔබගේ ඉල්ලීමට ගැලපෙන කිසිදු නිෂ්පාදනයක් සොයා ගැනීමට මට නොහැකි විය.";
+    }
     return "I searched but couldn't find any products matching your query.";
+  }
+
+  let langInstruction = "";
+  if (detectedLang === "ta") {
+    langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in Tamil. You MUST respond ONLY in Tamil. Do not translate or write in English.";
+  } else if (detectedLang === "si") {
+    langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in Sinhala. You MUST respond ONLY in Sinhala. Do not translate or write in English.";
+  } else {
+    langInstruction = "\n\nCRITICAL LANGUAGE RULE:\n- The customer is speaking in English. You MUST respond ONLY in English.";
   }
 
   const prompt = `You are Velora, Kapruka's premium AI shopping concierge.
@@ -45,13 +59,13 @@ Please generate a response following these rules strictly:
 
   try {
     const completion = await client.chat.completions.create({
-      model: process.env.NVIDIA_MODEL,
+      model: process.env.NVIDIA_MODEL || "qwen/qwen3.5-122b-a10b",
       temperature: 0.7,
       max_tokens: 200,
       messages: [
         {
           role: "system",
-          content: "You are a professional luxury shopping concierge. Format your responses with clear spacing and line breaks. Never list or repeat products in text."
+          content: `You are a professional luxury shopping concierge. Format your responses with clear spacing and line breaks. Never list or repeat products in text.${langInstruction}`
         },
         {
           role: "user",
@@ -64,6 +78,11 @@ Please generate a response following these rules strictly:
   } catch (error) {
     console.error("Error generating conversational recommendation:", error);
     // Fallback: generate a basic introduction locally
+    if (detectedLang === "ta") {
+      return "உங்கள் கோரிக்கைக்குப் பொருத்தமான சில தயாரிப்புகளை நான் கண்டறிந்துள்ளேன் 😊\n\nகீழே பார்த்து, உங்கள் கவனத்தை ஈர்ப்பது எது என்பதை எனக்குத் தெரியப்படுத்துங்கள்.";
+    } else if (detectedLang === "si") {
+      return "ඔබගේ ඉල්ලීමට ගැලපෙන නිෂ්පාදන කිහිපයක් මම සොයාගත්තා 😊\n\nපහතින් බලලා ඔබ කැමති එක මොකක්ද කියලා මට කියන්න.";
+    }
     return `I found a few options that match what you're looking for 😊\n\nTake a look below and let me know which one catches your eye.`;
   }
 }

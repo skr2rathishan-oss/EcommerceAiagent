@@ -22,7 +22,6 @@ export const useChat = () => {
     setPendingConfirmVariants,
     setPendingAddressChoice,
     setWaitingForAddressInput,
-    setSelectedDetailProductId,
     pendingConfirmProduct,
     pendingConfirmVariants,
     waitingForAddressInput,
@@ -68,43 +67,7 @@ export const useChat = () => {
     setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
 
     if (actionId === "view_details") {
-      if (phase === "centered") setPhase("bottom");
-      setIsTyping(true);
-      setActivity({
-        currentStep: "UNDERSTANDING",
-        currentMessage: "Fetching product details...",
-        logs: [
-          { id: "UNDERSTANDING", title: "Retrieving details", status: "active", details: [`Product ID: ${product.id}`] },
-          { id: "READY", title: "Formatting display", status: "pending", details: [] }
-        ]
-      });
-      try {
-        const data = await fetchProductDetails(product.id) as {
-          type: string; content: string; product: Product;
-        };
-        if (data?.type === "product_details" && data.content) {
-          setMessages(prev => [...prev, {
-            role: "ai",
-            text: `Here are the full details for **${product.name}**:`,
-            type: "product_details",
-            productDetails: { content: data.content, product },
-          }]);
-        } else {
-          setMessages(prev => [...prev, {
-            role: "ai",
-            text: `**${product.name}**\n\nPrice: ${formatUIPrice(product.price, product.currency)}\n\n${product.description || product.shortDesc || ""}`,
-          }]);
-        }
-      } catch {
-        setMessages(prev => [...prev, {
-          role: "ai",
-          text: "⚠️ I couldn't load the full product details right now. Please try again.",
-        }]);
-      } finally {
-        setIsTyping(false);
-        setActivity(null);
-      }
-
+      handleRequestProductDetails(product.id, product.name);
     } else if (actionId === "add_to_cart") {
       handleAddToCart(product);
 
@@ -383,6 +346,47 @@ export const useChat = () => {
     setActivity(null);
   };
 
+  const handleRequestProductDetails = async (productId: string, productName?: string) => {
+    if (phase === "centered") setPhase("bottom");
+    setIsTyping(true);
+    setActivity({
+      currentStep: "UNDERSTANDING",
+      currentMessage: "Fetching product details...",
+      logs: [
+        { id: "UNDERSTANDING", title: "Retrieving details", status: "active", details: [`Product ID: ${productId}`] },
+        { id: "READY", title: "Formatting display", status: "pending", details: [] }
+      ]
+    });
+    try {
+      const data = await fetchProductDetails(productId) as {
+        type: string; content: string; product: Product;
+      };
+      if (data?.type === "product_details" && data.content) {
+        const productObj = data.product || { id: productId, name: productName || "Product", price: 0 };
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: `Here are the full details for **${productName || productObj.name || "the product"}**:`,
+          type: "product_details",
+          productDetails: { content: data.content, product: productObj },
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: `**${productName || "Product"}**\n\nDetails not formatable.`,
+        }]);
+      }
+    } catch (err) {
+      console.error("Failed to load details:", err);
+      setMessages(prev => [...prev, {
+        role: "ai",
+        text: "⚠️ I couldn't load the full product details right now. Please try again.",
+      }]);
+    } finally {
+      setIsTyping(false);
+      setActivity(null);
+    }
+  };
+
   return {
     handleProductSelect,
     handleProductAction,
@@ -392,5 +396,6 @@ export const useChat = () => {
     handleKeyDown,
     handleStop,
     getSessionId,
+    handleRequestProductDetails,
   };
 };

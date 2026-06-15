@@ -35,3 +35,15 @@
 .animated-orb-3 { animation: orb-drift-3 11s ease-in-out infinite; }
 .animated-orb-4 { animation: orb-drift-4 16s ease-in-out infinite; }
 .animated-mesh  { animation: mesh-shift 12s ease infinite; background-size: 300% 300%; }
+
+.hero-banner {
+  background-image: url('/ChatGPT Image Jun 15, 2026, 11_35_58 AM.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.dark .hero-banner {
+  background-image: linear-gradient(rgba(18, 9, 36, 0.78), rgba(18, 9, 36, 0.78)), url('/ChatGPT Image Jun 15, 2026, 11_35_58 AM.png');
+}
+

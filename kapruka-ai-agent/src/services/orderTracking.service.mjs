@@ -1,12 +1,13 @@
 import { getMcpClient } from "./mcp.client.mjs";
+import logger from "../utils/logger.mjs";
 
 export const trackOrder = async (orderNumber) => {
   const client = await getMcpClient();
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("\n[ORDER TRACKING] Tracking order number:", orderNumber);
-  console.log("[MCP REQUEST] Tool: kapruka_track_order");
-  console.log("[MCP REQUEST] Arguments:", JSON.stringify({ order_number: orderNumber }, null, 2));
+  logger.info(`[ORDER TRACKING] Tracking order number: ${orderNumber}`, {
+    tool: "kapruka_track_order",
+    arguments: { order_number: orderNumber }
+  });
   const mcpStart = Date.now();
 
   const result = await client.callTool({
@@ -19,10 +20,7 @@ export const trackOrder = async (orderNumber) => {
     }
   });
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[MCP RESPONSE] Tool: kapruka_track_order");
-  console.log("[MCP RESPONSE] Duration:", Date.now() - mcpStart, "ms");
-  console.log("[MCP RESPONSE] Raw result:", JSON.stringify(result, null, 2));
+  const durationMs = Date.now() - mcpStart;
 
   const raw =
     result?.structuredContent?.result ??
@@ -33,7 +31,7 @@ export const trackOrder = async (orderNumber) => {
   try {
     data = JSON.parse(raw);
   } catch {
-    console.warn("[MCP] trackOrder: non-JSON response:", raw);
+    logger.warn(`[MCP] trackOrder: non-JSON response: ${raw.substring(0, 100)}...`);
     throw new Error("Order tracking details not available");
   }
 
@@ -95,8 +93,11 @@ export const trackOrder = async (orderNumber) => {
     progress: progressList
   };
 
-  // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-  console.log("[ORDER TRACKING] Final normalized tracking data:", JSON.stringify(trackingData, null, 2));
+  logger.info(`[ORDER TRACKING] Tracking completed in ${durationMs}ms`, {
+    orderNumber,
+    status: trackingData.status,
+    recipientCity: trackingData.recipient.city
+  });
 
   return trackingData;
 };

@@ -2,6 +2,7 @@ import ProductInteraction from "../database/ProductInteraction.mjs";
 import UserProfile from "../database/UserProfile.mjs";
 import { generateUserInsights } from "./insights.service.mjs";
 import { refreshRecommendationCache } from "./recommendationCache.service.mjs";
+import logger from "../utils/logger.mjs";
 
 /**
  * Maps actions to their respective weight scores.
@@ -38,7 +39,7 @@ function normalizeCategory(category) {
  */
 export async function trackInteraction(sessionId, productId, productName, category, action) {
   // Lightweight Logging: sessionId, action, productId.
-  console.log(`[Interaction Track] sessionId: ${sessionId} | action: ${action} | productId: ${productId}`);
+  logger.info(`[Interaction Track] sessionId: ${sessionId} | action: ${action} | productId: ${productId}`);
 
   try {
     const interaction = new ProductInteraction({
@@ -54,22 +55,22 @@ export async function trackInteraction(sessionId, productId, productName, catego
     // Phase 5: Trigger insights generation on purchase events (background, non-blocking)
     if (action === "purchase") {
       generateUserInsights(sessionId).catch(err => {
-        console.error(`[Background Insights Error] Insights generation on purchase failed for session ${sessionId}:`, err);
+        logger.error(`[Background Insights Error] Insights generation on purchase failed for session ${sessionId}:`, err);
       });
       refreshRecommendationCache(sessionId).catch(err => {
-        console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on purchase for session ${sessionId}:`, err);
+        logger.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on purchase for session ${sessionId}:`, err);
       });
     }
 
     // Trigger score updates in user profile asynchronously
     if (category) {
       updateInteractionScores(sessionId, category, action).catch(err => {
-        console.error(`[Background Profile Update Error] Failed to update scores for session ${sessionId}:`, err);
+        logger.error(`[Background Profile Update Error] Failed to update scores for session ${sessionId}:`, err);
       });
     }
   } catch (error) {
     // Fail Safe Behavior: Log error, continue normal flow.
-    console.error(`[Interaction Tracking Error] Failed to save interaction for session ${sessionId}:`, error);
+    logger.error(`[Interaction Tracking Error] Failed to save interaction for session ${sessionId}:`, error);
   }
 }
 
@@ -96,11 +97,11 @@ export async function updateInteractionScores(sessionId, category, action) {
     // Trigger cache refresh on significant interaction score changes (scoreChange >= 3)
     if (scoreChange >= 3) {
       refreshRecommendationCache(sessionId).catch(err => {
-        console.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on significant score change for session ${sessionId}:`, err);
+        logger.error(`[Background Cache Refresh Error] Failed to refresh recommendation cache on significant score change for session ${sessionId}:`, err);
       });
     }
   } catch (error) {
-    console.error(`[Interaction Score Update Error] Failed to update score for session ${sessionId}:`, error);
+    logger.error(`[Interaction Score Update Error] Failed to update score for session ${sessionId}:`, error);
   }
 }
 
@@ -113,7 +114,7 @@ export async function getUserInteractions(sessionId) {
   try {
     return await ProductInteraction.find({ sessionId }).sort({ timestamp: -1 }).lean().exec();
   } catch (error) {
-    console.error(`[Interaction Service Error] Failed to get interactions for session ${sessionId}:`, error);
+    logger.error(`[Interaction Service Error] Failed to get interactions for session ${sessionId}:`, error);
     return [];
   }
 }
@@ -128,7 +129,7 @@ export async function getCategoryScores(sessionId) {
     const profile = await UserProfile.findOne({ sessionId }).lean().exec();
     return profile?.interactionScores || {};
   } catch (error) {
-    console.error(`[Interaction Service Error] Failed to get category scores for session ${sessionId}:`, error);
+    logger.error(`[Interaction Service Error] Failed to get category scores for session ${sessionId}:`, error);
     return {};
   }
 }
@@ -147,7 +148,7 @@ export async function getTopCategories(sessionId) {
       .map(([category, score]) => ({ category, score }))
       .sort((a, b) => b.score - a.score);
   } catch (error) {
-    console.error(`[Analytics Error] Failed to get top categories for session ${sessionId}:`, error);
+    logger.error(`[Analytics Error] Failed to get top categories for session ${sessionId}:`, error);
     return [];
   }
 }
@@ -170,7 +171,7 @@ export async function getMostViewedProducts(sessionId) {
       { $sort: { count: -1 } }
     ]).exec();
   } catch (error) {
-    console.error(`[Analytics Error] Failed to get most viewed products for session ${sessionId}:`, error);
+    logger.error(`[Analytics Error] Failed to get most viewed products for session ${sessionId}:`, error);
     return [];
   }
 }
@@ -193,7 +194,7 @@ export async function getMostPurchasedProducts(sessionId) {
       { $sort: { count: -1 } }
     ]).exec();
   } catch (error) {
-    console.error(`[Analytics Error] Failed to get most purchased products for session ${sessionId}:`, error);
+    logger.error(`[Analytics Error] Failed to get most purchased products for session ${sessionId}:`, error);
     return [];
   }
 }
