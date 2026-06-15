@@ -50,3 +50,6 @@
 2026-06-15T04:28:17.032Z | [Velora Router] | Message Type: Greeting | Model: nvidia/nemotron-3-nano-30b-a3b | Stats: {"selectedModel":"nvidia/nemotron-3-nano-30b-a3b","messageType":"Greeting","latencyMs":1266}
 2026-06-15T04:28:50.176Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Shopping","latencyMs":3839}
 2026-06-15T04:29:24.600Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Shopping","latencyMs":11878}
+2026-06-15T05:21:30.878Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":3759}
+2026-06-15T05:27:09.783Z | [Velora Router] | Message Type: Greeting | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Greeting","latencyMs":5623}
+2026-06-15T05:28:17.993Z | [Velora Router] | Message Type: Shopping | Model: qwen/qwen3.5-122b-a10b | Stats: {"selectedModel":"qwen/qwen3.5-122b-a10b","messageType":"Shopping","latencyMs":3749}

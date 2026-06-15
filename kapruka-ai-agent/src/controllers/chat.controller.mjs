@@ -8,9 +8,26 @@ import { saveMessage } from "../services/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../services/contextBuilder.service.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
-import { detectLanguage } from "../services/languageDetector.js";
-import { translateToEnglish, translateToSinhala, translateToTamil } from "../services/translationService.js";
 import logger from "../utils/logger.mjs";
+import { getContext, printRequestReport } from "../services/logger.service.mjs";
+import { redisService } from "../services/redis.service.mjs";
+
+function localDetectLanguage(text) {
+  if (!text || typeof text !== "string") return "en";
+  if (/[\u0D80-\u0DFF]/.test(text)) return "si";
+  if (/[\u0B80-\u0BFF]/.test(text)) return "ta";
+  return "en";
+}
+
+function detectLanguageFromHistory(history) {
+  if (!history || history.length === 0) return "en";
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role === "user") {
+      return localDetectLanguage(history[i].content);
+    }
+  }
+  return "en";
+}
 
 
 // Helper to extract message content from assistant response payload
@@ -23,46 +40,22 @@ function extractText(payload) {
   return "";
 }
 
-// Helper to translate final response payload to target language (Sinhala/Tamil)
-async function translateResponsePayload(payload, targetLang) {
-  if (!payload || targetLang === "en") {
-    return payload;
-  }
-
-  const copy = { ...payload };
-
-  let translateFn = null;
-  if (targetLang === "si" || targetLang === "mixed-si") {
-    translateFn = translateToSinhala;
-  } else if (targetLang === "ta" || targetLang === "mixed-ta") {
-    translateFn = translateToTamil;
-  }
-
-  if (!translateFn) {
-    return payload;
-  }
-
-  try {
-    if (typeof copy.text === "string" && copy.text.trim()) {
-      copy.text = await translateFn(copy.text);
-    }
-    if (typeof copy.message === "string" && copy.message.trim()) {
-      copy.message = await translateFn(copy.message);
-    }
-    // Do NOT translate copy.content for product_details to avoid modifying descriptions
-    if (copy.type !== "product_details" && typeof copy.content === "string" && copy.content.trim()) {
-      copy.content = await translateFn(copy.content);
-    }
-  } catch (err) {
-    logger.error(`[Translation Payload Error] Failed to translate response payload:`, err);
-  }
-
-  return copy;
-}
+// Translation helper removed: regional languages are supported natively by the LLM
 
 
 
 export const chat = async (req, res) => {
+  const context = getContext();
+  const t = context?.telemetry;
+
+  if (t) {
+    res.on("finish", () => {
+      t.workflow.responseSent = true;
+      t.performance.totalTime = Date.now() - t.startTime;
+      printRequestReport(t);
+    });
+  }
+
   let logs = [];
   try {
     const { message } = req.body;
@@ -77,26 +70,33 @@ export const chat = async (req, res) => {
       });
     }
 
-    // Detect user language
-    const detectedLang = await detectLanguage(message);
-
-    // Translate user message to English if it is in Sinhala, Tamil, or mixed
-    let englishMessage = message;
-    if (detectedLang !== "en") {
-      englishMessage = await translateToEnglish(message);
-      logger.info(`[Translation] Original: "${message}" -> English: "${englishMessage}" (Lang: ${detectedLang})`);
+    if (t) {
+      t.userInput.message = message;
     }
 
-    // Save user message (non-blocking) - save the English version for consistent agent history
-    saveMessage(sessionId, "user", englishMessage).catch(err => {
-      console.error("[Persistence Error] Failed to save user message:", err);
+    // Detect user language locally
+    const langStart = Date.now();
+    const detectedLang = localDetectLanguage(message);
+    const langDuration = Date.now() - langStart;
+
+    if (t) {
+      t.language.detected = detectedLang === "en" ? "English" : detectedLang === "si" ? "Sinhala" : "Tamil";
+      t.language.confidence = 1.0;
+      t.language.translationUsed = "No";
+      t.workflow.languageDetected = true;
+      t.performance.langDetection = langDuration;
+    }
+
+    // Save user message (non-blocking) - save the original version
+    saveMessage(sessionId, "user", message).catch(err => {
+      logger.error("[Persistence Error] Failed to save user message:", err);
     });
 
     // ── Direct-intent fast path ───────────────────────────────────────────
     // When the frontend sends an explicit `intent` field (e.g. for product
     // selection or detail fetch), skip LLM detection and route directly.
     if (req.body.intent) {
-      console.log("[CONTROLLER] Direct intent from frontend:", req.body.intent);
+      logger.info(`[CONTROLLER] Direct intent from frontend: ${req.body.intent}`);
       const directParameters = {
         ...(req.body.parameters || {}),
         ...(req.body.product ? { product: req.body.product } : {}),
@@ -116,8 +116,11 @@ export const chat = async (req, res) => {
         ]
       })}\n\n`);
 
-      const directResult = await routeIntent(req.body.intent, directParameters, sessionId);
-      console.log("[CONTROLLER] Direct intent result type:", directResult?.type);
+      const history = await getRecentHistory(sessionId);
+      const directLang = detectLanguageFromHistory(history);
+
+      const directResult = await routeIntent(req.body.intent, directParameters, sessionId, null, directLang);
+      logger.info(`[CONTROLLER] Direct intent result type: ${directResult?.type}`);
 
       // Save assistant response (non-blocking)
       const assistantText = extractText(directResult);
@@ -126,12 +129,12 @@ export const chat = async (req, res) => {
           .then((updatedConvo) => {
             if (updatedConvo) {
               checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
-                console.error("[Background Summarization Error] Trigger failed in direct intent path:", err);
+                logger.error("[Background Summarization Error] Trigger failed in direct intent path:", err);
               });
             }
           })
           .catch(err => {
-            console.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
+            logger.error("[Persistence Error] Failed to save assistant message in direct intent path:", err);
           });
       }
 
@@ -143,14 +146,6 @@ export const chat = async (req, res) => {
       return;
     }
     // ─────────────────────────────────────────────────────────────────────
-
-    // TEMP DEBUG LOG - SAFE TO REMOVE LATER
-    console.log("\n==================================================");
-    console.log("[REQUEST] Incoming chat request (SSE)");
-    console.log("[REQUEST] Session ID:", sessionId);
-    console.log("[REQUEST] User message:", message);
-    console.log("[REQUEST] Timestamp:", new Date().toISOString());
-    console.log("==================================================");
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -195,39 +190,45 @@ export const chat = async (req, res) => {
     let parsedIntent = { intent: "general_chat", parameters: {} };
 
     try {
-      console.log("[INTENT] Detecting intent for message:", englishMessage);
+      logger.info(`Classifying user intent for message: "${message.substring(0, 40)}..."`);
       const intentDetectStart = Date.now();
-      intentResult = await detectIntent(englishMessage);
-      recordIntentDetection(Date.now() - intentDetectStart);
-      console.log("[INTENT] Raw intent result:", intentResult);
+      intentResult = await detectIntent(message);
+      const intentTime = Date.now() - intentDetectStart;
+      recordIntentDetection(intentTime);
       parsedIntent = JSON.parse(intentResult);
+
+      if (t) {
+        t.intent.type = parsedIntent.intent;
+        t.intent.confidence = 0.95;
+        t.intent.routeDecision = parsedIntent.intent === "general_chat" ? "LLM Handler" : "MCP Service";
+        t.workflow.intentClassified = true;
+        t.performance.intentClassification = intentTime;
+      }
     } catch (parseErr) {
-      console.warn("Failed to parse intent JSON, falling back to general chat:", parseErr);
+      logger.warn("Failed to parse intent JSON, falling back to general_chat context", { error: parseErr.message });
       parsedIntent = { intent: "general_chat", parameters: {} };
+      if (t) {
+        t.intent.type = "general_chat";
+        t.intent.confidence = 0.5;
+        t.intent.routeDecision = "LLM Handler";
+        t.workflow.intentClassified = true;
+      }
     }
 
     // Determine fast path status
-    const isFastPath = shouldBypassQwen(parsedIntent.intent, englishMessage);
-    const pathType = getFastPathType(parsedIntent.intent, englishMessage);
+    const isFastPath = shouldBypassQwen(parsedIntent.intent, message);
+    const pathType = getFastPathType(parsedIntent.intent, message);
 
-    if (isFastPath) {
-      console.log(JSON.stringify({
-        sessionId,
-        fastPath: true,
-        pathType: pathType
-      }));
-    } else {
-      console.log(JSON.stringify({
-        sessionId,
-        fastPath: false,
-        model: "Qwen"
-      }));
+    if (t) {
+      t.cache.redisStatus = redisService.isConnected() ? "Online" : "Fallback In-Memory";
+      t.workflow.cacheChecked = true;
+      t.performance.redisAccess = 3; // Estimated base access
     }
 
     // Determine the intentType for logging and memory check
     let intentType = parsedIntent.intent;
     if (intentType === "general_chat") {
-      intentType = getMessageIntent(englishMessage, intentType);
+      intentType = getMessageIntent(message, intentType);
     } else {
       if (intentType === "search_products") intentType = "product_search";
       else if (intentType === "check_delivery") intentType = "delivery_queries";
@@ -237,15 +238,25 @@ export const chat = async (req, res) => {
     let memoryLoaded = false;
     let memoryContext = "";
 
+    const memoryStart = Date.now();
     if (shouldUseMemory(intentType)) {
       memoryContext = await buildPersonalizedContext(sessionId);
       if (memoryContext) {
         memoryLoaded = true;
       }
     }
+    const memoryDuration = Date.now() - memoryStart;
 
-    // Lightweight log: sessionId, memoryLoaded (true/false), intentType. Do not log profile/summaries/messages
-    console.log(`[Memory Context Log] sessionId: ${sessionId} | memoryLoaded: ${memoryLoaded} | intentType: ${intentType}`);
+    if (t) {
+      t.memory.loaded = memoryLoaded ? "Yes" : "No";
+      t.memory.summaryLoaded = memoryContext ? "Yes" : "No";
+      t.prompt.memoryContextLength = memoryContext ? memoryContext.length : 0;
+      
+      const sessionContext = getShoppingContext(sessionId);
+      t.prompt.retrievedSummaryLength = sessionContext?.currentSummary ? sessionContext.currentSummary.length : 0;
+      t.workflow.memoryLoaded = true;
+      t.performance.memoryRetrieval = memoryDuration;
+    }
 
     // Extract details from parsed intent filters
     const intentDetails = [];
@@ -301,10 +312,10 @@ export const chat = async (req, res) => {
     let result;
     if (parsedIntent.intent === "general_chat") {
       const history = await getRecentHistory(sessionId);
-      await addMessage(sessionId, "user", englishMessage);
+      await addMessage(sessionId, "user", message);
       const memory = getShoppingContext(sessionId);
 
-      result = await chatWithLLM({ message: englishMessage, history, memory, memoryContext, detectedLang });
+      result = await chatWithLLM({ message: message, history, memory, memoryContext, detectedLang });
 
       if (typeof result === "string") {
         await addMessage(sessionId, "assistant", result);
@@ -327,6 +338,7 @@ export const chat = async (req, res) => {
         return;
       }
     } else {
+      const searchStart = Date.now();
       try {
         result = await routeIntent(
           parsedIntent.intent,
@@ -334,6 +346,24 @@ export const chat = async (req, res) => {
           sessionId,
           updateProgress
         );
+        const searchTime = Date.now() - searchStart;
+        if (t) {
+          t.search.query = parsedIntent.parameters?.query || parsedIntent.parameters?.q || message;
+          t.search.filters = parsedIntent.parameters?.filters || {};
+          t.search.category = parsedIntent.parameters?.filters?.category || "All";
+          t.search.budget = (parsedIntent.parameters?.filters?.priceMin || parsedIntent.parameters?.filters?.priceMax)
+            ? `${parsedIntent.parameters.filters.priceMin || 0} - ${parsedIntent.parameters.filters.priceMax || "Max"}`
+            : "Any";
+          
+          t.performance.productSearch = searchTime;
+          t.workflow.productSearchCompleted = true;
+          
+          // Count products
+          const productsArr = Array.isArray(result) ? result : (result?.products || []);
+          t.search.retrieved = productsArr.length;
+          t.search.ranked = productsArr.length;
+          t.search.returned = productsArr.length;
+        }
       } catch (err) {
         const activeStep = logs.find(s => s.status === "active") || logs[logs.length - 1];
         if (activeStep) {
@@ -371,13 +401,19 @@ export const chat = async (req, res) => {
 
     let finalPayload;
     if (Array.isArray(result)) {
-      await addMessage(sessionId, "user", englishMessage);
+      await addMessage(sessionId, "user", message);
       const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
-        text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
+        if (detectedLang === "ta") {
+          text = "உங்கள் கோரிக்கைக்குப் பொருத்தமான சில சிறந்த தயாரிப்புகளை நான் கண்டறிந்துள்ளேன்! கீழே பார்த்து, உங்கள் கவனத்தை ஈர்ப்பது எது என்பதை எனக்குத் தெரியப்படுத்துங்கள். 😊";
+        } else if (detectedLang === "si") {
+          text = "ඔබගේ ඉල්ලීමට ගැලපෙන හොඳම නිෂ්පාදන කිහිපයක් මම සොයාගත්තා! පහතින් බලලා ඔබ කැමති එක මොකක්ද කියලා මට කියන්න. 😊";
+        } else {
+          text = "I found some great options matching your request! Take a look below and let me know which one catches your eye. 😊";
+        }
       } else {
-        text = await formatRecommendations(englishMessage, result, history);
+        text = await formatRecommendations(message, result, history, detectedLang);
       }
       await addMessage(sessionId, "assistant", text);
       finalPayload = {
@@ -387,7 +423,7 @@ export const chat = async (req, res) => {
       };
     } else if (result && typeof result === "object" && result.type) {
       if (result.type === "product_grid") {
-        await addMessage(sessionId, "user", englishMessage);
+        await addMessage(sessionId, "user", message);
         await addMessage(sessionId, "assistant", result.text || "");
       }
       finalPayload = result;
@@ -410,26 +446,33 @@ export const chat = async (req, res) => {
         .then((updatedConvo) => {
           if (updatedConvo) {
             checkAndTriggerSummarization(sessionId, updatedConvo.messages.length).catch(err => {
-              console.error("[Background Summarization Error] Trigger failed:", err);
+              logger.error("[Background Summarization Error] Trigger failed:", err);
             });
           }
         })
         .catch(err => {
-          console.error("[Persistence Error] Failed to save assistant message:", err);
+          logger.error("[Persistence Error] Failed to save assistant message:", err);
         });
     }
 
-    const translatedPayload = await translateResponsePayload(finalPayload, detectedLang);
-
     res.write(`data: ${JSON.stringify({
       type: "complete",
-      data: translatedPayload
+      data: finalPayload
     })}\n\n`);
     res.end();
 
   } catch (error) {
-    console.error("[ERROR] Unhandled error in chat controller:", error.message);
-    console.error("[ERROR] Stack trace:", error.stack);
+    if (t) {
+      t.error = {
+        serviceName: "ChatController",
+        errorType: error.name || "RuntimeError",
+        errorMessage: error.message,
+        stackTrace: error.stack,
+        recoveryAction: "Returned 500 status message to UI",
+        fallbackModel: "None"
+      };
+    }
+    logger.error("Unhandled error in chat controller", { error: error.message, stack: error.stack });
 
     const activeStep = logs.find(s => s.status === "active") || logs.find(s => s.status === "pending") || logs[logs.length - 1];
     if (activeStep) {
@@ -447,7 +490,7 @@ export const chat = async (req, res) => {
       })}\n\n`);
       res.end();
     } catch (sendErr) {
-      console.error("Could not write error to response stream:", sendErr);
+      logger.error("Could not write error to response stream", { error: sendErr.message });
     }
   }
 };

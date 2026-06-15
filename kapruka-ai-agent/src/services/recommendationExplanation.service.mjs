@@ -1,4 +1,5 @@
 import { getCachedRecommendations, generateRecommendationProfile } from "./recommendationCache.service.mjs";
+import logger from "../utils/logger.mjs";
 
 /**
  * Generates explanation reasons (up to 3) for a given product and user profile.
@@ -73,14 +74,13 @@ export async function explainRecommendation(product, sessionId) {
     const reasons = generateRecommendationReasons(product, profile);
 
     // 3. Structured Log (Do not log user content / profile data)
-    console.log(JSON.stringify({
-      sessionId,
-      explanationGenerated: new Date().toISOString()
-    }));
+    logger.info("Recommendation explanation generated", {
+      sessionId
+    });
 
     return reasons;
   } catch (err) {
-    console.error(`[RecommendationExplanation] Failed to explain recommendation for session ${sessionId}:`, err);
+    logger.error(`[RecommendationExplanation] Failed to explain recommendation for session ${sessionId}:`, err);
     return [];
   }
 }

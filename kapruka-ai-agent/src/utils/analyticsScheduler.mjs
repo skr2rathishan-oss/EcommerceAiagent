@@ -7,6 +7,7 @@
 // All errors are caught internally — never crashes the process.
 
 import { generateDailyAnalytics } from "../services/analytics.service.mjs";
+import logger from "./logger.mjs";
 
 const SIX_HOURS_MS   = 6 * 60 * 60 * 1000; // 21,600,000 ms
 const STARTUP_DELAY  = 5 * 1000;            // 5,000 ms — let DB connection stabilize
@@ -19,7 +20,7 @@ async function runAnalyticsCycle() {
     await generateDailyAnalytics();
   } catch (err) {
     // Catch anything generateDailyAnalytics didn't already handle
-    console.error("[Analytics Scheduler] Unhandled error in analytics cycle:", err);
+    logger.error("[Analytics Scheduler] Unhandled error in analytics cycle:", err);
   }
 }
 
@@ -32,17 +33,17 @@ async function runAnalyticsCycle() {
  *  - Repeats every SIX_HOURS_MS (6 hours)
  */
 export function startAnalyticsScheduler() {
-  console.log("[Analytics Scheduler] Starting — will run every 6 hours.");
+  logger.info("[Analytics Scheduler] Starting — will run every 6 hours.");
 
   // One-time startup run (non-blocking)
   setTimeout(() => {
-    console.log("[Analytics Scheduler] Running startup analytics cycle...");
+    logger.info("[Analytics Scheduler] Running startup analytics cycle...");
     runAnalyticsCycle();
   }, STARTUP_DELAY);
 
   // Recurring 6-hour interval
   const interval = setInterval(() => {
-    console.log("[Analytics Scheduler] Running scheduled analytics cycle...");
+    logger.info("[Analytics Scheduler] Running scheduled analytics cycle...");
     runAnalyticsCycle();
   }, SIX_HOURS_MS);
 

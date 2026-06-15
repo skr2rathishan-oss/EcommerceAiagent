@@ -3,6 +3,7 @@ import UserProfile from "../database/UserProfile.mjs";
 import { getConversation } from "./conversation.service.mjs";
 import { generateSummaryWithNemotron } from "./llm.service.mjs";
 import { generateUserInsights } from "./insights.service.mjs";
+import logger from "../utils/logger.mjs";
 
 /**
  * Retrieves the memory summary for a sessionId.
@@ -13,7 +14,7 @@ export async function getMemorySummary(sessionId) {
   try {
     return await MemorySummary.findOne({ sessionId });
   } catch (error) {
-    console.error(`[Memory Service Error] Failed to get memory summary for session ${sessionId}:`, error);
+    logger.error(`[Memory Service Error] Failed to get memory summary for session ${sessionId}:`, error);
     return null;
   }
 }
@@ -43,7 +44,7 @@ export async function updateMemorySummary(sessionId, summary) {
     }
     return await doc.save();
   } catch (error) {
-    console.error(`[Memory Service Error] Failed to update memory summary for session ${sessionId}:`, error);
+    logger.error(`[Memory Service Error] Failed to update memory summary for session ${sessionId}:`, error);
     return null;
   }
 }
@@ -57,7 +58,7 @@ export async function getUserProfile(sessionId) {
   try {
     return await UserProfile.findOne({ sessionId });
   } catch (error) {
-    console.error(`[Memory Service Error] Failed to get user profile for session ${sessionId}:`, error);
+    logger.error(`[Memory Service Error] Failed to get user profile for session ${sessionId}:`, error);
     return null;
   }
 }
@@ -77,7 +78,7 @@ export async function updateUserProfile(sessionId, profile) {
     );
     return updated;
   } catch (error) {
-    console.error(`[Memory Service Error] Failed to update user profile for session ${sessionId}:`, error);
+    logger.error(`[Memory Service Error] Failed to update user profile for session ${sessionId}:`, error);
     return null;
   }
 }
@@ -94,7 +95,7 @@ function extractJson(text) {
       try {
         return JSON.parse(match[0]);
       } catch (err) {
-        console.error("Failed to parse matched JSON substring:", err);
+        logger.error("Failed to parse matched JSON substring:", err);
       }
     }
     throw e;
@@ -124,17 +125,17 @@ function mergeBudget(existingBudget, incomingBudget) {
  */
 async function runBackgroundSummarization(sessionId, messageCount, summaryDoc) {
   const startTime = new Date().toISOString();
-  console.log(JSON.stringify({
+  logger.info("Memory summarization started", {
     sessionId,
     messageCount,
     summarizationStarted: startTime
-  }));
+  });
 
   try {
     // 1. Fetch conversation messages
     const convo = await getConversation(sessionId);
     if (!convo || !convo.messages || convo.messages.length === 0) {
-      console.warn(`[Memory Summarizer] No messages found to summarize for session ${sessionId}`);
+      logger.warn(`[Memory Summarizer] No messages found to summarize for session ${sessionId}`);
       return;
     }
 
@@ -193,18 +194,18 @@ async function runBackgroundSummarization(sessionId, messageCount, summaryDoc) {
 
     // Phase 5: Trigger insights generation asynchronously after each summarization cycle
     generateUserInsights(sessionId).catch(err => {
-      console.error(`[Background Insights Error] Insights generation failed for session ${sessionId}:`, err);
+      logger.error(`[Background Insights Error] Insights generation failed for session ${sessionId}:`, err);
     });
 
     const completionTime = new Date().toISOString();
-    console.log(JSON.stringify({
+    logger.info("Memory summarization completed", {
       sessionId,
       messageCount,
       summarizationCompleted: completionTime,
       summaryVersion: newVersion
-    }));
+    });
   } catch (err) {
-    console.error(`[Background Summarizer Error] Processing failed for session ${sessionId}:`, err);
+    logger.error(`[Background Summarizer Error] Processing failed for session ${sessionId}:`, err);
   }
 }
 
@@ -227,10 +228,10 @@ export async function checkAndTriggerSummarization(sessionId, messageCount) {
     if (messageCount >= 50 && currentWindow > lastWindow) {
       // Trigger background processing asynchronously without awaiting it
       runBackgroundSummarization(sessionId, messageCount, summaryDoc).catch(err => {
-        console.error(`[Background Summarizer Error] Execution failed for session ${sessionId}:`, err);
+        logger.error(`[Background Summarizer Error] Execution failed for session ${sessionId}:`, err);
       });
     }
   } catch (error) {
-    console.error(`[Memory Service Error] Failed during check for session ${sessionId}:`, error);
+    logger.error(`[Memory Service Error] Failed during check for session ${sessionId}:`, error);
   }
 }
