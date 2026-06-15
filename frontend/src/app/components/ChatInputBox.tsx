@@ -97,7 +97,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
       <div
         style={{
           background: variant === "centered" ? "var(--card-bg, #ffffff)" : "rgba(255,255,255,0.92)",
-          backdropFilter: variant === "centered" ? "none" : "blur(12px)",
+          backdropFilter: "blur(12px)",
           borderRadius: 9999,
           border: variant === "centered"
             ? `1.5px solid ${focused ? "rgba(124, 77, 186, 0.45)" : "var(--card-border, rgba(124, 77, 186, 0.18))"}`

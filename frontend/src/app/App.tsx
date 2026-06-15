@@ -76,16 +76,16 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
 
   return (
     <motion.div
-      whileHover={{ y: -4, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 8px 24px rgba(64, 41, 112, 0.08)" }}
+      whileHover={{ y: -3, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 6px 18px rgba(64, 41, 112, 0.06)" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
       style={{
-        width: 180,
+        width: 160,
         flexShrink: 0,
         background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
         backdropFilter: "blur(10px)",
         border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-        borderRadius: 16,
+        borderRadius: 14,
         overflow: "hidden",
         cursor: "pointer",
         display: "flex",
@@ -95,18 +95,18 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
       }}
     >
       {/* Product Image */}
-      <div style={{ width: "100%", aspectRatio: "1.4/1", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", position: "relative" }}>
+      <div style={{ width: "100%", aspectRatio: "1.5/1", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", position: "relative" }}>
         {hasDiscount && (
           <div style={{
             position: "absolute",
-            top: 6,
-            left: 6,
+            top: 5,
+            left: 5,
             background: "#7c4dba",
             color: "#ffffff",
-            fontSize: "8.5px",
+            fontSize: "8px",
             fontWeight: 800,
-            padding: "2px 5px",
-            borderRadius: 4,
+            padding: "1.5px 4px",
+            borderRadius: 3,
             zIndex: 2,
             fontFamily: "'Nunito', sans-serif",
           }}>
@@ -122,44 +122,44 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
           />
         ) : (
           <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Sparkles size={18} color="rgba(124,77,186,0.25)" />
+            <Sparkles size={16} color="rgba(124,77,186,0.25)" />
           </div>
         )}
       </div>
 
       {/* Info */}
-      <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: 3, flex: 1 }}>
-        <span style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
+      <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: 2.5, flex: 1 }}>
+        <span style={{ color: "#7c6a9e", fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
           {prod.brand}
         </span>
         <span
           style={{
             color: "var(--text-primary, #1a1025)",
-            fontSize: 11.5,
+            fontSize: 11,
             fontWeight: 700,
             fontFamily: "'Nunito', sans-serif",
-            lineHeight: 1.25,
+            lineHeight: 1.2,
             overflow: "hidden",
             display: "-webkit-box",
-            WebkitLineClamp: 2,
+            WebkitLineClamp: 1,
             WebkitBoxOrient: "vertical",
-            height: 28
+            height: 14
           }}
         >
           {prod.name}
         </span>
         
         {/* Rating and Reviews */}
-        <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 1 }}>
-          <span style={{ color: "#fbbf24", fontSize: 12, lineHeight: 1 }}>★</span>
-          <span style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 2.5, marginTop: 0.5 }}>
+          <span style={{ color: "#fbbf24", fontSize: 10, lineHeight: 1 }}>★</span>
+          <span style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 9.5, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
             {mockRating.rating} ({mockRating.reviews})
           </span>
         </div>
         
         {/* Bottom Row */}
-        <div style={{ display: "flex", alignItems: "center", justifycontent: "space-between", justifyContent: "space-between", marginTop: "auto", paddingTop: 2 }}>
-          <span style={{ color: "#7c4dba", fontSize: 12.5, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 1 }}>
+          <span style={{ color: "#7c4dba", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
             {formatUIPrice(prod.price, prod.currency)}
           </span>
           
@@ -174,14 +174,14 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
               border: "none",
               background: "transparent",
               cursor: "pointer",
-              padding: 4,
+              padding: 3,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: isWishlisted ? "#ec4899" : "#7c6a9e",
             }}
           >
-            <Heart size={15} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
+            <Heart size={14} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
           </motion.button>
         </div>
       </div>
@@ -407,7 +407,7 @@ function MainApp() {
           {phase === "centered" && (
             <motion.div
               key="centered"
-              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-12 pb-16 custom-scrollbar no-scrollbar"
+              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
@@ -427,55 +427,20 @@ function MainApp() {
 
               {/* Hero Banner Card */}
               <motion.div
-                className="relative w-full max-w-7xl rounded-3xl border p-12 md:py-40 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden"
+                className="hero-banner relative w-full max-w-7xl rounded-3xl border p-12 md:py-32 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[400px]"
                 style={{
-                  background: "linear-gradient(135deg, var(--banner-bg-start), var(--banner-bg-end))",
                   borderColor: "var(--banner-border)",
                   boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
                 }}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
               >
-                {/* Decorative Sparkles */}
-                <div className="absolute left-[15%] top-[25%] opacity-40 animate-pulse pointer-events-none hidden lg:block">
-                  <Sparkles size={16} color="#7c4dba" />
-                </div>
-                <div className="absolute right-[15%] top-[15%] opacity-40 animate-pulse pointer-events-none hidden lg:block" style={{ animationDelay: "0.5s" }}>
-                  <Sparkles size={22} color="#7c4dba" />
-                </div>
-                <div className="absolute right-[18%] bottom-[25%] opacity-30 animate-pulse pointer-events-none hidden lg:block" style={{ animationDelay: "1s" }}>
-                  <Sparkles size={14} color="#7c4dba" />
-                </div>
-
-                {/* Left 3D-styled Bags & Plant Illustration */}
-                <div className="absolute left-10 bottom-0 w-[300px] h-[225px] hidden lg:block pointer-events-none select-none">
-                  <ShoppingBagsIllustration />
-                </div>
-
-                {/* Right 3D-styled Cart Illustration */}
-                <div className="absolute right-10 bottom-0 w-[300px] h-[225px] hidden lg:block pointer-events-none select-none">
-                  <ShoppingCartIllustration />
-                </div>
-
-                {/* Floating 3D Speech Bubbles around Cart */}
-                <div className="hidden lg:block">
-                  <SpeechBubble tailPosition="bottom-right" style={{ right: 290, bottom: 210 }}>
-                    <Tag size={13} color="#7c4dba" fill="#efeaff" strokeWidth={2.5} />
-                  </SpeechBubble>
-                  <SpeechBubble tailPosition="bottom-left" style={{ right: 90, bottom: 250 }}>
-                    <Gift size={13} color="#7c4dba" fill="#efeaff" strokeWidth={2.5} />
-                  </SpeechBubble>
-                  <SpeechBubble tailPosition="bottom-right" style={{ right: 330, bottom: 120 }}>
-                    <Percent size={13} color="#7c4dba" strokeWidth={2.5} />
-                  </SpeechBubble>
-                </div>
-
                 {/* Content Wrapper */}
                 <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
                   <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
                       style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
                     Discover Smart Shopping
-                    <span className="inline-flex items-center gap-1.5" style={{ color: "#7c4dba" }}>
+                    <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
                       with Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
                     </span>
                   </h1>
@@ -639,9 +604,9 @@ function MainApp() {
                         <div
                           key={i}
                           style={{
-                            width: 200,
-                            height: 280,
-                            borderRadius: 16,
+                            width: 160,
+                            height: 202,
+                            borderRadius: 14,
                             background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
                             border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
                             boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
