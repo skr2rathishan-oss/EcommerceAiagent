@@ -1,13 +1,4 @@
-import dotenv from "dotenv";
-import { resolve, dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Ensure env variables are loaded from root path
-dotenv.config({ path: resolve(__dirname, "../.env") });
-
+import "./config/loadEnv.mjs";
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -15,7 +6,9 @@ import chatRoutes from "./routes/chat.routes.mjs";
 import productsRoutes from "./routes/products.routes.mjs";
 import deliveryRoutes from "./routes/delivery.routes.mjs";
 import orderTrackingRoutes from "./routes/orderTracking.routes.mjs";
+import orderRoutes from "./routes/order.routes.mjs";
 import voiceRoutes from "./routes/voice.routes.mjs";
+import adminRoutes from "./routes/admin.routes.mjs";
 import { connectDB } from "./database/mongo.mjs";
 import { startAnalyticsScheduler } from "./utils/analyticsScheduler.mjs";
 import { initRedis, redisService } from "./services/redis.service.mjs";
@@ -23,11 +16,30 @@ import logger from "./utils/logger.mjs";
 import { drawStartupDashboard } from "./services/logger.service.mjs";
 import { getMcpClient } from "./services/mcp.client.mjs";
 import { requestIdMiddleware } from "./middleware/requestId.middleware.mjs";
+import { runStartupChecks } from "./services/startupHealthService.mjs";
+import { setRuntimeMode, getEnvironmentSummary } from "./services/modelRouter.mjs";
+import AIMode from "./database/AIMode.mjs";
 
 // Initialize databases
 await connectDB();
 await initRedis();
 startAnalyticsScheduler();
+
+// ── Load persisted AI mode from MongoDB (admin may have changed it) ──────────
+try {
+  const savedMode = await AIMode.findOne({ settingKey: "global" }).lean();
+  if (savedMode?.mode) {
+    setRuntimeMode(savedMode.mode);
+    logger.info(`[AI ENV] Loaded persisted AI mode from MongoDB: "${savedMode.mode}"`);
+  } else {
+    logger.info(`[AI ENV] Using AI mode from .env: "${process.env.AI_MODE || "development"}"`);
+  }
+} catch (err) {
+  logger.warn(`[AI ENV] Could not load persisted AI mode: ${err.message}. Using .env value.`);
+}
+
+// Run startup health checks
+await runStartupChecks();
 
 // Run Diagnostics & Health Checks
 const mongoStart = Date.now();
@@ -129,6 +141,9 @@ const formatUptime = (seconds) => {
 const mem = process.memoryUsage();
 const cpu = process.cpuUsage();
 
+// Get the AI environment summary to display in the startup dashboard
+const aiEnvSummary = getEnvironmentSummary();
+
 drawStartupDashboard({
   env: process.env.NODE_ENV || "development",
   version: "1.0.0",
@@ -137,16 +152,16 @@ drawStartupDashboard({
   cpu: `${(cpu.user / 1000000).toFixed(2)}s cpu time`,
   activeSessions
 }, [
-  { name: "MongoDB Database", status: mongoStatus, latency: mongoLatency },
-  { name: "Redis Cache", status: redisStatus, latency: redisLatency },
-  { name: "NVIDIA NIM API Gateway", status: nimStatus, latency: nimLatency },
-  { name: "Qwen 3.5 Model", status: nimStatus, latency: nimLatency },
-  { name: "Llama 3.1 Model", status: nimStatus, latency: nimLatency },
-  { name: "GPT Model (General Chat)", status: gptStatus, latency: gptLatency },
-  { name: "Gemini Translate API", status: "decommissioned", latency: null },
-  { name: "Kapruka MCP Service", status: mcpStatus, latency: mcpLatency },
-  { name: "External Kapruka Web Server", status: extStatus, latency: extLatency }
-]);
+  { name: "MongoDB Database",           status: mongoStatus, latency: mongoLatency },
+  { name: "Redis Cache",                 status: redisStatus, latency: redisLatency },
+  { name: "NVIDIA NIM API Gateway",      status: nimStatus,  latency: nimLatency },
+  { name: "Llama 3.1 8B (NVIDIA NIM)",   status: nimStatus,  latency: nimLatency },
+  { name: "Qwen 3.5 122B (NVIDIA NIM)",  status: nimStatus,  latency: nimLatency },
+  { name: "GPT-OSS 20B (NVIDIA NIM)",    status: gptStatus,  latency: gptLatency },
+  { name: "Gemini 2.5 Flash (Vertex AI)",status: "offline",  latency: null },
+  { name: "Kapruka MCP Service",         status: mcpStatus,  latency: mcpLatency },
+  { name: "External Kapruka Web Server", status: extStatus,  latency: extLatency }
+], aiEnvSummary);
 
 const app = express();
 app.use(requestIdMiddleware);
@@ -218,7 +233,9 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/products", productsRoutes);
 app.use("/api/delivery", deliveryRoutes);
 app.use("/api/orders", orderTrackingRoutes);
+app.use("/api/orders", orderRoutes);
 app.use("/api/voice", voiceRoutes);
+app.use("/api/admin", adminRoutes);
 
 // ── Global Error Handler ─────────────────────────────────────────────────────
 app.use((err, req, res, next) => {
@@ -227,10 +244,14 @@ app.use((err, req, res, next) => {
     stack: err.stack,
     url: req.originalUrl
   });
-  
-  res.status(500).json({
+
+  if (res.headersSent) {
+    return next(err);
+  }
+
+  res.status(err.status || 500).json({
     success: false,
-    message: "An unexpected error occurred on the server."
+    message: err.message || "An unexpected error occurred on the server."
   });
 });
 

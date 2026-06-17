@@ -213,7 +213,8 @@ function MainApp() {
     checkoutOpen, setCheckoutOpen,
     pendingConfirmProduct,
     pendingConfirmVariants,
-    isTyping,
+    isTyping, setIsTyping,
+    setShoppingContext,
     pendingAddressChoice, setPendingAddressChoice,
     isEnteringCustomDetails, setIsEnteringCustomDetails,
     customName, setCustomName,
@@ -258,6 +259,15 @@ function MainApp() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const [savedDelivery] = useState(() => ({
+    name: localStorage.getItem("delivery_name") || "Alex Johnson",
+    phone: localStorage.getItem("delivery_phone") || "+94 77 123 4567",
+    email: localStorage.getItem("delivery_email") || "alex@example.com",
+    street1: localStorage.getItem("delivery_street1") || "",
+    street2: localStorage.getItem("delivery_street2") || "",
+    city: localStorage.getItem("delivery_city") || "Colombo 03",
+  }));
 
   const checkScrollLimits = () => {
     const el = scrollContainerRef.current;
@@ -336,31 +346,11 @@ function MainApp() {
   const handleStartWorkflow = (type: "find_products" | "find_gift" | "track_order") => {
     setPhase("bottom");
 
-    let text = "";
-    if (type === "find_products") {
-      text = "Let's find the right products for you! I will guide you through a few quick questions to gather your requirements.";
-    } else if (type === "find_gift") {
-      text = "Let's find the perfect gift! Tell me a bit about who this is for and what the occasion is.";
+    if (type === "find_gift" || type === "find_products") {
+      setActiveSmartPanel("recommendation");
     } else if (type === "track_order") {
-      text = "How would you like to track your order? You can look it up using your Order ID or view recent orders.";
+      setActiveSmartPanel("track_order");
     }
-
-    setMessages(prev => [
-      ...prev,
-      {
-        role: "ai",
-        type: "guided_workflow",
-        text: text,
-        workflow: {
-          type,
-          step: 0,
-          answers: {},
-          isCompleted: false,
-          loading: false,
-          error: null
-        }
-      }
-    ]);
   };
 
   const canSend = value.trim().length > 0;
@@ -521,7 +511,7 @@ function MainApp() {
               {/* Product Recommendations Section */}
               <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
                 {/* Section Header */}
-                <div style={{ display: "flex", alignItems: "center", justifycontent: "space-between", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
                     <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
@@ -1002,7 +992,7 @@ function MainApp() {
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifycontent: "center", justifyContent: "center" }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <MapPin size={20} color="#fff" />
                             </div>
                             <div style={{ minWidth: 0 }}>
@@ -1025,15 +1015,11 @@ function MainApp() {
                             color: "#402970",
                             fontFamily: "'Nunito', sans-serif"
                           }}>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_name") || "Alex Johnson"}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_phone") || "+94 77 123 4567"}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_email") || "alex@example.com"}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.name}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.phone}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.email}</span></div>
                             <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
-                              {[
-                                localStorage.getItem("delivery_street1"),
-                                localStorage.getItem("delivery_street2"),
-                                localStorage.getItem("delivery_city") || "Colombo 03"
-                              ].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
+                              {[savedDelivery.street1, savedDelivery.street2, savedDelivery.city].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
                             </span></div>
                           </div>
 

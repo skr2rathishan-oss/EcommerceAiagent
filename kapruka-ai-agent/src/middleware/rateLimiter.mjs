@@ -45,3 +45,11 @@ export const deliveryLimiter = rateLimit({
   legacyHeaders: false,
   handler: limitHandler
 });
+
+export const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: limitHandler
+});

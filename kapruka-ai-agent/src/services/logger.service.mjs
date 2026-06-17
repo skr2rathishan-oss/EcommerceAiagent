@@ -78,14 +78,23 @@ export const logger = {
   warn: (msg, meta) => writeLog("WARN", msg, meta),
   error: (msg, meta) => writeLog("ERROR", msg, meta),
   
+  // Specialised logging groups
+  cart: (msg, meta) => writeLog("INFO", `${chalk.bold.yellow("[CART]")} ${msg}`, meta),
+  delivery: (msg, meta) => writeLog("INFO", `${chalk.bold.cyan("[DELIVERY]")} ${msg}`, meta),
+  recommendation: (msg, meta) => writeLog("INFO", `${chalk.bold.magenta("[RECOMMENDATION]")} ${msg}`, meta),
+  checkout: (msg, meta) => writeLog("INFO", `${chalk.bold.blue("[CHECKOUT]")} ${msg}`, meta),
+  order: (msg, meta) => writeLog("INFO", `${chalk.bold.green("[ORDER]")} ${msg}`, meta),
+  payment: (msg, meta) => writeLog("INFO", `${chalk.bold.green("[PAYMENT]")} ${msg}`, meta),
+  tracking: (msg, meta) => writeLog("INFO", `${chalk.bold.yellow("[TRACKING]")} ${msg}`, meta),
+
   // Direct console utility for custom styled logs bypassing prefix formats
   raw: (msg) => console.log(msg)
 };
 
 // Startup Dashboard Drawer
-export const drawStartupDashboard = (sysInfo, servicesHealth) => {
+export const drawStartupDashboard = (sysInfo, servicesHealth, aiEnvironment = null) => {
   const cyanLine = chalk.cyan;
-  
+
   // 1. ASCII banner
   logger.raw(cyanLine("\n┌──────────────────────────────────────────────────────────────────────────┐"));
   logger.raw(cyanLine("│                      VELORA AI OPERATIONS CONSOLE                       │"));
@@ -110,7 +119,36 @@ export const drawStartupDashboard = (sysInfo, servicesHealth) => {
   logger.raw(`\n${chalk.bold.cyan("── SYSTEM CONFIGURATION ──")}`);
   logger.raw(sysTable.toString());
 
-  // 3. Health check table
+  // 3. AI Environment table (shown only when aiEnvironment is provided)
+  if (aiEnvironment) {
+    const modeBadgeColors = {
+      development: chalk.yellow.bold,
+      staging:     chalk.cyan.bold,
+      production:  chalk.red.bold,
+    };
+    const colorFn = modeBadgeColors[aiEnvironment.mode] || chalk.white.bold;
+
+    const aiTable = new Table({
+      head: [chalk.bold.magenta("Role"), chalk.bold.magenta("Model Assignment")],
+      colWidths: [22, 50],
+      style: { head: [], border: [] }
+    });
+
+    aiTable.push(
+      ["AI Mode",         colorFn(`${aiEnvironment.badge}  (${aiEnvironment.label})`)],
+      ["General Chat",    aiEnvironment.models.generalChat],
+      ["Recommendations", aiEnvironment.models.recommendations],
+      ["Intent Detection",aiEnvironment.models.intentDetect],
+      ["Delivery Recovery",aiEnvironment.models.deliveryRecovery],
+      ["Checkout Assist", aiEnvironment.models.checkout],
+      ["Summarisation",   aiEnvironment.models.summary],
+    );
+
+    logger.raw(`\n${chalk.bold.magenta("── VELORA AI ENVIRONMENT ──")}`);
+    logger.raw(aiTable.toString());
+  }
+
+  // 4. Health check table
   const healthTable = new Table({
     head: [chalk.bold.blue("Service Connection"), chalk.bold.blue("Latency (ms)"), chalk.bold.blue("Health State")],
     colWidths: [30, 20, 22],
@@ -119,8 +157,8 @@ export const drawStartupDashboard = (sysInfo, servicesHealth) => {
 
   for (const service of servicesHealth) {
     let statusText = chalk.red.bold("OFFLINE");
-    if (service.status === "connected") statusText = chalk.green("CONNECTED / OK");
-    else if (service.status === "warning") statusText = chalk.yellow("WARNING / DEGRADED");
+    if (service.status === "connected")     statusText = chalk.green("CONNECTED / OK");
+    else if (service.status === "warning")  statusText = chalk.yellow("WARNING / DEGRADED");
     else if (service.status === "decommissioned") statusText = chalk.gray("BYPASS / DISABLED");
 
     healthTable.push([

@@ -125,8 +125,12 @@ export interface AppContextType {
   setCheckingAddress: (checking: boolean) => void;
   activeScreen: "chat" | "cart" | "wishlist";
   setActiveScreen: (screen: "chat" | "cart" | "wishlist") => void;
-  activeSmartPanel: "recommendation" | "delivery" | "track_order" | "checkout" | null;
-  setActiveSmartPanel: (panel: "recommendation" | "delivery" | "track_order" | "checkout" | null) => void;
+  activeSmartPanel: "recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null;
+  setActiveSmartPanel: (panel: "recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null) => void;
+  nearbyCitiesSuggested: string[];
+  setNearbyCitiesSuggested: React.Dispatch<React.SetStateAction<string[]>>;
+  lastCheckedDelivery: { city: string; deliveryDate: string; productId: string } | null;
+  setLastCheckedDelivery: React.Dispatch<React.SetStateAction<{ city: string; deliveryDate: string; productId: string } | null>>;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -146,7 +150,9 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [value, setValue] = useState("");
   const [activeScreen, setActiveScreen] = useState<"chat" | "cart" | "wishlist">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [activeSmartPanel, setActiveSmartPanel] = useState<"recommendation" | "delivery" | "track_order" | "checkout" | null>(null);
+  const [activeSmartPanel, setActiveSmartPanel] = useState<"recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null>(null);
+  const [nearbyCitiesSuggested, setNearbyCitiesSuggested] = useState<string[]>([]);
+  const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string } | null>(null);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -267,6 +273,8 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         checkingAddress, setCheckingAddress,
         activeScreen, setActiveScreen,
         activeSmartPanel, setActiveSmartPanel,
+        nearbyCitiesSuggested, setNearbyCitiesSuggested,
+        lastCheckedDelivery, setLastCheckedDelivery,
 
         handleAddToCart,
         handleWishlist,

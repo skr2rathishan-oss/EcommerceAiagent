@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { SquarePen, Clock, Settings, HelpCircle, UserCircle } from "lucide-react";
 import { useApp, type PanelId } from "../contexts/AppContext";
+import { AdminPanel } from "./AdminPanel";
 
 const NAV_TOP = [
   { icon: SquarePen, label: "New Chat" },
@@ -20,57 +21,75 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const { sidebarOpen, setSidebarOpen } = useApp();
+  const [adminOpen, setAdminOpen] = useState(false);
 
   return (
-    <AnimatePresence>
-      {sidebarOpen && (
-        <>
-          <motion.div
-            className="absolute inset-0 z-30"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22 }}
-            style={{ background: "transparent" }}
-            onClick={() => setSidebarOpen(false)}
-          />
+    <>
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              className="absolute inset-0 z-30"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22 }}
+              style={{ background: "transparent" }}
+              onClick={() => setSidebarOpen(false)}
+            />
 
-          <motion.aside
-            className="relative z-40 flex flex-col h-full"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 68, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 320, damping: 30 }}
-            style={{
-              background: "linear-gradient(180deg,#4e337f 0%,#402970 60%,#301e56 100%)",
-              borderRight: "none",
-              overflow: "visible",
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ height: 64 }} />
-            <nav className="flex flex-col items-center gap-1 px-2 flex-1">
-              {NAV_TOP.map(({ icon: Icon, label }) => (
-                <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} />
-              ))}
-            </nav>
-            <nav className="flex flex-col items-center gap-1 px-2 pb-4">
-              <div style={{ height: 1, width: 36, background: "rgba(255,255,255,0.15)", margin: "6px 0 8px" }} />
-              {NAV_BOTTOM.map(({ icon: Icon, label }) => (
-                <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} />
-              ))}
-            </nav>
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+            <motion.aside
+              className="relative z-40 flex flex-col h-full"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 68, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 320, damping: 30 }}
+              style={{
+                background: "linear-gradient(180deg,#4e337f 0%,#402970 60%,#301e56 100%)",
+                borderRight: "none",
+                overflow: "visible",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ height: 64 }} />
+              <nav className="flex flex-col items-center gap-1 px-2 flex-1">
+                {NAV_TOP.map(({ icon: Icon, label }) => (
+                  <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} />
+                ))}
+              </nav>
+              <nav className="flex flex-col items-center gap-1 px-2 pb-4">
+                <div style={{ height: 1, width: 36, background: "rgba(255,255,255,0.15)", margin: "6px 0 8px" }} />
+                {NAV_BOTTOM.map(({ icon: Icon, label }) => {
+                  if (label === "Settings") {
+                    return (
+                      <SidebarItem
+                        key={label}
+                        icon={<Icon size={20} strokeWidth={1.8} />}
+                        label={label}
+                        onClick={() => setAdminOpen(true)}
+                      />
+                    );
+                  }
+                  return (
+                    <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} />
+                  );
+                })}
+              </nav>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* AI Environment Admin Panel */}
+      <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
+    </>
   );
 };
 
 interface SidebarItemProps {
   icon: React.ReactNode;
   label: string;
-  onClick?: (label: string, rect: DOMRect) => void;
+  onClick?: ((label: string, rect: DOMRect) => void) | (() => void);
 }
 
 const getHoverLabel = (lbl: string) => {
@@ -103,7 +122,13 @@ const SidebarItem: React.FC<SidebarItemProps> = ({ icon, label, onClick }) => {
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         onClick={() => {
-          if (btnRef.current) onClick?.(label, btnRef.current.getBoundingClientRect());
+          if (!onClick) return;
+          if (onClick.length === 0) {
+            (onClick as () => void)();
+          } else if (btnRef.current) {
+            (onClick as (label: string, rect: DOMRect) => void)(label, btnRef.current.getBoundingClientRect());
+          }
+
         }}
         className="flex items-center justify-center"
         style={{

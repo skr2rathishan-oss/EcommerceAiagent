@@ -31,6 +31,10 @@ export const useChat = () => {
     handleAddToCart,
     handleWishlist,
     setActiveSmartPanel,
+    setNearbyCitiesSuggested,
+    setLastCheckedDelivery,
+    lastCheckedDelivery,
+    activeSmartPanel,
   } = useApp();
 
   const { cartItems } = useCart();
@@ -173,6 +177,47 @@ export const useChat = () => {
                 text: `Here are the details for **${data.product?.name || "the product"}**:`,
                 type: "product_details",
                 productDetails: { content: data.content, product: data.product },
+              }]);
+              return;
+            } else if (data.type === "delivery_result") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+              }]);
+              if (data.available) {
+                setLastCheckedDelivery(null);
+              } else {
+                setLastCheckedDelivery({
+                  city: data.city || "",
+                  deliveryDate: data.deliveryDate || "",
+                  productId: data.productId || ""
+                });
+                if (data.alternativeCities) {
+                  setNearbyCitiesSuggested(data.alternativeCities);
+                }
+                setActiveSmartPanel("delivery_recovery");
+              }
+              return;
+            } else if (data.type === "nearby_cities") {
+              setNearbyCitiesSuggested(data.cities || []);
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+              }]);
+              setActiveSmartPanel("nearby_address");
+              return;
+            } else if (data.type === "alternative_date") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+              }]);
+              setActiveSmartPanel("alternative_date");
+              return;
+            } else if (data.type === "similar_products") {
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+                products: (data.products || []).map(mapBackendProductToUI)
               }]);
               return;
             } else if (data.type === "text" || (data.type === undefined && typeof data.text === "string")) {
@@ -327,13 +372,19 @@ export const useChat = () => {
             setPendingConfirmProduct(null);
             setPendingConfirmVariants(undefined);
           } else {
+            setLastCheckedDelivery({
+              city: res.city || detectedCity,
+              deliveryDate: tomorrowStr,
+              productId: pendingConfirmProduct ? pendingConfirmProduct.id : ""
+            });
             setMessages(prev => [
               ...prev,
               {
                 role: "ai",
-                text: `❌ Delivery not available for your address. Reason: ${res.warning || "Unsupported delivery city"}. Please enter a different address or city in this format:\n\n**[Street Line 1], [Street Line 2], [City]**`
+                text: `Unfortunately this item can't be delivered to **${res.city || detectedCity}** on your selected date.\n\nI can help find another delivery location, another date, or a similar product that can be delivered.\n\nWhich option would you like to try?`
               }
             ]);
+            setActiveSmartPanel("delivery_recovery");
           }
           setActivity(null);
         })

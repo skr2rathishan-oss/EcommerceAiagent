@@ -57,7 +57,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
 
   return (
     <div
-      className="relative z-10 flex items-center justify-between px-4"
+      className="relative z-30 flex items-center justify-between px-4"
       style={{
         height: 56,
         background: "rgba(255,255,255,0.55)",
@@ -310,7 +310,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
                           transition: "all 0.2s",
                         }}
                       >
-                        <div style={{ display: "flex", justifycontent: "space-between", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontSize: 10.5, fontWeight: 800, color: "#7c4dba", fontFamily: "monospace" }}>
                             {order.orderNumber}
                           </span>
@@ -403,11 +403,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
           <button
             type="button"
             onClick={() => setProfileOpen(o => !o)}
-            className="flex items-center gap-2.5 px-2 py-1 hover:bg-[rgba(64,41,112,0.06)] rounded-xl transition-all"
+            className="flex items-center justify-center hover:bg-[rgba(64,41,112,0.06)] rounded-full transition-all"
             style={{
+              width: 38,
+              height: 38,
               border: "none",
               cursor: "pointer",
               background: profileOpen ? "rgba(124, 77, 186, 0.06)" : "transparent",
+              padding: 0,
             }}
           >
             <div
@@ -427,32 +430,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
               }}
             >
               U
-            </div>
-            
-            <div className="flex flex-col items-start text-left select-none">
-              <span
-                style={{
-                  fontSize: 12.5,
-                  fontWeight: 700,
-                  color: "#1a1025",
-                  fontFamily: "'Nunito', sans-serif",
-                  lineHeight: 1.2,
-                }}
-              >
-                Member
-              </span>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 500,
-                  color: "#7c6a9e",
-                  fontFamily: "'Nunito', sans-serif",
-                  lineHeight: 1.2,
-                  marginTop: 1,
-                }}
-              >
-                abbyyogathas@gmail.com
-              </span>
             </div>
           </button>
           

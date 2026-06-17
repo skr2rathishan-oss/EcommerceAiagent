@@ -80,3 +80,6 @@
 2026-06-15T13:31:16.518Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1089}
 2026-06-15T13:31:34.614Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":916}
 2026-06-15T13:31:57.927Z | [Velora Router] | Message Type: Shopping | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Shopping","latencyMs":1393}
+2026-06-16T06:25:15.369Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":1166}
+2026-06-16T08:24:14.004Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":1658}
+2026-06-16T08:55:51.002Z | [Velora Router] | Message Type: Greeting | Model: openai/gpt-oss-20b | Stats: {"selectedModel":"openai/gpt-oss-20b","messageType":"Greeting","latencyMs":1266}

@@ -11,6 +11,9 @@ Allowed intents:
 - create_order
 - track_order
 - general_chat
+- recovery_nearby_location
+- recovery_alternative_date
+- recovery_similar_products
 
 Response format:
 
@@ -22,6 +25,11 @@ Response format:
 For "search_products", the "parameters" object MUST contain:
 - "query": A clean, keyword-based search query. Do NOT include price terms (like "under 50000", "between X and Y", "below Z") or stop words. Just extract the core product terms.
 - "filters": A filter object containing attributes extracted from the user query.
+
+For "check_delivery", the "parameters" object CAN contain:
+- "city": The name of the city/location to check.
+- "deliveryDate": The date to check delivery for (can be YYYY-MM-DD or words like "tomorrow", "next day").
+- "productId": The ID of the product.
 
 Universal Filter Object Structure in "filters" (only include fields that are explicitly present or mentioned, omit the rest):
 {
@@ -137,6 +145,51 @@ Response:
   "intent": "track_order",
   "parameters": {
     "orderNumber": "VIMP34456CB2"
+  }
+}
+
+User: Try nearby location
+Response:
+{
+  "intent": "recovery_nearby_location",
+  "parameters": {}
+}
+
+User: Check another city
+Response:
+{
+  "intent": "recovery_nearby_location",
+  "parameters": {}
+}
+
+User: Can you deliver it somewhere close?
+Response:
+{
+  "intent": "recovery_nearby_location",
+  "parameters": {}
+}
+
+User: Try another date
+Response:
+{
+  "intent": "recovery_alternative_date",
+  "parameters": {}
+}
+
+User: Find something similar
+Response:
+{
+  "intent": "recovery_similar_products",
+  "parameters": {}
+}
+
+User: Can you deliver to Jaffna tomorrow?
+Response:
+{
+  "intent": "check_delivery",
+  "parameters": {
+    "city": "Jaffna",
+    "deliveryDate": "tomorrow"
   }
 }
 
