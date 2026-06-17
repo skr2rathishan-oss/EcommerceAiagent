@@ -1,12 +1,12 @@
 import { INTENTS } from "../config/intents.mjs";
-import { searchProducts, getProductDetails } from "../services/mcp.service.mjs";
+import { searchProducts, getProductDetails } from "../services/integration/mcp.service.mjs";
 import { getShoppingContext, updateShoppingContext, getMemory, updateMemory } from "./memoryManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
-import { trackInteraction } from "../services/productInteraction.service.mjs";
-import { checkDelivery, listDeliveryCities, findNearbyCities } from "../services/delivery.service.mjs";
-import { handleDeliveryFailure, findAlternativeLocations, findAlternativeDates, findAlternativeProducts } from "../services/deliveryRecoveryService.mjs";
-import { trackOrder } from "../services/orderTracking.service.mjs";
+import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
+import { checkDelivery, listDeliveryCities, findNearbyCities } from "../services/commerce/delivery.service.mjs";
+import { handleDeliveryFailure, findAlternativeLocations, findAlternativeDates, findAlternativeProducts } from "../services/commerce/deliveryRecoveryService.mjs";
+import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
 import logger from "../utils/logger.mjs";
 
 // ── Intent Router ────────────────────────────────────────────────────────────

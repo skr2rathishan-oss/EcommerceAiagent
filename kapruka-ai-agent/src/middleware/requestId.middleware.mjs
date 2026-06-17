@@ -1,4 +1,4 @@
-import { asyncLocalStorage } from "../services/logger.service.mjs";
+import { asyncLocalStorage } from "../services/core/logger.service.mjs";
 
 export const requestIdMiddleware = (req, res, next) => {
   // Generate a structured transaction / correlation ID

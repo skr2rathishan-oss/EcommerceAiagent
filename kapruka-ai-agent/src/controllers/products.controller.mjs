@@ -1,9 +1,9 @@
-import { getProductDetails, searchProducts } from "../services/mcp.service.mjs";
-import { trackInteraction } from "../services/productInteraction.service.mjs";
-import { redisService } from "../services/redis.service.mjs";
+import { getProductDetails, searchProducts } from "../services/integration/mcp.service.mjs";
+import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
+import { cacheService } from "../cache/cacheService.mjs";
 import logger from "../utils/logger.mjs";
-import { client, PRIMARY_MODEL } from "../services/llm.service.mjs";
-import { getMcpClient } from "../services/mcp.client.mjs";
+import { getRecommendationModel, callGeminiSingleTurn, withTimeout } from "../services/ai/modelRouter.mjs";
+import { getMcpClient } from "../services/integration/mcp.client.mjs";
 
 export const getProduct = async (req, res) => {
   logger.info("[CONTROLLER] Entry: getProduct", { params: req.params });
@@ -23,7 +23,7 @@ export const getProduct = async (req, res) => {
 
     // Try fetching from cache
     const cacheKey = `product_detail:${trimmedId}`;
-    const cachedDetails = await redisService.get(cacheKey);
+    const cachedDetails = await cacheService.get(cacheKey);
     if (cachedDetails) {
       logger.info("[CONTROLLER] Returning cached product details for ID", { trimmedId });
       return res.json(cachedDetails);
@@ -40,7 +40,7 @@ export const getProduct = async (req, res) => {
     }
 
     // Save to cache
-    await redisService.set(cacheKey, details, 3600); // Cache for 1 hour
+    await cacheService.set(cacheKey, details, 3600); // Cache for 1 hour
 
     // Track "details" interaction in the background asynchronously
     const sessionId = req.headers["x-session-id"] || "default";
@@ -102,7 +102,7 @@ export const getRecommendationsController = async (req, res) => {
 
   try {
     const cacheKey = "top_recommendations_v3";
-    const cachedRecs = await redisService.get(cacheKey);
+    const cachedRecs = await cacheService.get(cacheKey);
     if (cachedRecs) {
       logger.info("[CONTROLLER] Returning cached recommendations");
       return res.json({ success: true, products: cachedRecs });
@@ -128,7 +128,7 @@ export const getRecommendationsController = async (req, res) => {
     const products = mergedProducts.sort(() => Math.random() - 0.5);
 
     // Cache the recommendations list for 1 hour (3600 seconds)
-    await redisService.set(cacheKey, products, 3600);
+    await cacheService.set(cacheKey, products, 3600);
 
     logger.info("[CONTROLLER] getRecommendationsController Success", { count: products.length });
     return res.json({ success: true, products });
@@ -175,7 +175,14 @@ async function runMcpSearch(query, category, budget) {
       result?.content?.[0]?.text ??
       "";
 
-    const data = JSON.parse(raw);
+    // Guard against non-JSON responses (e.g. "No products found")
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      logger.warn(`[runMcpSearch] MCP returned non-JSON response for query "${q}": ${String(raw).substring(0, 120)}`);
+      return [];
+    }
     if (!data?.results || !Array.isArray(data.results)) {
       return [];
     }
@@ -190,7 +197,7 @@ async function runMcpSearch(query, category, budget) {
       inStock: product.in_stock !== undefined ? product.in_stock : true,
       description: product.description || product.summary || "",
       brand: product.brand || "Kapruka",
-      category: product.category ? (product.category.name || product.category) : "General"
+      category: typeof product.category === "object" ? (product.category.name || product.category.id || "General") : (product.category || "General")
     }));
   } catch (error) {
     logger.warn(`[runMcpSearch] Failed to fetch or parse results: ${error.message}`);
@@ -235,27 +242,19 @@ export const getSearchStrategyController = async (req, res) => {
   console.log(`\n[RECOMMENDATION]\nPanel Submitted\nRecipient: ${recipient}\nOccasion: ${occasion}\nBudget: ${budget}\n`);
   logger.info("[RECOMMENDATION] Panel Submitted", { recipient, occasion, budget, interests });
 
-  const prompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
-Given the following gift profile:
+  const systemPrompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
+Respond with a single JSON object (no markdown, no code blocks, no backticks, no other text) with these exact keys:
+- "query": a 2-3 word search query optimized for product catalogs (e.g. "gardening tools", "mens watch", "chocolates")
+- "category": a broad category name suitable for filtering (e.g. "Gifts", "Cakes", "Flowers", "Toys", "Electronics", "Watches")
+- "reason": a short, 1-sentence explanation of why this query is suitable for the recipient's interests/occasion.`;
+
+  const userPrompt = `Gift profile:
 - Recipient: ${recipient}
 - Occasion: ${occasion}
 - Budget: Rs. ${budget} LKR
 - Interests: ${interests}
 
-Generate an optimized search query and category to find suitable products.
-Do NOT recommend specific products.
-Instead, respond with a single JSON object (no markdown tags, no code blocks, no backticks, no other text) with these exact keys:
-- "query": a 2-3 word search query optimized for product catalogs (e.g. "gardening tools", "mens watch", "chocolates")
-- "category": a broad category name suitable for filtering (e.g. "Gifts", "Cakes", "Flowers", "Toys", "Electronics", "Watches")
-- "reason": a short, 1-sentence explanation of why this query is suitable for the recipient's interests/occasion.
-
-Example Output:
-{
-  "query": "gardening gifts",
-  "category": "Gifts",
-  "reason": "Suitable for a mother interested in gardening"
-}
-`;
+Generate an optimized search query and category.`;
 
   let strategy = {
     query: `${interests} gifts`,
@@ -264,19 +263,20 @@ Example Output:
   };
 
   try {
-    const response = await client.chat.completions.create({
-      model: PRIMARY_MODEL,
-      temperature: 0.2,
-      max_tokens: 300,
-      messages: [{ role: "user", content: prompt }]
-    });
-
-    const content = response.choices[0].message.content.trim();
+    const { client: activeClient, model, provider } = getRecommendationModel();
+    let content;
+    if (provider === "gemini") {
+      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+    } else {
+      const response = await withTimeout(
+        activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+        undefined, "Search strategy"
+      );
+      content = response.choices[0].message.content.trim();
+    }
     const cleanContent = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
     const parsed = JSON.parse(cleanContent);
-    if (parsed.query && parsed.category && parsed.reason) {
-      strategy = parsed;
-    }
+    if (parsed.query && parsed.category && parsed.reason) strategy = parsed;
   } catch (err) {
     logger.error("[getSearchStrategyController] AI search strategy failed, using fallback:", err.message);
   }
@@ -306,70 +306,61 @@ export const rankProductsController = async (req, res) => {
     return res.json([]);
   }
 
-  const prompt = `You are an e-commerce ranking assistant.
-Rank the following list of products for the gift profile:
+  const systemPrompt = `You are an e-commerce ranking assistant. Select the top 15 most suitable products from the list provided.
+For each selected product assign: a relevance score (0-100), a recommendationType ("Best Match", "Budget Friendly", "Premium Pick", "Most Popular", or "Alternative Choice"), and a recommendationReason (1-sentence).
+Respond with a single JSON array (no markdown, no code blocks, no backticks, no other text):
+[{ "productId": "...", "score": 95, "recommendationType": "Best Match", "recommendationReason": "..." }]`;
+
+  const userPrompt = `Gift profile:
 - Recipient: ${recipient}
 - Occasion: ${occasion}
 - Budget: Rs. ${budget} LKR
 - Interests: ${interests}
 
-Here is the list of products:
-${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Description: ${p.description}`).join("\n")}
-
-Select the top 5 most suitable products. For each selected product, assign a relevance score (0-100), a recommendationType ("Best Match", "Budget Friendly", "Premium Pick", "Most Popular", or "Alternative Choice"), and a recommendationReason (1-sentence explanation of why it is recommended).
-
-Respond with a single JSON array (no markdown tags, no code blocks, no backticks, no other text) in this exact format:
-[
-  { "productId": "...", "score": 95, "recommendationType": "Best Match", "recommendationReason": "..." },
-  ...
-]
-`;
+Products:
+${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Description: ${p.description}`).join("\n")}`;
 
   let rankings = [];
   try {
-    const response = await client.chat.completions.create({
-      model: PRIMARY_MODEL,
-      temperature: 0.1,
-      max_tokens: 1000,
-      messages: [{ role: "user", content: prompt }]
-    });
-
-    const content = response.choices[0].message.content.trim();
-    const cleanContent = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-    rankings = JSON.parse(cleanContent);
+    const { client: activeClient, model, provider } = getRecommendationModel();
+    let content;
+    if (provider === "gemini") {
+      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.1, maxOutputTokens: 1000 });
+    } else {
+      const response = await withTimeout(
+        activeClient.chat.completions.create({ model, temperature: 0.1, max_tokens: 1000, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+        undefined, "Product ranking"
+      );
+      content = response.choices[0].message.content.trim();
+    }
+    rankings = JSON.parse(content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
   } catch (err) {
     logger.error("[rankProductsController] AI ranking failed, using fallback:", err.message);
   }
 
-  const validRankings = rankings.filter(r => r.productId && r.score !== undefined && r.recommendationType && r.recommendationReason);
+  const validRankings = rankings.filter(r => r.productId && r.score !== undefined && r.recommendationType).map(({ recommendationReason, ...rest }) => rest);
   
   if (validRankings.length === 0) {
     const sortedProducts = [...products].sort((a, b) => a.price - b.price);
-    const top5 = products.slice(0, 5);
+    const top15 = products.slice(0, 15);
     
-    validRankings.push(...top5.map((p, idx) => {
+    validRankings.push(...top15.map((p, idx) => {
       let recType = "Alternative Choice";
-      let recReason = `Thoughtful choice matching ${interests} for ${recipient}'s ${occasion}.`;
       
       if (idx === 0) {
         recType = "Best Match";
-        recReason = `Excellent match for a ${recipient} interested in ${interests} for a ${occasion}.`;
       } else if (p.id === sortedProducts[0]?.id) {
         recType = "Budget Friendly";
-        recReason = `Great budget-friendly choice at Rs. ${p.price} matching their interests.`;
       } else if (p.id === sortedProducts[sortedProducts.length - 1]?.id) {
         recType = "Premium Pick";
-        recReason = `Premium selection matching their ${interests} interest.`;
       } else if (idx === 1) {
         recType = "Most Popular";
-        recReason = `Highly popular item for ${occasion} occasions.`;
       }
 
       return {
         productId: p.id,
         score: 95 - idx * 5,
-        recommendationType: recType,
-        recommendationReason: recReason
+        recommendationType: recType
       };
     }));
   }
@@ -387,20 +378,13 @@ export const generateRecommendationsController = async (req, res) => {
     console.log(`\n[RECOMMENDATION]\nPanel Submitted\nRecipient: ${recipient}\nOccasion: ${occasion}\nBudget: ${budget}\n`);
     
     // 1. Strategy
-    const strategyPrompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
-Given the following gift profile:
-- Recipient: ${recipient}
-- Occasion: ${occasion}
-- Budget: Rs. ${budget} LKR
-- Interests: ${interests}
-
-Generate an optimized search query and category to find suitable products.
-Do NOT recommend specific products.
-Instead, respond with a single JSON object (no markdown tags, no code blocks, no backticks, no other text) with these keys:
+    const strategySystemPrompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
+Respond with a single JSON object (no markdown, no code blocks, no backticks, no other text) with these keys:
 - "query": a 2-3 word search query optimized for product catalogs
 - "category": a broad category name suitable for filtering
-- "reason": a short, 1-sentence explanation of why this query is suitable for the recipient's interests/occasion.
-`;
+- "reason": a short, 1-sentence explanation of why this query is suitable.`;
+
+    const strategyUserPrompt = `Gift profile:\n- Recipient: ${recipient}\n- Occasion: ${occasion}\n- Budget: Rs. ${budget} LKR\n- Interests: ${interests}\n\nGenerate search query and category.`;
 
     let strategy = {
       query: `${interests} gifts`,
@@ -409,14 +393,18 @@ Instead, respond with a single JSON object (no markdown tags, no code blocks, no
     };
 
     try {
-      const strategyRes = await client.chat.completions.create({
-        model: PRIMARY_MODEL,
-        temperature: 0.2,
-        max_tokens: 300,
-        messages: [{ role: "user", content: strategyPrompt }]
-      });
-      const cleanContent = strategyRes.choices[0].message.content.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-      strategy = JSON.parse(cleanContent);
+      const { client: activeClient, model, provider } = getRecommendationModel();
+      let rawStrategy;
+      if (provider === "gemini") {
+        rawStrategy = await callGeminiSingleTurn(activeClient, model, strategySystemPrompt, strategyUserPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+      } else {
+        const strategyRes = await withTimeout(
+          activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: strategySystemPrompt }, { role: "user", content: strategyUserPrompt }] }),
+          undefined, "Strategy"
+        );
+        rawStrategy = strategyRes.choices[0].message.content.trim();
+      }
+      strategy = JSON.parse(rawStrategy.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
     } catch (err) {
       logger.error("[generateRecommendationsController] Strategy generation failed, using fallback:", err.message);
     }
@@ -430,34 +418,25 @@ Instead, respond with a single JSON object (no markdown tags, no code blocks, no
     // 3. Rank
     let rankings = [];
     if (products.length > 0) {
-      const rankPrompt = `You are an e-commerce ranking assistant.
-Rank the following list of products for the gift profile:
-- Recipient: ${recipient}
-- Occasion: ${occasion}
-- Budget: Rs. ${budget} LKR
-- Interests: ${interests}
+      const rankSystemPrompt = `You are an e-commerce ranking assistant. Select top 5 products for the given profile.
+For each product assign: score (0-100), recommendationType ("Best Match"|"Budget Friendly"|"Premium Pick"|"Most Popular"|"Alternative Choice"), recommendationReason (1 sentence).
+Return ONLY a JSON array, no markdown, no extra text.`;
 
-Here is the list of products:
-${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Description: ${p.description}`).join("\n")}
-
-Select the top 5 most suitable products. For each selected product, assign a relevance score (0-100), a recommendationType ("Best Match", "Budget Friendly", "Premium Pick", "Most Popular", or "Alternative Choice"), and a recommendationReason (1-sentence explanation of why it is recommended).
-
-Respond with a single JSON array (no markdown tags, no code blocks, no backticks, no other text) in this exact format:
-[
-  { "productId": "...", "score": 95, "recommendationType": "Best Match", "recommendationReason": "..." },
-  ...
-]
-`;
+      const rankUserPrompt = `Profile: Recipient: ${recipient}, Occasion: ${occasion}, Budget: Rs.${budget}, Interests: ${interests}\n\nProducts:\n${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Desc: ${p.description}`).join("\n")}`;
 
       try {
-        const rankRes = await client.chat.completions.create({
-          model: PRIMARY_MODEL,
-          temperature: 0.1,
-          max_tokens: 1000,
-          messages: [{ role: "user", content: rankPrompt }]
-        });
-        const cleanRankContent = rankRes.choices[0].message.content.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
-        rankings = JSON.parse(cleanRankContent);
+        const { client: activeClient, model, provider } = getRecommendationModel();
+        let rawRank;
+        if (provider === "gemini") {
+          rawRank = await callGeminiSingleTurn(activeClient, model, rankSystemPrompt, rankUserPrompt, { temperature: 0.1, maxOutputTokens: 1000 });
+        } else {
+          const rankRes = await withTimeout(
+            activeClient.chat.completions.create({ model, temperature: 0.1, max_tokens: 1000, messages: [{ role: "system", content: rankSystemPrompt }, { role: "user", content: rankUserPrompt }] }),
+            undefined, "Ranking"
+          );
+          rawRank = rankRes.choices[0].message.content.trim();
+        }
+        rankings = JSON.parse(rawRank.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
       } catch (err) {
         logger.error("[generateRecommendationsController] Ranking failed, using fallback:", err.message);
       }
@@ -467,8 +446,8 @@ Respond with a single JSON array (no markdown tags, no code blocks, no backticks
     
     if (validRankings.length === 0) {
       const sortedProducts = [...products].sort((a, b) => a.price - b.price);
-      const top5 = products.slice(0, 5);
-      validRankings.push(...top5.map((p, idx) => {
+      const top15 = products.slice(0, 15);
+      validRankings.push(...top15.map((p, idx) => {
         let recType = "Alternative Choice";
         let recReason = `Thoughtful choice matching ${interests} for ${recipient}'s ${occasion}.`;
         

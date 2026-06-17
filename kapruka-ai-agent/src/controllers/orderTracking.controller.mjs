@@ -1,4 +1,4 @@
-import { trackOrder } from "../services/orderTracking.service.mjs";
+import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const getOrderTracking = async (req, res) => {

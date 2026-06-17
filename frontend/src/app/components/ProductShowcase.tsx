@@ -106,16 +106,7 @@ function MiniCard({
         <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>
           {formatUIPrice(product.price, product.currency)}
         </p>
-        {product.recommendationReason ? (
-          <div style={{ marginTop: 6, padding: "5px 6px", borderRadius: 6, background: "rgba(124,77,186,0.05)", borderLeft: "2px solid #7c4dba", display: "flex", flexDirection: "column", gap: 1 }}>
-            <p style={{ color: "#7c4dba", fontSize: 7.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
-              Why Recommended:
-            </p>
-            <p style={{ color: "#402970", fontSize: 7.5, margin: 0, fontFamily: "'Nunito',sans-serif", lineHeight: 1.15 }}>
-              {product.recommendationReason}
-            </p>
-          </div>
-        ) : product.explanation && product.explanation.length > 0 ? (
+        {product.explanation && product.explanation.length > 0 ? (
           <div style={{ marginTop: 6, padding: "5px 6px", borderRadius: 6, background: "rgba(124,77,186,0.05)", borderLeft: "2px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
             <p style={{ color: "#7c4dba", fontSize: 7.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
               Recommended:
@@ -291,16 +282,7 @@ function SelectedBanner({
 
           <p style={{ color: "#7c6a9e", fontSize: 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
 
-          {product.recommendationReason ? (
-            <div style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
-              <p style={{ color: "#7c4dba", fontSize: 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
-                Why Recommended:
-              </p>
-              <p style={{ color: "#402970", fontSize: 10, margin: 0, fontFamily: "'Nunito',sans-serif", lineHeight: 1.3 }}>
-                {product.recommendationReason}
-              </p>
-            </div>
-          ) : product.explanation && product.explanation.length > 0 ? (
+          {product.explanation && product.explanation.length > 0 ? (
             <div style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
               <p style={{ color: "#7c4dba", fontSize: 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif" }}>
                 Recommended for you because:

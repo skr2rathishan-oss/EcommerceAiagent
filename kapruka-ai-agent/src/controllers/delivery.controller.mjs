@@ -1,4 +1,4 @@
-import { checkDelivery } from "../services/delivery.service.mjs";
+import { checkDelivery } from "../services/commerce/delivery.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const checkDeliveryAvailability = async (req, res) => {

@@ -207,6 +207,7 @@ function MainApp() {
     orderedItems,
     activeScreen, setActiveScreen,
     selectedIds, setSelectedIds,
+    displayedCounts, setDisplayedCounts,
     activity,
     activityExpanded, setActivityExpanded,
     pendingProductActions, setPendingProductActions,
@@ -354,6 +355,19 @@ function MainApp() {
   };
 
   const canSend = value.trim().length > 0;
+
+  // Find the last AI message with products
+  const lastAiMsgIndex = [...messages].reverse().findIndex(msg => msg.role === "ai" && msg.products && msg.products.length > 0);
+  const lastAiMsgOrigIndex = lastAiMsgIndex !== -1 ? messages.length - 1 - lastAiMsgIndex : -1;
+  const lastAiMsg = lastAiMsgOrigIndex !== -1 ? messages[lastAiMsgOrigIndex] : null;
+
+  const showLoadMoreQuickAction = (() => {
+    if (!lastAiMsg || phase !== "bottom") return false;
+    const total = lastAiMsg.products?.length || 0;
+    const currentCount = displayedCounts[lastAiMsgOrigIndex] ?? (total >= 10 ? 10 : total);
+    const showCount = Math.min(currentCount, 15);
+    return showCount < total;
+  })();
 
   return (
     <div className="h-screen w-screen flex overflow-hidden" style={{ background: "var(--app-bg, #f0ebfa)", fontFamily: "'Nunito',sans-serif" }}>
@@ -795,8 +809,16 @@ function MainApp() {
                         justifyContent: "space-between",
                         gap: 12,
                         overflow: "hidden",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        onClick={resetPendingPurchaseState}
+                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                         <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
                           <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -847,8 +869,16 @@ function MainApp() {
                         justifyContent: "flex-start",
                         gap: 12,
                         overflow: "hidden",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        onClick={resetPendingPurchaseState}
+                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
                       {isEnteringCustomDetails ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1051,7 +1081,8 @@ function MainApp() {
                       )}
                     </motion.div>
                   )}
-                </AnimatePresence>
+
+                  </AnimatePresence>
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
                   textareaRef={textareaRef} fileInputRef={fileInputRef}

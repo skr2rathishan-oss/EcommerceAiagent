@@ -1,4 +1,4 @@
-import { createOrder } from "../services/order.service.mjs";
+import { createOrder } from "../services/commerce/order.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const handleCreateOrder = async (req, res) => {

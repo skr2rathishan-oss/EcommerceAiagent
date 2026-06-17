@@ -87,6 +87,8 @@ export interface AppContextType {
   setShoppingContext: React.Dispatch<React.SetStateAction<{ lastSearchResults: Product[]; selectedProduct: Product | null }>>;
   selectedIds: Record<number, string | null>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Record<number, string | null>>>;
+  displayedCounts: Record<number, number>;
+  setDisplayedCounts: React.Dispatch<React.SetStateAction<Record<number, number>>>;
   activity: ActivityState | null;
   setActivity: React.Dispatch<React.SetStateAction<ActivityState | null>>;
   activityExpanded: boolean;
@@ -177,6 +179,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   }>({ lastSearchResults: [], selectedProduct: null });
 
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
+  const [displayedCounts, setDisplayedCounts] = useState<Record<number, number>>({});
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [pendingProductActions, setPendingProductActions] = useState<PendingProductActions | null>(null);
@@ -253,6 +256,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,
+        displayedCounts, setDisplayedCounts,
         activity, setActivity,
         activityExpanded, setActivityExpanded,
         pendingProductActions, setPendingProductActions,

@@ -1,5 +1,5 @@
 import AIMode               from "../database/AIMode.mjs";
-import { setRuntimeMode, clearRuntimeMode } from "../services/modelRouter.mjs";
+import { setRuntimeMode, clearRuntimeMode } from "../services/ai/modelRouter.mjs";
 import { AI_ENVIRONMENTS, getActiveEnvironment } from "../config/aiEnvironment.mjs";
 import logger                from "../utils/logger.mjs";
 

@@ -1,4 +1,4 @@
-import { isSimpleConversation } from "../services/llm.service.mjs";
+import { isSimpleConversation } from "../services/ai/llm.service.mjs";
 
 /**
  * Checks if a user's message is a complex reasoning or recommendation request.

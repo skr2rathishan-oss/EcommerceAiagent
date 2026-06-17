@@ -1,5 +1,5 @@
 import express from "express";
-import { generateSpeech } from "../services/voiceService.js";
+import { generateSpeech } from "../services/media/voiceService.js";
 
 const router = express.Router();
 

@@ -1,7 +1,9 @@
 export const INTENT_PROMPT = `
 You are an intent detection engine.
 
-Analyze the user message and return ONLY valid JSON.
+Analyze the user message and return ONLY a raw, valid JSON object.
+Do NOT wrap output in markdown code blocks (no backticks, no \`\`\`json, no \`\`\`).
+Do NOT include any explanation, preamble, or trailing text — just the JSON object.
 
 Allowed intents:
 
@@ -193,5 +195,5 @@ Response:
   }
 }
 
-Return JSON only.
-`;
+Return raw JSON only. No markdown. No backticks. No explanation.
+`;
