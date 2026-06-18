@@ -168,6 +168,6 @@ export const fetchProductDetails = async (productId: string): Promise<unknown> =
         message: `get_product_details:${productId}`,
         sessionId: getSessionId(),
         intent: "get_product_details",
-        productId,
+        parameters: { productId },
     });
 };

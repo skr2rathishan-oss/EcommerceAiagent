@@ -6,6 +6,7 @@ import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { AppProvider, useApp, type PanelId } from "./contexts/AppContext";
+import { ComparisonProvider } from "./contexts/ComparisonContext";
 import { useChat } from "./hooks/useChat";
 import { useCheckout } from "./hooks/useCheckout";
 import { useCart } from "./contexts/CartContext";
@@ -1124,7 +1125,9 @@ function MainApp() {
 export default function App() {
   return (
     <AppProvider>
-      <MainApp />
+      <ComparisonProvider>
+        <MainApp />
+      </ComparisonProvider>
     </AppProvider>
   );
 }

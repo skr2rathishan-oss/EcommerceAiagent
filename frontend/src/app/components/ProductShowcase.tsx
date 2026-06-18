@@ -34,14 +34,15 @@ const getBadgeEmoji = (type?: string): string => {
 
 /* ── Small card ── */
 function MiniCard({
-  product, onClick,
-}: { product: Product; onClick: () => void }) {
+  product, onClick, productId,
+}: { product: Product; onClick: () => void; productId?: string }) {
   const [imgErr, setImgErr] = useState(false);
   return (
     <motion.div
       layout
       whileHover={{ y: -2 }}
       onClick={onClick}
+      data-product-id={productId || product.id}
       style={{
         borderRadius: 12,
         background: "#fff",
@@ -618,7 +619,22 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
               exit={{ opacity: 0, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 340, damping: 34 }}
             >
-              <MiniCard product={p} onClick={() => handleSelect(p)} />
+              <MiniCard 
+                product={p} 
+                productId={p.id}
+                onClick={() => {
+                  // First, select the product to show banner
+                  handleSelect(p);
+                  // Then, directly open the product details
+                  setTimeout(() => onViewDetails(p.id), 150);
+                  // Store product ID for comparison feature
+                  const comparedIds = JSON.parse(localStorage.getItem('compared_product_ids') || '[]');
+                  if (!comparedIds.includes(p.id)) {
+                    comparedIds.push(p.id);
+                    localStorage.setItem('compared_product_ids', JSON.stringify(comparedIds.slice(-5)));
+                  }
+                }}
+              />
             </motion.div>
           );
         })}
