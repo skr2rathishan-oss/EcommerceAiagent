@@ -198,3 +198,13 @@
 2026-06-18T10:58:50.797Z | [Velora Router] | Message Type: Greeting | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 3914ms
 2026-06-18T11:04:15.134Z | [Velora Router] | Message Type: Greeting | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 6470ms
 2026-06-18T11:05:55.291Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 21566ms
+2026-06-18T13:23:03.807Z | [Velora Router] | Message Type: Greeting | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 4312ms
+2026-06-18T13:24:15.292Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 1365ms
+2026-06-18T13:25:39.630Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 1695ms
+2026-06-18T13:28:11.699Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 1478ms
+2026-06-18T13:29:38.713Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 2269ms
+2026-06-18T13:31:55.313Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 5030ms
+2026-06-18T13:33:22.122Z | [Velora Router] | Message Type: Shopping | Model: meta/llama-3.1-8b-instruct | Provider: nvidia | Latency: 5019ms
+2026-06-18T15:36:38.283Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 2138ms
+2026-06-18T18:24:14.752Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 1543ms
+2026-06-18T18:24:28.907Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2012ms

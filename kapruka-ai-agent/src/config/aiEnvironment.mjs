@@ -30,46 +30,46 @@ export const GEMINI_MODELS = {
 export const AI_ENVIRONMENTS = {
 
   // ── Development ─────────────────────────────────────────────────────────────
-  // Purpose: Local development, feature testing, debugging, cost optimisation.
-  // Provider: NVIDIA NIM (cheap inference, verbose logging, no Gemini quota usage)
+  // Purpose: Local development, feature testing, debugging with production-like models.
+  // Provider: Gemini 2.5 Flash (Vertex AI) — same as production for consistency
   development: {
     label: "Development",
     badge: "[DEV MODE]",
 
     generalChat: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.llama,
-      displayName: "Llama 3.1 8B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     recommendations: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.qwen,
-      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     intentDetect: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.qwen,
-      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     contextExtractor: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.qwen,
-      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     deliveryRecovery: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.qwen,
-      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     checkout: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.qwen,
-      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     summary: {
-      provider: "nvidia",
-      model: NVIDIA_MODELS.llama,
-      displayName: "Llama 3.1 8B (NVIDIA NIM)",
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
 
     logging: {
