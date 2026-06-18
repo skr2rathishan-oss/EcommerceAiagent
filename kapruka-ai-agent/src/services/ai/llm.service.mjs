@@ -1,5 +1,6 @@
 import { SYSTEM_PROMPT }   from "../../agent/systemPrompt.mjs";
 import { INTENT_PROMPT }   from "../../agent/intentPrompt.mjs";
+import { CONTEXT_EXTRACTOR_PROMPT } from "../../agent/contextExtractorPrompt.mjs";
 import { fileURLToPath }   from "url";
 import { dirname, resolve } from "path";
 import fs                  from "fs";
@@ -10,6 +11,7 @@ const __dirname  = dirname(__filename);
 import {
   getGeneralChatModel,
   getIntentModel,
+  getContextExtractorModel,
   getSummaryModel,
   callGemini,
   callGeminiSingleTurn,
@@ -264,6 +266,51 @@ export const detectIntent = async (message) => {
 
   } catch (error) {
     logger.error("detectIntent failed", { error: error.message, model, provider });
+    throw error;
+  }
+};
+
+// ── Context Extraction ────────────────────────────────────────────────────────
+export const extractContext = async (message) => {
+  logger.info(`Running context extraction...`);
+  const start = Date.now();
+
+  const { client: activeClient, model, provider, displayName } = getContextExtractorModel();
+
+  try {
+    let raw;
+
+    if (provider === "gemini") {
+      raw = await callGeminiSingleTurn(
+        activeClient,
+        model,
+        CONTEXT_EXTRACTOR_PROMPT,
+        message,
+        { temperature: 0, maxOutputTokens: 500 }
+      );
+    } else {
+      const completion = await withTimeout(
+        activeClient.chat.completions.create({
+          model,
+          temperature: 0,
+          max_tokens:  500,
+          messages: [
+            { role: "system", content: CONTEXT_EXTRACTOR_PROMPT },
+            { role: "user",   content: message },
+          ],
+        }),
+        undefined,
+        "Context extraction"
+      );
+      raw = completion.choices[0].message.content;
+    }
+
+    const elapsed = Date.now() - start;
+    logger.info(`Context extraction completed in ${elapsed}ms via ${displayName}`);
+    return raw;
+
+  } catch (error) {
+    logger.error("extractContext failed", { error: error.message, model, provider });
     throw error;
   }
 };

@@ -15,10 +15,10 @@
 
 // ── NVIDIA NIM Model Identifiers ─────────────────────────────────────────────
 export const NVIDIA_MODELS = {
-  llama:   "meta/llama-3.1-8b-instruct",
-  qwen:    "qwen/qwen3.5-122b-a10b",
-  gpt:     "openai/gpt-oss-20b",
-  nemotron:"nvidia/nemotron-3-nano-30b-a3b",
+  llama: "meta/llama-3.1-8b-instruct",
+  qwen: "qwen/qwen3.5-122b-a10b",
+  gpt: "openai/gpt-oss-20b",
+  nemotron: "nvidia/nemotron-3-nano-30b-a3b",
 };
 
 // ── Gemini Model Identifiers ──────────────────────────────────────────────────
@@ -33,138 +33,153 @@ export const AI_ENVIRONMENTS = {
   // Purpose: Local development, feature testing, debugging, cost optimisation.
   // Provider: NVIDIA NIM (cheap inference, verbose logging, no Gemini quota usage)
   development: {
-    label:  "Development",
-    badge:  "[DEV MODE]",
+    label: "Development",
+    badge: "[DEV MODE]",
 
     generalChat: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.llama,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.llama,
       displayName: "Llama 3.1 8B (NVIDIA NIM)",
     },
     recommendations: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.qwen,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.qwen,
       displayName: "Qwen 3.5 122B (NVIDIA NIM)",
     },
     intentDetect: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.qwen,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.qwen,
+      displayName: "Qwen 3.5 122B (NVIDIA NIM)",
+    },
+    contextExtractor: {
+      provider: "nvidia",
+      model: NVIDIA_MODELS.qwen,
       displayName: "Qwen 3.5 122B (NVIDIA NIM)",
     },
     deliveryRecovery: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.qwen,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.qwen,
       displayName: "Qwen 3.5 122B (NVIDIA NIM)",
     },
     checkout: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.qwen,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.qwen,
       displayName: "Qwen 3.5 122B (NVIDIA NIM)",
     },
     summary: {
-      provider:    "nvidia",
-      model:       NVIDIA_MODELS.llama,
+      provider: "nvidia",
+      model: NVIDIA_MODELS.llama,
       displayName: "Llama 3.1 8B (NVIDIA NIM)",
     },
 
     logging: {
-      verbose:       true,
-      promptDebug:   true,
-      toolLogs:      true,
-      tokenLogs:     true,
-      consoleTrace:  true,
+      verbose: true,
+      promptDebug: true,
+      toolLogs: true,
+      tokenLogs: true,
+      consoleTrace: true,
     },
   },
 
   // ── Staging ──────────────────────────────────────────────────────────────────
   // Purpose: Pre-production testing with production-like Gemini models.
   staging: {
-    label:  "Staging",
-    badge:  "[STAGING MODE]",
+    label: "Staging",
+    badge: "[STAGING MODE]",
 
     generalChat: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     recommendations: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     intentDetect: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
+    },
+    contextExtractor: {
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     deliveryRecovery: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     checkout: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     summary: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
 
     logging: {
-      verbose:       false,
-      promptDebug:   false,
-      toolLogs:      true,
-      tokenLogs:     true,
-      consoleTrace:  false,
+      verbose: false,
+      promptDebug: false,
+      toolLogs: true,
+      tokenLogs: true,
+      consoleTrace: false,
     },
   },
 
   // ── Production ───────────────────────────────────────────────────────────────
   // Purpose: Real users — Kapruka demo & production deployment.
   production: {
-    label:  "Production",
-    badge:  "[PRODUCTION MODE]",
+    label: "Production",
+    badge: "[PRODUCTION MODE]",
 
     generalChat: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     recommendations: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     intentDetect: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
+      displayName: "Gemini 2.5 Flash (Vertex AI)",
+    },
+    contextExtractor: {
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     deliveryRecovery: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     checkout: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
     summary: {
-      provider:    "gemini",
-      model:       GEMINI_MODELS.flash25,
+      provider: "gemini",
+      model: GEMINI_MODELS.flash25,
       displayName: "Gemini 2.5 Flash (Vertex AI)",
     },
 
     logging: {
-      verbose:       false,
-      promptDebug:   false,
-      toolLogs:      false,
-      tokenLogs:     false,
-      consoleTrace:  false,
+      verbose: false,
+      promptDebug: false,
+      toolLogs: false,
+      tokenLogs: false,
+      consoleTrace: false,
     },
   },
 };
@@ -202,7 +217,7 @@ export function clearRuntimeMode() {
  */
 export function getActiveEnvironment() {
   const envMode = (process.env.AI_MODE || "development").toLowerCase().trim();
-  const mode    = _runtimeMode || envMode;
+  const mode = _runtimeMode || envMode;
 
   if (!AI_ENVIRONMENTS[mode]) {
     console.warn(`[AI ENV] Unknown AI_MODE "${mode}". Falling back to "development".`);

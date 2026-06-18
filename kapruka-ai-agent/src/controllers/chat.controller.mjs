@@ -1,4 +1,4 @@
-import { detectIntent, chatWithLLM } from "../services/ai/llm.service.mjs";
+import { detectIntent, extractContext, chatWithLLM } from "../services/ai/llm.service.mjs";
 import {
   recordIntentDetection,
   recordMemoryLoad,
@@ -33,6 +33,7 @@ import {
   logStepStart,
   logStepDone,
   logStepError,
+  logContextExtracted,
   logRequestFooter,
   logCacheHit,
   logBackground,
@@ -148,6 +149,90 @@ export const chat = async (req, res) => {
     } catch (parseErr) {
       logStepError("Intent detection", parseErr.message);
       parsedIntent = { intent: "general_chat", parameters: {} };
+    }
+
+    // ── Step 5b: Context Extraction ───────────────────────────────────────────
+    logStepStart("Context extraction");
+    
+    // Update frontend UI that we are extracting context
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({
+        type: "progress",
+        step: "EXTRACTING",
+        message: "Extracting context...",
+        logs: [
+          { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [`Intent: ${parsedIntent.intent}`] },
+          { id: "EXTRACTING", title: "Extracting context", status: "active", details: [] }
+        ]
+      })}\n\n`);
+    }
+
+    let extractedContext = null;
+    try {
+      const ctxStart = Date.now();
+      const ctxRaw = await extractContext(message);
+      const cleanCtx = ctxRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
+      extractedContext = JSON.parse(cleanCtx);
+      const ctxMs = Date.now() - ctxStart;
+      logStepDone("Context extraction", `(${ctxMs}ms)`);
+      logContextExtracted(extractedContext);
+
+      // Build detail tags from extracted context for the SSE UI
+      const ctxDetails = [];
+      if (extractedContext.conversationLanguage) ctxDetails.push(`Language: ${extractedContext.conversationLanguage}`);
+      if (extractedContext.recipient) ctxDetails.push(`Recipient: ${extractedContext.recipient}`);
+      if (extractedContext.occasion) ctxDetails.push(`Occasion: ${extractedContext.occasion}`);
+      if (extractedContext.budget) ctxDetails.push(`Budget: Rs.${extractedContext.budget}`);
+      if (extractedContext.productType) ctxDetails.push(`Product: ${extractedContext.productType}`);
+      if (extractedContext.deliveryLocation) ctxDetails.push(`Location: ${extractedContext.deliveryLocation}`);
+      if (extractedContext.urgency) ctxDetails.push(`Urgency: ${extractedContext.urgency}`);
+
+      // Tell the frontend that context extraction is done
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({
+          type: "progress",
+          step: "EXTRACTING",
+          message: "Context extracted",
+          logs: [
+            { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [`Intent: ${parsedIntent.intent}`] },
+            { id: "EXTRACTING",    title: "Extracting context",    status: "completed", details: ctxDetails }
+          ]
+        })}\n\n`);
+      }
+
+      // Merge into parsedIntent
+      if (parsedIntent.intent === "search_products" && extractedContext) {
+        parsedIntent.parameters = parsedIntent.parameters || {};
+        parsedIntent.parameters.filters = parsedIntent.parameters.filters || {};
+        const f = parsedIntent.parameters.filters;
+        const e = extractedContext;
+
+        if (e.category && !f.category) f.category = e.category;
+        if (e.brand && !f.brand) f.brand = e.brand;
+        if (e.color && !f.color) f.color = e.color;
+        if (e.size && !f.size) f.size = e.size;
+        if (e.gender && !f.gender) f.gender = e.gender;
+        if (e.budget && !f.priceMax) f.priceMax = e.budget;
+
+        parsedIntent.parameters.context = e;
+      } else {
+        parsedIntent.parameters = parsedIntent.parameters || {};
+        parsedIntent.parameters.context = extractedContext;
+      }
+    } catch (err) {
+      logStepError("Context extraction", err.message);
+      // Still notify frontend to move on
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({
+          type: "progress",
+          step: "EXTRACTING",
+          message: "Context extraction skipped",
+          logs: [
+            { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [] },
+            { id: "EXTRACTING",    title: "Extracting context",    status: "error",     details: [] }
+          ]
+        })}\n\n`);
+      }
     }
 
     const isFastPath = shouldBypassQwen(parsedIntent.intent, message);

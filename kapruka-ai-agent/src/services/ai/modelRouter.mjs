@@ -96,6 +96,7 @@ function getModelForRole(role) {
 export const getGeneralChatModel    = () => getModelForRole("generalChat");
 export const getRecommendationModel = () => getModelForRole("recommendations");
 export const getIntentModel         = () => getModelForRole("intentDetect");
+export const getContextExtractorModel = () => getModelForRole("contextExtractor");
 export const getDeliveryModel       = () => getModelForRole("deliveryRecovery");
 export const getCheckoutModel       = () => getModelForRole("checkout");
 export const getSummaryModel        = () => getModelForRole("summary");
@@ -184,6 +185,7 @@ export function getEnvironmentSummary() {
       generalChat:      config.generalChat.displayName,
       recommendations:  config.recommendations.displayName,
       intentDetect:     config.intentDetect.displayName,
+      contextExtractor: config.contextExtractor.displayName,
       deliveryRecovery: config.deliveryRecovery.displayName,
       checkout:         config.checkout.displayName,
       summary:          config.summary.displayName,
@@ -192,6 +194,7 @@ export function getEnvironmentSummary() {
       generalChat:      config.generalChat.provider,
       recommendations:  config.recommendations.provider,
       intentDetect:     config.intentDetect.provider,
+      contextExtractor: config.contextExtractor.provider,
       deliveryRecovery: config.deliveryRecovery.provider,
       checkout:         config.checkout.provider,
     },

@@ -13,6 +13,7 @@ export function buildInitialLogs(intent, intentDetails = []) {
   if (intent === "search_products") {
     return [
       { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: intentDetails },
+      { id: "EXTRACTING",    title: "Extracting context",      status: "completed", details: [] },
       { id: "SEARCHING",     title: "Searching catalog",       status: "active",    details: [] },
       { id: "FILTERING",     title: "Applying filters",        status: "pending",   details: [] },
       { id: "RANKING",       title: "Ranking products",        status: "pending",   details: [] },
@@ -21,7 +22,8 @@ export function buildInitialLogs(intent, intentDetails = []) {
   }
   return [
     { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: intentDetails },
-    { id: "READY",         title: "Preparing response",   status: "active",    details: [] }
+    { id: "EXTRACTING",    title: "Extracting context",      status: "completed", details: [] },
+    { id: "READY",         title: "Preparing response",      status: "active",    details: [] }
   ];
 }
 

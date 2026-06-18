@@ -79,6 +79,16 @@ export function printBanner() {
 // SECTION 2: Interactive Mode Selection
 // ─────────────────────────────────────────────────────────────────────────────
 export async function askStartupMode() {
+  // ── Non-interactive bypass: set AI_MODE=production or AI_MODE=development ──
+  const envMode = process.env.AI_MODE;
+  if (envMode === "production" || envMode === "development") {
+    const label = envMode === "production"
+      ? chalk.bold.green("  ✔ Production mode (from AI_MODE env var) — Gemini AI enabled\n")
+      : chalk.bold.yellow("  ✔ Development mode (from AI_MODE env var) — NVIDIA NIM enabled\n");
+    console.log(label);
+    return envMode;
+  }
+
   return new Promise((resolve) => {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
@@ -106,6 +116,7 @@ export async function askStartupMode() {
     });
   });
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 3: Health Check Display
@@ -239,6 +250,22 @@ export function logStepDone(label, detail = "") {
 
 export function logStepError(label, errMsg = "") {
   console.log(chalk.cyan("  │  ") + chalk.red("✘") + "  " + chalk.red(pad(label, 29)) + chalk.gray(`  ${errMsg.slice(0, 50)}`));
+}
+
+export function logContextExtracted(ctx) {
+  if (!ctx) return;
+  const fields = [];
+  if (ctx.conversationLanguage) fields.push(`lang:${ctx.conversationLanguage}`);
+  if (ctx.recipient)            fields.push(`recipient:${ctx.recipient}`);
+  if (ctx.occasion)             fields.push(`occasion:${ctx.occasion}`);
+  if (ctx.budget)               fields.push(`budget:${ctx.budget}`);
+  if (ctx.productType)          fields.push(`type:${ctx.productType}`);
+  if (ctx.brand)                fields.push(`brand:${ctx.brand}`);
+  if (ctx.deliveryLocation)     fields.push(`loc:${ctx.deliveryLocation}`);
+  if (ctx.deliveryDate)         fields.push(`date:${ctx.deliveryDate}`);
+  if (ctx.urgency)              fields.push(`urgency:${ctx.urgency}`);
+  if (fields.length === 0) return;
+  console.log(chalk.cyan("  │  ") + chalk.magenta("◈") + "  " + chalk.magenta(pad("Context", 29)) + chalk.gray(fields.join("  ·  ")));
 }
 
 export function logRequestFooter(intentType, totalMs, provider) {

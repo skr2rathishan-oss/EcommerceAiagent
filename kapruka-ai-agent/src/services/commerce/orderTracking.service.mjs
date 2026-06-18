@@ -10,17 +10,43 @@ export const trackOrder = async (orderNumber) => {
   });
   const mcpStart = Date.now();
 
-  const result = await client.callTool({
-    name: "kapruka_track_order",
-    arguments: {
-      params: {
-        order_number: orderNumber,
-        response_format: "json"
+  let result;
+  try {
+    result = await client.callTool({
+      name: "kapruka_track_order",
+      arguments: {
+        params: {
+          order_number: orderNumber,
+          response_format: "json"
+        }
       }
-    }
-  });
+    });
+  } catch (mcpErr) {
+    logger.error(`[ORDER TRACKING] MCP callTool failed: ${mcpErr.message}`);
+    const err = new Error("Order tracking service is temporarily unavailable. Please try again later.");
+    err.code = "MCP_UNAVAILABLE";
+    throw err;
+  }
 
   const durationMs = Date.now() - mcpStart;
+
+  // ── MCP returned an error object (e.g. order_not_found) ───────────────────
+  if (result?.error) {
+    const errMsg = typeof result.error === "object"
+      ? (result.error.message || "order_not_found")
+      : String(result.error);
+    logger.warn(`[ORDER TRACKING] MCP returned error: ${errMsg}`, { orderNumber });
+    const isNotFound =
+      errMsg.toLowerCase().includes("not_found") ||
+      errMsg.toLowerCase().includes("not found");
+    const err = new Error(
+      isNotFound
+        ? `Order "${orderNumber}" was not found. Please check your order number and try again.`
+        : "Order tracking details not available."
+    );
+    err.code = isNotFound ? "ORDER_NOT_FOUND" : "MCP_ERROR";
+    throw err;
+  }
 
   const raw =
     result?.structuredContent?.result ??
@@ -32,7 +58,9 @@ export const trackOrder = async (orderNumber) => {
     data = JSON.parse(raw);
   } catch {
     logger.warn(`[MCP] trackOrder: non-JSON response: ${raw.substring(0, 100)}...`);
-    throw new Error("Order tracking details not available");
+    const err = new Error("Order tracking details not available.");
+    err.code = "MCP_ERROR";
+    throw err;
   }
 
   // Normalize progress steps to match required steps format
