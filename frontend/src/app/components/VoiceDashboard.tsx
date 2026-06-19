@@ -87,7 +87,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
           const formData = new FormData();
           formData.append("audio", audioBlob);
 
-          const response = await fetch("http://localhost:5000/api/voice/transcribe", {
+          const response = await fetch("/api/voice/transcribe", {
             method: "POST",
             body: formData,
           });
@@ -148,7 +148,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
     
     try {
       console.log("[VOICE] Speaking response");
-      const response = await fetch("http://localhost:5000/api/voice", {
+      const response = await fetch("/api/voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
