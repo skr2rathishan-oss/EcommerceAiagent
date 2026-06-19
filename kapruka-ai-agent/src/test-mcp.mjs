@@ -1,4 +1,4 @@
-import { getMcpClient } from "./services/mcp.client.mjs";
+import { getMcpClient } from "./services/integration/mcp.client.mjs";
 
 try {
   const client = await getMcpClient();

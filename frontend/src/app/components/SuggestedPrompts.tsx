@@ -176,7 +176,7 @@ export const SuggestedPrompts: React.FC<SuggestedPromptsProps> = ({ onSelect }) 
                   boxShadow: isSelected ? "0 6px 20px rgba(124, 77, 186, 0.3)" : "none"
                 }}
               >
-                <div style={{ fontSize: 22, marginBottom: 4, display: "flex", justifycontent: "flex-start" }}>
+                <div style={{ fontSize: 22, marginBottom: 4, display: "flex", justifyContent: "flex-start" }}>
                   {emoji}
                 </div>
                 <div>

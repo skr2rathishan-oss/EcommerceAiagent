@@ -1,124 +1,9 @@
-import { getProductDetails, searchProducts } from "../services/mcp.service.mjs";
-import { trackInteraction } from "../services/productInteraction.service.mjs";
-import { redisService } from "../services/redis.service.mjs";
+import { getProductDetails, searchProducts } from "../services/integration/mcp.service.mjs";
+import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
+import { cacheService } from "../cache/cacheService.mjs";
 import logger from "../utils/logger.mjs";
-
-export const MOCK_PRODUCTS = {
-  p1: {
-    id: "p1",
-    name: "SoundFlow Pro X",
-    description: "Experience audio like never before with the SoundFlow Pro X. Featuring advanced Active Noise Cancellation, 40-hour battery life, and Hi-Res audio certification, these headphones deliver studio-quality sound in any environment. The ergonomic over-ear design ensures comfort during extended listening sessions.",
-    price: 89.99,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 2–3 business days",
-    url: "",
-    brand: "SoundFlow",
-    category: "Electronics",
-    color: "Black",
-    type: "Headphones"
-  },
-  p2: {
-    id: "p2",
-    name: "Vega S2 Smart Watch",
-    description: "The Vega S2 redefines what a smartwatch can do. With a stunning 1.4\" AMOLED display, built-in GPS, ECG monitoring, SpO2 sensor, and 7-day battery life, it's the perfect companion for an active lifestyle. Compatible with iOS and Android.",
-    price: 199.00,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1631863552122-3072cf599a46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1542541864-4abf21a55761?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1631863552122-3072cf599a46?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 1–2 business days",
-    url: "",
-    brand: "Vega",
-    category: "Wearables",
-    color: "Black",
-    type: "Smart Watch"
-  },
-  p3: {
-    id: "p3",
-    name: "AirStep Runner 2.0",
-    description: "The AirStep Runner 2.0 is engineered for performance and comfort. Built with a breathable mesh upper and energy-returning foam midsole, these shoes provide the perfect blend of cushioning and speed. Ideal for road running, gym workouts, and everyday wear.",
-    price: 119.00,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1560769629-975ec94e6a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1608231387042-66d1773070a5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1560769629-975ec94e6a86?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 3–5 business days",
-    url: "",
-    brand: "AirStep",
-    category: "Footwear",
-    color: "Orange",
-    type: "Shoes"
-  },
-  p4: {
-    id: "p4",
-    name: "ProBook Ultra 14",
-    description: "The ProBook Ultra 14 packs desktop-class performance into a 14mm slim chassis. Powered by the latest M-class processor, 16GB unified memory, and a 2K IPS display with 100% sRGB coverage, it's built for professionals who demand the best. Whisper-quiet, all-day battery life.",
-    price: 1099.00,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 2–4 business days",
-    url: "",
-    brand: "ProBook",
-    category: "Computers",
-    color: "Grey",
-    type: "Laptop"
-  },
-  p5: {
-    id: "p5",
-    name: "ClearSound Buds Pro",
-    description: "ClearSound Buds Pro deliver immersive stereo sound in a compact form factor. With IPX5 water resistance, 8hr bud battery plus 24hr from the case, and seamless device switching, they're perfect for commuters, gym-goers, and remote workers alike.",
-    price: 49.99,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 1–2 business days",
-    url: "",
-    brand: "ClearSound",
-    category: "Electronics",
-    color: "Cream",
-    type: "Earbuds"
-  },
-  p6: {
-    id: "p6",
-    name: "Flux 3 Mechanical Keyboard",
-    description: "The Flux 3 is a tenkeyless mechanical keyboard built for typists and gamers. Hot-swappable switch sockets let you tune the feel without soldering. Full per-key RGB, PBT double-shot keycaps, and a gasket-mounted plate deliver a premium tactile and auditory experience.",
-    price: 129.99,
-    currency: "USD",
-    images: [
-      "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-      "https://images.unsplash.com/photo-1525547719571-a2d4ac8945e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80"
-    ],
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=800&q=80",
-    stock: true,
-    shippingInfo: "Free delivery in 3–5 business days",
-    url: "",
-    brand: "Flux",
-    category: "Accessories",
-    color: "Black",
-    type: "Keyboard"
-  }
-};
+import { getRecommendationModel, callGeminiSingleTurn, withTimeout } from "../services/ai/modelRouter.mjs";
+import { getMcpClient } from "../services/integration/mcp.client.mjs";
 
 export const getProduct = async (req, res) => {
   logger.info("[CONTROLLER] Entry: getProduct", { params: req.params });
@@ -135,14 +20,10 @@ export const getProduct = async (req, res) => {
     }
 
     const trimmedId = id.trim();
-    if (MOCK_PRODUCTS[trimmedId]) {
-      logger.info("[CONTROLLER] Returning mock product details for ID", { trimmedId });
-      return res.json(MOCK_PRODUCTS[trimmedId]);
-    }
 
     // Try fetching from cache
     const cacheKey = `product_detail:${trimmedId}`;
-    const cachedDetails = await redisService.get(cacheKey);
+    const cachedDetails = await cacheService.get(cacheKey);
     if (cachedDetails) {
       logger.info("[CONTROLLER] Returning cached product details for ID", { trimmedId });
       return res.json(cachedDetails);
@@ -159,7 +40,7 @@ export const getProduct = async (req, res) => {
     }
 
     // Save to cache
-    await redisService.set(cacheKey, details, 3600); // Cache for 1 hour
+    await cacheService.set(cacheKey, details, 3600); // Cache for 1 hour
 
     // Track "details" interaction in the background asynchronously
     const sessionId = req.headers["x-session-id"] || "default";
@@ -221,7 +102,7 @@ export const getRecommendationsController = async (req, res) => {
 
   try {
     const cacheKey = "top_recommendations_v3";
-    const cachedRecs = await redisService.get(cacheKey);
+    const cachedRecs = await cacheService.get(cacheKey);
     if (cachedRecs) {
       logger.info("[CONTROLLER] Returning cached recommendations");
       return res.json({ success: true, products: cachedRecs });
@@ -247,12 +128,372 @@ export const getRecommendationsController = async (req, res) => {
     const products = mergedProducts.sort(() => Math.random() - 0.5);
 
     // Cache the recommendations list for 1 hour (3600 seconds)
-    await redisService.set(cacheKey, products, 3600);
+    await cacheService.set(cacheKey, products, 3600);
 
     logger.info("[CONTROLLER] getRecommendationsController Success", { count: products.length });
     return res.json({ success: true, products });
   } catch (error) {
     logger.error("[ERROR] Failed in getRecommendationsController", { error: error.message, stack: error.stack });
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+// ── Velora AI Recommendation Execution Engine Backend Services ─────────────────
+
+async function runMcpSearch(query, category, budget) {
+  try {
+    const mcpClient = await getMcpClient();
+    let q = query || "gifts";
+    if (q.length < 3) q = q + " gift"; // ensure min length is 3
+
+    const searchParams = {
+      q,
+      in_stock_only: true,
+      limit: 20,
+      response_format: "json"
+    };
+
+    if (category) {
+      searchParams.category = category;
+    }
+    if (budget && !isNaN(Number(budget))) {
+      searchParams.max_price = Number(budget);
+    }
+
+    const result = await mcpClient.callTool({
+      name: "kapruka_search_products",
+      arguments: {
+        params: searchParams
+      }
+    });
+
+    const raw =
+      result?.structuredContent?.result ??
+      result?.content?.[0]?.text ??
+      "";
+
+    // Guard against non-JSON responses (e.g. "No products found")
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      logger.warn(`[runMcpSearch] MCP returned non-JSON response for query "${q}": ${String(raw).substring(0, 120)}`);
+      return [];
+    }
+    if (!data?.results || !Array.isArray(data.results)) {
+      return [];
+    }
+
+    return data.results.map(product => ({
+      id: product.id,
+      name: product.name,
+      price: product.price ? product.price.amount : 0,
+      currency: product.price ? product.price.currency : "LKR",
+      image: product.image_url || "",
+      url: product.url || "",
+      inStock: product.in_stock !== undefined ? product.in_stock : true,
+      description: product.description || product.summary || "",
+      brand: product.brand || "Kapruka",
+      category: typeof product.category === "object" ? (product.category.name || product.category.id || "General") : (product.category || "General")
+    }));
+  } catch (error) {
+    logger.warn(`[runMcpSearch] Failed to fetch or parse results: ${error.message}`);
+    return [];
+  }
+}
+
+async function searchKaprukaProductsInternal(query, category, budget) {
+  // Try 1: with category and budget
+  let results = await runMcpSearch(query, category, budget);
+  if (results && results.length > 0) return results;
+
+  // Try 2: with category only (ignore budget)
+  if (budget) {
+    logger.info("[KAPRUKA SEARCH] No results found. Retrying without budget limit...");
+    results = await runMcpSearch(query, category, null);
+    if (results && results.length > 0) return results;
+  }
+
+  // Try 3: with query only (ignore category and budget)
+  if (category) {
+    logger.info("[KAPRUKA SEARCH] No results found. Retrying without category filter...");
+    results = await runMcpSearch(query, null, null);
+    if (results && results.length > 0) return results;
+  }
+
+  // Try 4: fallback to search using just "gifts"
+  if (query !== "gifts") {
+    logger.info("[KAPRUKA SEARCH] No results found. Retrying with fallback query 'gifts'...");
+    results = await runMcpSearch("gifts", null, null);
+    if (results && results.length > 0) return results;
+  }
+
+  // Try 5: Return empty array if all searches returned empty
+  logger.warn("[KAPRUKA SEARCH] All Kapruka searches returned empty. No mock fallback allowed.");
+  return [];
+}
+
+export const getSearchStrategyController = async (req, res) => {
+  const { recipient, occasion, budget, interests } = req.body;
+  
+  console.log(`\n[RECOMMENDATION]\nPanel Submitted\nRecipient: ${recipient}\nOccasion: ${occasion}\nBudget: ${budget}\n`);
+  logger.info("[RECOMMENDATION] Panel Submitted", { recipient, occasion, budget, interests });
+
+  const systemPrompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
+Respond with a single JSON object (no markdown, no code blocks, no backticks, no other text) with these exact keys:
+- "query": a 2-3 word search query optimized for product catalogs (e.g. "gardening tools", "mens watch", "chocolates")
+- "category": a broad category name suitable for filtering (e.g. "Gifts", "Cakes", "Flowers", "Toys", "Electronics", "Watches")
+- "reason": a short, 1-sentence explanation of why this query is suitable for the recipient's interests/occasion.`;
+
+  const userPrompt = `Gift profile:
+- Recipient: ${recipient}
+- Occasion: ${occasion}
+- Budget: Rs. ${budget} LKR
+- Interests: ${interests}
+
+Generate an optimized search query and category.`;
+
+  let strategy = {
+    query: `${interests} gifts`,
+    category: "Gifts",
+    reason: `Gifts suitable for ${recipient} interested in ${interests}`
+  };
+
+  try {
+    const { client: activeClient, model, provider } = getRecommendationModel();
+    let content;
+    if (provider === "gemini") {
+      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+    } else {
+      const response = await withTimeout(
+        activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+        undefined, "Search strategy"
+      );
+      content = response.choices[0].message.content.trim();
+    }
+    const cleanContent = content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim();
+    const parsed = JSON.parse(cleanContent);
+    if (parsed.query && parsed.category && parsed.reason) strategy = parsed;
+  } catch (err) {
+    logger.error("[getSearchStrategyController] AI search strategy failed, using fallback:", err.message);
+  }
+
+  console.log(`[AI]\nGenerated Query:\n${strategy.query}\n`);
+  logger.info(`[AI] Generated Query: ${strategy.query}`);
+
+  return res.json(strategy);
+};
+
+export const getSearchProductsController = async (req, res) => {
+  const { query, category, budget } = req.body;
+  const products = await searchKaprukaProductsInternal(query, category, budget);
+  
+  console.log(`[KAPRUKA]\nProducts Found: ${products.length}\n`);
+  logger.info(`[KAPRUKA] Products Found: ${products.length}`);
+  
+  return res.json(products);
+};
+
+export const rankProductsController = async (req, res) => {
+  const { products, preferences } = req.body;
+  const { recipient, occasion, budget, interests } = preferences || {};
+
+  if (!products || !Array.isArray(products) || products.length === 0) {
+    console.log("[RANKING]\nTop Products Selected: 0\n");
+    return res.json([]);
+  }
+
+  const systemPrompt = `You are an e-commerce ranking assistant. Select the top 15 most suitable products from the list provided.
+For each selected product assign: a relevance score (0-100), a recommendationType ("Best Match", "Budget Friendly", "Premium Pick", "Most Popular", or "Alternative Choice"), and a recommendationReason (1-sentence).
+Respond with a single JSON array (no markdown, no code blocks, no backticks, no other text):
+[{ "productId": "...", "score": 95, "recommendationType": "Best Match", "recommendationReason": "..." }]`;
+
+  const userPrompt = `Gift profile:
+- Recipient: ${recipient}
+- Occasion: ${occasion}
+- Budget: Rs. ${budget} LKR
+- Interests: ${interests}
+
+Products:
+${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Description: ${p.description}`).join("\n")}`;
+
+  let rankings = [];
+  try {
+    const { client: activeClient, model, provider } = getRecommendationModel();
+    let content;
+    if (provider === "gemini") {
+      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.1, maxOutputTokens: 1000 });
+    } else {
+      const response = await withTimeout(
+        activeClient.chat.completions.create({ model, temperature: 0.1, max_tokens: 1000, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+        undefined, "Product ranking"
+      );
+      content = response.choices[0].message.content.trim();
+    }
+    rankings = JSON.parse(content.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
+  } catch (err) {
+    logger.error("[rankProductsController] AI ranking failed, using fallback:", err.message);
+  }
+
+  const validRankings = rankings.filter(r => r.productId && r.score !== undefined && r.recommendationType).map(({ recommendationReason, ...rest }) => rest);
+  
+  if (validRankings.length === 0) {
+    const sortedProducts = [...products].sort((a, b) => a.price - b.price);
+    const top15 = products.slice(0, 15);
+    
+    validRankings.push(...top15.map((p, idx) => {
+      let recType = "Alternative Choice";
+      
+      if (idx === 0) {
+        recType = "Best Match";
+      } else if (p.id === sortedProducts[0]?.id) {
+        recType = "Budget Friendly";
+      } else if (p.id === sortedProducts[sortedProducts.length - 1]?.id) {
+        recType = "Premium Pick";
+      } else if (idx === 1) {
+        recType = "Most Popular";
+      }
+
+      return {
+        productId: p.id,
+        score: 95 - idx * 5,
+        recommendationType: recType
+      };
+    }));
+  }
+
+  console.log(`[RANKING]\nTop Products Selected: ${validRankings.length}\n`);
+  logger.info(`[RANKING] Top Products Selected: ${validRankings.length}`);
+
+  return res.json(validRankings);
+};
+
+export const generateRecommendationsController = async (req, res) => {
+  const { recipient, occasion, budget, interests } = req.body;
+
+  try {
+    console.log(`\n[RECOMMENDATION]\nPanel Submitted\nRecipient: ${recipient}\nOccasion: ${occasion}\nBudget: ${budget}\n`);
+    
+    // 1. Strategy
+    const strategySystemPrompt = `You are an expert shopping strategist for Kapruka (an e-commerce platform in Sri Lanka).
+Respond with a single JSON object (no markdown, no code blocks, no backticks, no other text) with these keys:
+- "query": a 2-3 word search query optimized for product catalogs
+- "category": a broad category name suitable for filtering
+- "reason": a short, 1-sentence explanation of why this query is suitable.`;
+
+    const strategyUserPrompt = `Gift profile:\n- Recipient: ${recipient}\n- Occasion: ${occasion}\n- Budget: Rs. ${budget} LKR\n- Interests: ${interests}\n\nGenerate search query and category.`;
+
+    let strategy = {
+      query: `${interests} gifts`,
+      category: "Gifts",
+      reason: `Gifts suitable for ${recipient} interested in ${interests}`
+    };
+
+    try {
+      const { client: activeClient, model, provider } = getRecommendationModel();
+      let rawStrategy;
+      if (provider === "gemini") {
+        rawStrategy = await callGeminiSingleTurn(activeClient, model, strategySystemPrompt, strategyUserPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+      } else {
+        const strategyRes = await withTimeout(
+          activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: strategySystemPrompt }, { role: "user", content: strategyUserPrompt }] }),
+          undefined, "Strategy"
+        );
+        rawStrategy = strategyRes.choices[0].message.content.trim();
+      }
+      strategy = JSON.parse(rawStrategy.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
+    } catch (err) {
+      logger.error("[generateRecommendationsController] Strategy generation failed, using fallback:", err.message);
+    }
+
+    console.log(`[AI]\nGenerated Query:\n${strategy.query}\n`);
+
+    // 2. Search
+    const products = await searchKaprukaProductsInternal(strategy.query, strategy.category, budget);
+    console.log(`[KAPRUKA]\nProducts Found: ${products.length}\n`);
+
+    // 3. Rank
+    let rankings = [];
+    if (products.length > 0) {
+      const rankSystemPrompt = `You are an e-commerce ranking assistant. Select top 5 products for the given profile.
+For each product assign: score (0-100), recommendationType ("Best Match"|"Budget Friendly"|"Premium Pick"|"Most Popular"|"Alternative Choice"), recommendationReason (1 sentence).
+Return ONLY a JSON array, no markdown, no extra text.`;
+
+      const rankUserPrompt = `Profile: Recipient: ${recipient}, Occasion: ${occasion}, Budget: Rs.${budget}, Interests: ${interests}\n\nProducts:\n${products.map(p => `- ID: ${p.id}, Name: ${p.name}, Price: ${p.price} LKR, Desc: ${p.description}`).join("\n")}`;
+
+      try {
+        const { client: activeClient, model, provider } = getRecommendationModel();
+        let rawRank;
+        if (provider === "gemini") {
+          rawRank = await callGeminiSingleTurn(activeClient, model, rankSystemPrompt, rankUserPrompt, { temperature: 0.1, maxOutputTokens: 1000 });
+        } else {
+          const rankRes = await withTimeout(
+            activeClient.chat.completions.create({ model, temperature: 0.1, max_tokens: 1000, messages: [{ role: "system", content: rankSystemPrompt }, { role: "user", content: rankUserPrompt }] }),
+            undefined, "Ranking"
+          );
+          rawRank = rankRes.choices[0].message.content.trim();
+        }
+        rankings = JSON.parse(rawRank.replace(/^```json\s*/i, "").replace(/```\s*$/, "").trim());
+      } catch (err) {
+        logger.error("[generateRecommendationsController] Ranking failed, using fallback:", err.message);
+      }
+    }
+
+    const validRankings = rankings.filter(r => r.productId && r.score !== undefined && r.recommendationType && r.recommendationReason);
+    
+    if (validRankings.length === 0) {
+      const sortedProducts = [...products].sort((a, b) => a.price - b.price);
+      const top15 = products.slice(0, 15);
+      validRankings.push(...top15.map((p, idx) => {
+        let recType = "Alternative Choice";
+        let recReason = `Thoughtful choice matching ${interests} for ${recipient}'s ${occasion}.`;
+        
+        if (idx === 0) {
+          recType = "Best Match";
+          recReason = `Excellent match for a ${recipient} interested in ${interests} for a ${occasion}.`;
+        } else if (p.id === sortedProducts[0]?.id) {
+          recType = "Budget Friendly";
+          recReason = `Great budget-friendly choice at Rs. ${p.price} matching their interests.`;
+        } else if (p.id === sortedProducts[sortedProducts.length - 1]?.id) {
+          recType = "Premium Pick";
+          recReason = `Premium selection matching their ${interests} interest.`;
+        } else if (idx === 1) {
+          recType = "Most Popular";
+          recReason = `Highly popular item for ${occasion} occasions.`;
+        }
+
+        return {
+          productId: p.id,
+          score: 95 - idx * 5,
+          recommendationType: recType,
+          recommendationReason: recReason
+        };
+      }));
+    }
+
+    console.log(`[RANKING]\nTop Products Selected: ${validRankings.length}\n`);
+
+    const finalRecs = validRankings.map(rank => {
+      const originalProduct = products.find(p => p.id === rank.productId);
+      if (!originalProduct) return null;
+      return {
+        ...originalProduct,
+        productId: rank.productId,
+        score: rank.score,
+        recommendationType: rank.recommendationType,
+        recommendationReason: rank.recommendationReason
+      };
+    }).filter(Boolean);
+
+    console.log(`[RECOMMENDATION]\nResponse Generated\n`);
+    logger.info(`[RECOMMENDATION] Response Generated. Count: ${finalRecs.length}`);
+
+    return res.json({ recommendations: finalRecs });
+  } catch (error) {
+    logger.error("[ERROR] Failed in generateRecommendationsController", { error: error.message, stack: error.stack });
     return res.status(500).json({
       success: false,
       message: "Internal Server Error"

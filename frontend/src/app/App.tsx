@@ -5,16 +5,22 @@ import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
-import { AppProvider, useApp, type PanelId, type RightPanelId } from "./contexts/AppContext";
+import { AppProvider, useApp, type PanelId } from "./contexts/AppContext";
+import { ComparisonProvider } from "./contexts/ComparisonContext";
 import { useChat } from "./hooks/useChat";
 import { useCheckout } from "./hooks/useCheckout";
+import { useCart } from "./contexts/CartContext";
+import { useWishlist } from "./contexts/WishlistContext";
 import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
 import { ChatInputBox } from "./components/ChatInputBox";
+import { VoiceDashboard } from "./components/VoiceDashboard";
 import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
-import { RightSidebar } from "./components/RightSidebar";
+import { CartScreen } from "./components/CartScreen";
+import { WishlistScreen } from "./components/WishlistScreen";
+import { SmartInputPanel } from "./components/SmartInputPanel";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 
@@ -190,25 +196,28 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
 }
 
 function MainApp() {
+  const { removeFromCart } = useCart();
   const {
     phase, setPhase,
     activePanel, setActivePanel,
     anchorPos, setAnchorPos,
-    rightPanel, setRightPanel,
     value, setValue,
     messages, setMessages,
-    cartItems, setCartItems,
-    wishlistItems, setWishlistItems,
-    savedItems, setSavedItems,
+    cartItems,
+    wishlistItems,
+    savedItems,
     orderedItems,
+    activeScreen, setActiveScreen,
     selectedIds, setSelectedIds,
+    displayedCounts, setDisplayedCounts,
     activity,
     activityExpanded, setActivityExpanded,
     pendingProductActions, setPendingProductActions,
     checkoutOpen, setCheckoutOpen,
     pendingConfirmProduct,
     pendingConfirmVariants,
-    isTyping,
+    isTyping, setIsTyping,
+    setShoppingContext,
     pendingAddressChoice, setPendingAddressChoice,
     isEnteringCustomDetails, setIsEnteringCustomDetails,
     customName, setCustomName,
@@ -221,8 +230,12 @@ function MainApp() {
     checkingAddress,
     handleAddToCart,
     handleWishlist,
-    resetPendingPurchaseState
+    resetPendingPurchaseState,
+    activeSmartPanel,
+    setActiveSmartPanel
   } = useApp();
+
+  const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
 
   const {
     handleProductSelect,
@@ -251,6 +264,15 @@ function MainApp() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const [savedDelivery] = useState(() => ({
+    name: localStorage.getItem("delivery_name") || "Alex Johnson",
+    phone: localStorage.getItem("delivery_phone") || "+94 77 123 4567",
+    email: localStorage.getItem("delivery_email") || "alex@example.com",
+    street1: localStorage.getItem("delivery_street1") || "",
+    street2: localStorage.getItem("delivery_street2") || "",
+    city: localStorage.getItem("delivery_city") || "Colombo 03",
+  }));
 
   const checkScrollLimits = () => {
     const el = scrollContainerRef.current;
@@ -329,34 +351,27 @@ function MainApp() {
   const handleStartWorkflow = (type: "find_products" | "find_gift" | "track_order") => {
     setPhase("bottom");
 
-    let text = "";
-    if (type === "find_products") {
-      text = "Let's find the right products for you! I will guide you through a few quick questions to gather your requirements.";
-    } else if (type === "find_gift") {
-      text = "Let's find the perfect gift! Tell me a bit about who this is for and what the occasion is.";
+    if (type === "find_gift" || type === "find_products") {
+      setActiveSmartPanel("recommendation");
     } else if (type === "track_order") {
-      text = "How would you like to track your order? You can look it up using your Order ID or view recent orders.";
+      setActiveSmartPanel("track_order");
     }
-
-    setMessages(prev => [
-      ...prev,
-      {
-        role: "ai",
-        type: "guided_workflow",
-        text: text,
-        workflow: {
-          type,
-          step: 0,
-          answers: {},
-          isCompleted: false,
-          loading: false,
-          error: null
-        }
-      }
-    ]);
   };
 
   const canSend = value.trim().length > 0;
+
+  // Find the last AI message with products
+  const lastAiMsgIndex = [...messages].reverse().findIndex(msg => msg.role === "ai" && msg.products && msg.products.length > 0);
+  const lastAiMsgOrigIndex = lastAiMsgIndex !== -1 ? messages.length - 1 - lastAiMsgIndex : -1;
+  const lastAiMsg = lastAiMsgOrigIndex !== -1 ? messages[lastAiMsgOrigIndex] : null;
+
+  const showLoadMoreQuickAction = (() => {
+    if (!lastAiMsg || phase !== "bottom") return false;
+    const total = lastAiMsg.products?.length || 0;
+    const currentCount = displayedCounts[lastAiMsgOrigIndex] ?? (total >= 10 ? 10 : total);
+    const showCount = Math.min(currentCount, 15);
+    return showCount < total;
+  })();
 
   return (
     <div className="h-screen w-screen flex overflow-hidden" style={{ background: "var(--app-bg, #f0ebfa)", fontFamily: "'Nunito',sans-serif" }}>
@@ -369,7 +384,6 @@ function MainApp() {
 
 
         <TopNavbar
-          onRightPanel={(id) => setRightPanel(rightPanel === id ? null : id)}
           onTrackOrder={(orderNumber) => {
             if (phase === "centered") setPhase("bottom");
             setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
@@ -402,9 +416,24 @@ function MainApp() {
           }}
         />
 
-        {/* Centered phase */}
-        <AnimatePresence>
-          {phase === "centered" && (
+        {activeScreen === "cart" ? (
+          <CartScreen
+            onContinueShopping={() => setActiveScreen("chat")}
+            onCheckout={() => {
+              setActiveScreen("chat");
+              setPhase("bottom");
+              setActiveSmartPanel("checkout");
+            }}
+          />
+        ) : activeScreen === "wishlist" ? (
+          <WishlistScreen
+            onContinueShopping={() => setActiveScreen("chat")}
+          />
+        ) : (
+          <>
+            {/* Centered phase */}
+            <AnimatePresence>
+              {phase === "centered" && (
             <motion.div
               key="centered"
               className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
@@ -446,14 +475,14 @@ function MainApp() {
                   </h1>
                   
                   <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
-                    Your intelligent shopping assistant. Ask questions, compare products, find deals, and track orders in one place.
+                    Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
                   </p>
 
                   <div className="w-full">
                     <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                       onKeyDown={handleKeyDown} canSend={canSend}
                       textareaRef={textareaRef} fileInputRef={fileInputRef}
-                      isTyping={isTyping} onStop={handleStop} variant="centered" />
+                      isTyping={isTyping} onStop={handleStop} variant="centered" onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
                   </div>
 
                   {/* Quick Actions (Pill Buttons) */}
@@ -500,7 +529,7 @@ function MainApp() {
               {/* Product Recommendations Section */}
               <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
                 {/* Section Header */}
-                <div style={{ display: "flex", alignItems: "center", justifycontent: "space-between", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
                     <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
@@ -648,7 +677,7 @@ function MainApp() {
 
         {/* Bottom phase */}
         {phase === "bottom" && (
-          <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-0 min-h-0 px-4 pb-6 md:pb-3 pt-0 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <MessageArea
                 messages={messages}
@@ -678,6 +707,11 @@ function MainApp() {
             >
               <div className="w-full" style={{ maxWidth: 720 }}>
                 <AnimatePresence>
+                  {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
+                  {activeSmartPanel && (
+                    <SmartInputPanel key="smart-input-panel" />
+                  )}
+
                   {/* ── Product Actions Popup ─────────────────────────────────────────── */}
                   {pendingProductActions && !pendingConfirmProduct && (
                     <motion.div
@@ -779,8 +813,16 @@ function MainApp() {
                         justifyContent: "space-between",
                         gap: 12,
                         overflow: "hidden",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        onClick={resetPendingPurchaseState}
+                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
                         <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
                           <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -831,8 +873,16 @@ function MainApp() {
                         justifyContent: "flex-start",
                         gap: 12,
                         overflow: "hidden",
+                        position: "relative",
                       }}
                     >
+                      <button
+                        type="button"
+                        onClick={resetPendingPurchaseState}
+                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                      >
+                        <X size={12} strokeWidth={2.5} />
+                      </button>
                       {isEnteringCustomDetails ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -976,7 +1026,7 @@ function MainApp() {
                       ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifycontent: "center", justifyContent: "center" }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                               <MapPin size={20} color="#fff" />
                             </div>
                             <div style={{ minWidth: 0 }}>
@@ -999,15 +1049,11 @@ function MainApp() {
                             color: "#402970",
                             fontFamily: "'Nunito', sans-serif"
                           }}>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_name") || "Alex Johnson"}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_phone") || "+94 77 123 4567"}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{localStorage.getItem("delivery_email") || "alex@example.com"}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.name}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.phone}</span></div>
+                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.email}</span></div>
                             <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
-                              {[
-                                localStorage.getItem("delivery_street1"),
-                                localStorage.getItem("delivery_street2"),
-                                localStorage.getItem("delivery_city") || "Colombo 03"
-                              ].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
+                              {[savedDelivery.street1, savedDelivery.street2, savedDelivery.city].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
                             </span></div>
                           </div>
 
@@ -1039,11 +1085,12 @@ function MainApp() {
                       )}
                     </motion.div>
                   )}
-                </AnimatePresence>
+
+                  </AnimatePresence>
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
                   textareaRef={textareaRef} fileInputRef={fileInputRef}
-                  isTyping={isTyping} onStop={handleStop} />
+                  isTyping={isTyping} onStop={handleStop} onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
                 <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
                   Enter to send · Shift + Enter for new line
                 </p>
@@ -1051,6 +1098,16 @@ function MainApp() {
             </motion.div>
           </div>
         )}
+          </>
+        )}
+        
+        {/* Voice Dashboard Overlay (Inside main content area) */}
+        <VoiceDashboard 
+          isOpen={voiceDashboardOpen} 
+          onClose={() => setVoiceDashboardOpen(false)} 
+          messages={messages} 
+          onSendMessage={(text) => handleSend(text)} 
+        />
       </div>
 
       {/* Floating popup panels */}
@@ -1060,19 +1117,7 @@ function MainApp() {
         )}
       </AnimatePresence>
 
-      {/* Right Drawer */}
-      <AnimatePresence>
-        {rightPanel && (
-          <RightSidebar
-            onClose={() => setRightPanel(null)}
-            onRemoveCart={id => setCartItems(prev => prev.filter(i => i.product.id !== id))}
-            onRemoveWishlist={id => setWishlistItems(prev => prev.filter(i => i.id !== id))}
-            onRemoveSaved={id => setSavedItems(prev => prev.filter(i => i.id !== id))}
-            onMoveToCart={p => { handleAddToCart(p); setWishlistItems(prev => prev.filter(i => i.id !== p.id)); }}
-            onCheckout={() => { setRightPanel(null); setCheckoutOpen(true); }}
-          />
-        )}
-      </AnimatePresence>
+
 
       {/* Checkout overlay modal */}
       <AnimatePresence>
@@ -1091,7 +1136,9 @@ function MainApp() {
 export default function App() {
   return (
     <AppProvider>
-      <MainApp />
+      <ComparisonProvider>
+        <MainApp />
+      </ComparisonProvider>
     </AppProvider>
   );
 }

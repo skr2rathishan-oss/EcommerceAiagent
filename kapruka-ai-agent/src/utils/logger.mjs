@@ -1,2 +1,2 @@
-import { logger } from "../services/logger.service.mjs";
+import { logger } from "../services/core/logger.service.mjs";
 export default logger;

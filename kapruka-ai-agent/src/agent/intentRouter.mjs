@@ -1,10 +1,12 @@
 import { INTENTS } from "../config/intents.mjs";
-import { searchProducts, getProductDetails } from "../services/mcp.service.mjs";
-import { getShoppingContext, updateShoppingContext } from "./memoryManager.mjs";
+import { searchProducts, getProductDetails } from "../services/integration/mcp.service.mjs";
+import { getShoppingContext, updateShoppingContext, getMemory, updateMemory } from "./memoryManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
-import { trackInteraction } from "../services/productInteraction.service.mjs";
-import { MOCK_PRODUCTS } from "../controllers/products.controller.mjs";
+import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
+import { checkDelivery, listDeliveryCities, findNearbyCities } from "../services/commerce/delivery.service.mjs";
+import { handleDeliveryFailure, findAlternativeLocations, findAlternativeDates, findAlternativeProducts } from "../services/commerce/deliveryRecoveryService.mjs";
+import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
 import logger from "../utils/logger.mjs";
 
 // ── Intent Router ────────────────────────────────────────────────────────────
@@ -24,35 +26,16 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             onProgress?.("SEARCHING", "active");
 
             let results;
-            let usingFallback = false;
             try {
                 results = await searchProducts(
                     parameters.query || parameters.q
                 );
             } catch (err) {
-                logger.error("[SEARCH PRODUCTS] MCP Search failed, falling back to mock catalog:", err.message);
-                usingFallback = true;
-                const queryStr = (parameters.query || parameters.q || "").toLowerCase().trim();
-                const allMockProducts = Object.values(MOCK_PRODUCTS).map(p => ({
-                    ...p,
-                    inStock: p.stock === true
-                }));
-                results = allMockProducts.filter(p => {
-                    if (!queryStr) return true;
-                    return (
-                        p.name.toLowerCase().includes(queryStr) ||
-                        p.description.toLowerCase().includes(queryStr) ||
-                        p.brand.toLowerCase().includes(queryStr) ||
-                        p.category.toLowerCase().includes(queryStr)
-                    );
-                });
+                logger.error("[SEARCH PRODUCTS] MCP Search failed:", err.message);
+                results = [];
             }
 
-            if (usingFallback) {
-                onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products from offline catalog`]);
-            } else {
-                onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
-            }
+            onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
             onProgress?.("FILTERING", "active");
 
             // Store results in shopping context for future filtering
@@ -208,17 +191,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             } catch (err) {
                 logger.error(`[PRODUCT DETAILS] Failed to fetch details: ${err.message}`);
 
-                // Fallback 1: check if it's in MOCK_PRODUCTS
-                if (MOCK_PRODUCTS[productId]) {
-                    logger.info(`[PRODUCT DETAILS] Falling back to offline MOCK_PRODUCTS database for ID: ${productId}`);
-                    const mockProd = MOCK_PRODUCTS[productId];
-                    trackInteraction(sessionId, mockProd.id, mockProd.name, mockProd.category, "details").catch(err => {
-                        logger.error("[Background Tracking Error] Failed to track fallback mock product details:", err);
-                    });
-                    return formatProductDetails(mockProd);
-                }
-
-                // Fallback 2: use product from shopping context if MCP call fails
+                // Fallback: use product from shopping context if MCP call fails
                 if (context.selectedProduct && context.selectedProduct.id === productId) {
                     logger.info("[PRODUCT DETAILS] Falling back to session context product");
                     // Track "details" interaction for context product in the background
@@ -242,26 +215,178 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             }
         }
 
-        case INTENTS.CHECK_DELIVERY:
-            return {
-                success: true,
-                action: "check_delivery",
-                parameters,
-            };
+        case INTENTS.CHECK_DELIVERY: {
+            onProgress?.("UNDERSTANDING", "active");
 
-        case INTENTS.CREATE_ORDER:
-            return {
-                success: true,
-                action: "create_order",
-                parameters,
-            };
+            const context = getShoppingContext(sessionId);
+            const productId = parameters.productId || parameters.product_id || context.selectedProduct?.id;
+            const city = parameters.city;
 
-        case INTENTS.TRACK_ORDER:
+            let date = parameters.deliveryDate || parameters.delivery_date;
+            if (date === "tomorrow") {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              date = tomorrow.toISOString().split("T")[0];
+            } else if (date === "next day" || date === "next_day") {
+              const nextDay = new Date();
+              nextDay.setDate(nextDay.getDate() + 2);
+              date = nextDay.toISOString().split("T")[0];
+            } else if (!date) {
+              const tomorrow = new Date();
+              tomorrow.setDate(tomorrow.getDate() + 1);
+              date = tomorrow.toISOString().split("T")[0];
+            }
+
+            if (!city) {
+              return {
+                type: "text",
+                text: "Which city would you like to deliver to?"
+              };
+            }
+
+            try {
+              const res = await checkDelivery(city, date, productId);
+
+              if (res.available) {
+                logger.delivery(`Delivery Available to ${city} on ${date}`);
+                return {
+                  type: "delivery_result",
+                  available: true,
+                  city: res.city || city,
+                  deliveryDate: res.deliveryDate || date,
+                  deliveryCharge: res.deliveryCharge || 0,
+                  text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.`
+                };
+              } else {
+                logger.delivery(`Delivery Check Failed for ${city} on ${date} (Unavailable)`);
+
+                const recovery = await handleDeliveryFailure(city, date, productId);
+
+                updateMemory(sessionId, {
+                  lastCheckedDelivery: {
+                    city: city,
+                    deliveryDate: date,
+                    productId: productId || ""
+                  }
+                });
+
+                return {
+                  type: "delivery_result",
+                  ...recovery
+                };
+              }
+            } catch (err) {
+              logger.delivery(`Delivery Check Error for ${city} on ${date}: ${err.message}`);
+
+              const recovery = await handleDeliveryFailure(city, date, productId);
+
+              updateMemory(sessionId, {
+                lastCheckedDelivery: {
+                  city: city,
+                  deliveryDate: date,
+                  productId: productId || ""
+                }
+              });
+
+              return {
+                type: "delivery_result",
+                ...recovery
+              };
+            }
+        }
+
+        case INTENTS.RECOVERY_NEARBY_LOCATION: {
+            logger.delivery(`Recovery Flow Started: Nearby Location check`);
+
+            const memory = getMemory(sessionId);
+            const lastChecked = memory.lastCheckedDelivery || {};
+            const city = lastChecked.city || "Mullaitivu";
+
+            const nearby = await findAlternativeLocations(city);
+            logger.delivery(`Alternative Locations Suggested: ${nearby.join(", ")}`);
+
             return {
-                success: true,
-                action: "track_order",
-                parameters,
+              type: "nearby_cities",
+              city: city,
+              cities: nearby,
+              text: `I couldn't deliver this item to **${city}** on your selected date.\n\nNearby delivery locations:\n${nearby.map(c => `📍 ${c}`).join("\n")}\n\nYou can select one from the panel below or choose another date or similar product.`
             };
+        }
+
+        case INTENTS.RECOVERY_ALTERNATIVE_DATE: {
+            logger.delivery(`Recovery Flow Started: Alternative Date check`);
+
+            const dates = findAlternativeDates();
+
+            return {
+              type: "alternative_date",
+              dates: dates,
+              text: "📅 Choose Another Delivery Date\n\nPlease choose Tomorrow, Next Day, or a custom date from the panel below to check delivery again."
+            };
+        }
+
+        case INTENTS.RECOVERY_SIMILAR_PRODUCTS: {
+            logger.recommendation(`Recovery Flow Started: Suggesting similar deliverable products`);
+
+            const memory = getMemory(sessionId);
+            const lastChecked = memory.lastCheckedDelivery || {};
+            const productId = lastChecked.productId || (memory.shoppingContext?.selectedProduct?.id);
+
+            const products = await findAlternativeProducts(productId);
+            logger.recommendation(`Similar Products Found: ${products.length} alternatives`);
+
+            return {
+              type: "similar_products",
+              products: products,
+              text: `🎁 Find Similar Deliverable Products\n\nHere are some similar products that might be deliverable to your location:`
+            };
+        }
+
+        case INTENTS.CREATE_ORDER: {
+            logger.checkout(`CREATE_ORDER intent detected for session: ${sessionId}`);
+            const memory = getMemory(sessionId);
+            const cart = memory.cart || [];
+            
+            if (cart.length === 0) {
+                logger.checkout(`Cart is empty for session: ${sessionId}. Aborting checkout.`);
+                return {
+                    type: "text",
+                    text: "Your cart is empty. Please add some products to your cart before checking out!"
+                };
+            }
+            
+            logger.checkout(`Cart has ${cart.length} items. Initializing checkout panel trigger.`);
+            return {
+                type: "checkout_init",
+                text: "I have opened the checkout panel for you. Please confirm your delivery details in the checkout panel.",
+                cart: cart
+            };
+        }
+
+        case INTENTS.TRACK_ORDER: {
+            const orderNumber = parameters.orderNumber || parameters.order_number;
+            logger.tracking(`Tracking order number: ${orderNumber}`);
+            
+            if (!orderNumber) {
+                return {
+                    type: "text",
+                    text: "Please provide a valid Order ID to track."
+                };
+            }
+            try {
+                const trackingData = await trackOrder(orderNumber);
+                return {
+                    type: "order_tracking",
+                    tracking: trackingData
+                };
+            } catch (error) {
+                return {
+                    type: "order_tracking_error",
+                    message: error.message || "Unable to retrieve order status",
+                    orderNumber
+                };
+            }
+        }
 
         default:
             return {

@@ -21,16 +21,28 @@ interface Props {
 
 const IMG_H = 190; // fixed image height in the banner
 
+const getBadgeEmoji = (type?: string): string => {
+  if (!type) return "🏆";
+  const t = type.toLowerCase();
+  if (t.includes("best")) return "🏆";
+  if (t.includes("budget")) return "💰";
+  if (t.includes("premium")) return "💎";
+  if (t.includes("popular")) return "⭐";
+  if (t.includes("alternative")) return "🔄";
+  return "🎁";
+};
+
 /* ── Small card ── */
 function MiniCard({
-  product, onClick,
-}: { product: Product; onClick: () => void }) {
+  product, onClick, productId,
+}: { product: Product; onClick: () => void; productId?: string }) {
   const [imgErr, setImgErr] = useState(false);
   return (
     <motion.div
       layout
       whileHover={{ y: -2 }}
       onClick={onClick}
+      data-product-id={productId || product.id}
       style={{
         borderRadius: 12,
         background: "#fff",
@@ -39,13 +51,14 @@ function MiniCard({
         cursor: "pointer",
         boxShadow: "0 2px 8px rgba(64,41,112,0.07)",
         userSelect: "none",
+        position: "relative",
       }}
     >
       {/* image — shared element */}
       <motion.div
         layoutId={`product-img-${product.id}`}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
-        style={{ width: "100%", aspectRatio: "4/3", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", flexShrink: 0 }}
+        style={{ width: "100%", aspectRatio: "4/3", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", flexShrink: 0, position: "relative" }}
       >
         {!imgErr
           ? <img src={product.images[0]} alt={product.name} onError={() => setImgErr(true)}
@@ -54,6 +67,30 @@ function MiniCard({
             <Package size={20} color="rgba(124,77,186,0.25)" />
           </div>
         }
+
+        {/* Recommendation Badge Overlay */}
+        {product.recommendationType && (
+          <div style={{
+            position: "absolute",
+            top: 6,
+            left: 6,
+            background: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(4px)",
+            padding: "2px 6px",
+            borderRadius: 6,
+            fontSize: 8,
+            fontWeight: 800,
+            color: "#402970",
+            boxShadow: "0 2px 6px rgba(64,41,112,0.15)",
+            zIndex: 2,
+            fontFamily: "'Nunito', sans-serif",
+            display: "flex",
+            alignItems: "center",
+            gap: 3
+          }}>
+            {getBadgeEmoji(product.recommendationType)} {product.recommendationType}
+          </div>
+        )}
       </motion.div>
 
       <div style={{ padding: "7px 9px 9px" }}>
@@ -70,7 +107,7 @@ function MiniCard({
         <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>
           {formatUIPrice(product.price, product.currency)}
         </p>
-        {product.explanation && product.explanation.length > 0 && (
+        {product.explanation && product.explanation.length > 0 ? (
           <div style={{ marginTop: 6, padding: "5px 6px", borderRadius: 6, background: "rgba(124,77,186,0.05)", borderLeft: "2px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
             <p style={{ color: "#7c4dba", fontSize: 7.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
               Recommended:
@@ -81,7 +118,7 @@ function MiniCard({
               </p>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
     </motion.div>
   );
@@ -172,6 +209,28 @@ function SelectedBanner({
               -{discount}%
             </span>
           )}
+          {product.recommendationType && (
+            <div style={{
+              position: "absolute",
+              top: discount ? 32 : 8,
+              left: 8,
+              background: "rgba(255, 255, 255, 0.95)",
+              backdropFilter: "blur(4px)",
+              padding: "2px 8px",
+              borderRadius: 6,
+              fontSize: 8,
+              fontWeight: 800,
+              color: "#402970",
+              boxShadow: "0 2px 6px rgba(64,41,112,0.15)",
+              zIndex: 2,
+              fontFamily: "'Nunito', sans-serif",
+              display: "flex",
+              alignItems: "center",
+              gap: 3
+            }}>
+              {getBadgeEmoji(product.recommendationType)} {product.recommendationType}
+            </div>
+          )}
           {product.images.length > 1 && (
             <div style={{ position: "absolute", bottom: 8, width: "100%", display: "flex", justifyContent: "center", gap: 4, zIndex: 1 }}>
               {product.images.map((_, i) => (
@@ -224,7 +283,7 @@ function SelectedBanner({
 
           <p style={{ color: "#7c6a9e", fontSize: 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
 
-          {product.explanation && product.explanation.length > 0 && (
+          {product.explanation && product.explanation.length > 0 ? (
             <div style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
               <p style={{ color: "#7c4dba", fontSize: 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif" }}>
                 Recommended for you because:
@@ -235,7 +294,7 @@ function SelectedBanner({
                 </p>
               ))}
             </div>
-          )}
+          ) : null}
 
           {product.variants.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -345,6 +404,12 @@ function SelectedBanner({
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
             <Heart size={13} strokeWidth={2} color="#9e8dc0" fill="none" />
             <span style={{ color: "#9e8dc0", fontSize: 11, fontWeight: 700 }}>Wishlist</span>
+          </motion.button>
+
+          <motion.button type="button" whileTap={{ scale: 0.94 }} onClick={() => onViewDetails(product.id)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(124,77,186,0.2)", background: "transparent", cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
+            <Maximize2 size={12} strokeWidth={2} color="#7c4dba" />
+            <span style={{ color: "#7c4dba", fontSize: 11, fontWeight: 700 }}>View Details</span>
           </motion.button>
         </motion.div>
       </motion.div>
@@ -554,7 +619,22 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
               exit={{ opacity: 0, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 340, damping: 34 }}
             >
-              <MiniCard product={p} onClick={() => handleSelect(p)} />
+              <MiniCard 
+                product={p} 
+                productId={p.id}
+                onClick={() => {
+                  // First, select the product to show banner
+                  handleSelect(p);
+                  // Then, directly open the product details
+                  setTimeout(() => onViewDetails(p.id), 150);
+                  // Store product ID for comparison feature
+                  const comparedIds = JSON.parse(localStorage.getItem('compared_product_ids') || '[]');
+                  if (!comparedIds.includes(p.id)) {
+                    comparedIds.push(p.id);
+                    localStorage.setItem('compared_product_ids', JSON.stringify(comparedIds.slice(-5)));
+                  }
+                }}
+              />
             </motion.div>
           );
         })}

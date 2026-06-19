@@ -1,13 +1,16 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { type Product } from "../components/products";
 import { type DeliveryInfo, type SellerInfo } from "../components/InteractiveOrderSummary";
 import { type OrderConfirmationDetails } from "../components/OrderConfirmationCard";
 import { type OrderTrackingDetails } from "../types/orderTracking";
 import { type LogItem } from "../components/AgentActivityBar";
+import { CartProvider, useCart, type CartItem } from "./CartContext";
+import { WishlistProvider, useWishlist } from "./WishlistContext";
+import { RecentlyViewedProvider, useRecentlyViewed } from "./RecentlyViewedContext";
 
 export type Phase = "centered" | "bottom";
 export type PanelId = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
-export type RightPanelId = "Wishlist" | "Cart" | "Saved" | null;
+export type RightPanelId = null;
 
 export interface AnchorPos {
   x: number;
@@ -43,10 +46,7 @@ export interface Message {
   workflow?: GuidedWorkflowState;
 }
 
-export interface CartItem {
-  product: Product;
-  qty: number;
-}
+export type { CartItem };
 
 export interface ActivityState {
   currentStep: string;
@@ -87,6 +87,8 @@ export interface AppContextType {
   setShoppingContext: React.Dispatch<React.SetStateAction<{ lastSearchResults: Product[]; selectedProduct: Product | null }>>;
   selectedIds: Record<number, string | null>;
   setSelectedIds: React.Dispatch<React.SetStateAction<Record<number, string | null>>>;
+  displayedCounts: Record<number, number>;
+  setDisplayedCounts: React.Dispatch<React.SetStateAction<Record<number, number>>>;
   activity: ActivityState | null;
   setActivity: React.Dispatch<React.SetStateAction<ActivityState | null>>;
   activityExpanded: boolean;
@@ -123,6 +125,14 @@ export interface AppContextType {
   setAddressError: (err: string) => void;
   checkingAddress: boolean;
   setCheckingAddress: (checking: boolean) => void;
+  activeScreen: "chat" | "cart" | "wishlist";
+  setActiveScreen: (screen: "chat" | "cart" | "wishlist") => void;
+  activeSmartPanel: "recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null;
+  setActiveSmartPanel: (panel: "recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null) => void;
+  nearbyCitiesSuggested: string[];
+  setNearbyCitiesSuggested: React.Dispatch<React.SetStateAction<string[]>>;
+  lastCheckedDelivery: { city: string; deliveryDate: string; productId: string } | null;
+  setLastCheckedDelivery: React.Dispatch<React.SetStateAction<{ city: string; deliveryDate: string; productId: string } | null>>;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -133,17 +143,26 @@ export interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [phase, setPhase] = useState<Phase>("centered");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
   const [anchorPos, setAnchorPos] = useState<AnchorPos>({ x: 0, y: 0 });
   const [rightPanel, setRightPanel] = useState<RightPanelId>(null);
   const [value, setValue] = useState("");
+  const [activeScreen, setActiveScreen] = useState<"chat" | "cart" | "wishlist">("chat");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [wishlistItems, setWishlistItems] = useState<Product[]>([]);
-  const [savedItems, setSavedItems] = useState<Product[]>([]);
+  const [activeSmartPanel, setActiveSmartPanel] = useState<"recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null>(null);
+  const [nearbyCitiesSuggested, setNearbyCitiesSuggested] = useState<string[]>([]);
+  const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string } | null>(null);
+
+  // Consume new independent contexts
+  const { cartItems, addToCart } = useCart();
+  const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
+
+  // Bridge state lists
+  const wishlistItemsProducts = useMemo(() => wishlistItems.map(item => item.product), [wishlistItems]);
+
   const [orderedItems, setOrderedItems] = useState<OrderConfirmationDetails[]>(() => {
     try {
       const stored = localStorage.getItem("ordered_items");
@@ -160,6 +179,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }>({ lastSearchResults: [], selectedProduct: null });
 
   const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
+  const [displayedCounts, setDisplayedCounts] = useState<Record<number, number>>({});
   const [activity, setActivity] = useState<ActivityState | null>(null);
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [pendingProductActions, setPendingProductActions] = useState<PendingProductActions | null>(null);
@@ -179,37 +199,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [addressError, setAddressError] = useState("");
   const [checkingAddress, setCheckingAddress] = useState(false);
 
-  // Common operations
+  // Bridged operations
   const handleAddToCart = (p: Product) => {
-    setCartItems(prev => {
-      const exists = prev.find(i => i.product.id === p.id);
-      if (exists) return prev.map(i => i.product.id === p.id ? { ...i, qty: i.qty + 1 } : i);
-      return [...prev, { product: p, qty: 1 }];
-    });
-    setRightPanel("Cart");
-
-    // Track "add_to_cart" interaction
-    const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
-    fetch("/api/products/interaction", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-session-id": getSessionId(),
-      },
-      body: JSON.stringify({
-        productId: p.id,
-        productName: p.name,
-        category: p.category,
-        action: "add_to_cart"
-      })
-    }).catch(err => console.error("Failed to track add_to_cart:", err));
+    addToCart(p, 1);
+    setActiveScreen("cart");
   };
 
   const handleWishlist = (p: Product) => {
-    setWishlistItems(prev =>
-      prev.find(i => i.id === p.id) ? prev.filter(i => i.id !== p.id) : [...prev, p]
-    );
-    setRightPanel("Wishlist");
+    const isWishlisted = wishlistItems.some(item => item.productId === p.id);
+    if (isWishlisted) {
+      removeFromWishlist(p.id);
+    } else {
+      addToWishlist(p);
+    }
+    setActiveScreen("wishlist");
   };
 
   const saveOrderToHistory = (order: OrderConfirmationDetails) => {
@@ -247,12 +250,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         rightPanel, setRightPanel,
         value, setValue,
         messages, setMessages,
-        cartItems, setCartItems,
-        wishlistItems, setWishlistItems,
-        savedItems, setSavedItems,
+        cartItems, setCartItems: () => {}, // NO-OP since managed by CartContext
+        wishlistItems: wishlistItemsProducts, setWishlistItems: () => {}, // NO-OP since managed by WishlistContext
+        savedItems: [], setSavedItems: () => {},
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,
+        displayedCounts, setDisplayedCounts,
         activity, setActivity,
         activityExpanded, setActivityExpanded,
         pendingProductActions, setPendingProductActions,
@@ -271,6 +275,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         newCity, setNewCity,
         addressError, setAddressError,
         checkingAddress, setCheckingAddress,
+        activeScreen, setActiveScreen,
+        activeSmartPanel, setActiveSmartPanel,
+        nearbyCitiesSuggested, setNearbyCitiesSuggested,
+        lastCheckedDelivery, setLastCheckedDelivery,
 
         handleAddToCart,
         handleWishlist,
@@ -280,6 +288,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     >
       {children}
     </AppContext.Provider>
+  );
+};
+
+export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <CartProvider>
+      <WishlistProvider>
+        <RecentlyViewedProvider>
+          <AppInnerProvider>
+            {children}
+          </AppInnerProvider>
+        </RecentlyViewedProvider>
+      </WishlistProvider>
+    </CartProvider>
   );
 };
 

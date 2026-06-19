@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Heart, ShoppingCart, Bookmark, Package, ChevronDown, PanelLeft, Sparkles,
-  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle
+  Heart, ShoppingCart, Package, ChevronDown, PanelLeft, Sparkles,
+  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle, Languages, Menu
 } from "lucide-react";
-import { useApp, type RightPanelId } from "../contexts/AppContext";
+import { useApp } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
 import { type OrderConfirmationDetails } from "./OrderConfirmationCard";
 
@@ -17,12 +17,11 @@ export const CURRENCIES = [
 ];
 
 interface TopNavbarProps {
-  onRightPanel: (id: RightPanelId) => void;
   onTrackOrder: (orderNumber: string) => void;
 }
 
-export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder }) => {
-  const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue } = useApp();
+export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
+  const { sidebarOpen, setSidebarOpen, orderedItems, setPhase, setMessages, setValue, setActiveScreen } = useApp();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
@@ -53,11 +52,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
     setPhase("centered");
     setMessages([]);
     setValue("");
+    setActiveScreen("chat");
   };
 
   return (
     <div
-      className="relative z-10 flex items-center justify-between px-4"
+      className="relative z-30 flex items-center justify-between px-4"
       style={{
         height: 56,
         background: "rgba(255,255,255,0.55)",
@@ -67,53 +67,90 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
       }}
     >
       <div className="flex items-center gap-3">
-        <ToggleButton open={sidebarOpen} onClick={() => setSidebarOpen(o => !o)} />
-        
-        {/* Brand Identity Text */}
+        {/* Mobile Hamburger Menu */}
+        <button 
+          className="md:hidden flex items-center justify-center text-[#7c4dba] hover:bg-[rgba(124,77,186,0.1)] p-1.5 rounded-lg transition-colors"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Menu size={22} strokeWidth={2.5} />
+        </button>
+
+        {/* Squircle Brand Logo */}
         <div 
           onClick={handleHomeClick}
-          className="flex flex-col justify-center select-none font-['Nunito'] cursor-pointer group"
+          className="flex items-center gap-3 select-none font-['Nunito'] cursor-pointer group"
           title="Go to Home"
         >
-          <div className="flex items-center gap-1.5">
-            <span 
-              className="group-hover:text-[#7c4dba] transition-colors duration-200"
-              style={{ fontSize: 13.5, fontWeight: 800, color: "#1a1025", letterSpacing: "0.05em" }}
-            >
-              VELORA AI
+          <div
+            className="flex items-center justify-center shadow-sm"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              background: "linear-gradient(135deg, #a855f7, #7c3aed)",
+              boxShadow: "0 2px 8px rgba(124, 77, 186, 0.22)",
+              flexShrink: 0,
+            }}
+          >
+            <Sparkles size={20} color="#fff" fill="#fff" />
+          </div>
+          
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-2">
+              <span 
+                className="hidden sm:block group-hover:text-[#7c4dba] transition-colors duration-200"
+                style={{ fontSize: 15, fontWeight: 800, color: "#1a1025", letterSpacing: "0.03em" }}
+              >
+                VELORA AI
+              </span>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: "#7c4dba",
+                  background: "#f0ebfa",
+                  padding: "1.5px 6.5px",
+                  borderRadius: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.02em",
+                }}
+              >
+                PRO
+              </span>
+            </div>
+            <span className="hidden sm:block" style={{ fontSize: 11, fontWeight: 600, color: "#7c4dba", marginTop: 0 }}>
+              Smart Shopping Assistant
             </span>
           </div>
-          <span style={{ fontSize: 10, fontWeight: 600, color: "#7c6a9e", marginTop: -1 }}>Smart Shopping Assistant</span>
         </div>
       </div>
 
-      <div className="flex items-center gap-1">
-        <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => onRightPanel("Wishlist")} />
-        <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => onRightPanel("Cart")} />
-        <NavbarIconBtn icon={<Bookmark size={19} strokeWidth={1.9} />} label="Saved" onClick={() => onRightPanel("Saved")} />
-        <div style={{ width: 1, height: 22, background: "rgba(64,41,112,0.15)", margin: "0 6px" }} />
+      <div className="flex items-center gap-1.5">
+        <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => setActiveScreen("wishlist")} />
+        <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => setActiveScreen("cart")} />
 
         {/* Language Selector */}
-        <div ref={langRef} className="relative">
+        <div ref={langRef} className="relative ml-1">
           <button
             type="button"
             onClick={() => setLangOpen(o => !o)}
-            className="flex items-center gap-1 hover:bg-[rgba(64,41,112,0.08)] transition-all"
+            className="flex items-center gap-1.5 hover:bg-[rgba(64,41,112,0.06)] transition-all"
             style={{
-              height: 34,
-              padding: "0 10px",
+              height: 36,
+              padding: "0 12px",
               borderRadius: 9999,
-              border: `1px solid ${langOpen ? "rgba(124, 77, 186, 0.45)" : "rgba(64, 41, 112, 0.15)"}`,
-              background: langOpen ? "rgba(124, 77, 186, 0.08)" : "rgba(255, 255, 255, 0.7)",
+              border: `1px solid ${langOpen ? "rgba(124, 77, 186, 0.35)" : "rgba(64, 41, 112, 0.12)"}`,
+              background: langOpen ? "rgba(124, 77, 186, 0.05)" : "#fdfbfe",
               color: "#402970",
               cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
               fontSize: 12.5,
-              fontWeight: 600,
+              fontWeight: 700,
             }}
           >
-            <Globe size={14} strokeWidth={2} />
-            <span>{selectedLang.code}</span>
+            <Languages size={14} strokeWidth={2} />
+            <span className="hidden sm:inline">{selectedLang.code}</span>
+            <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.7 }} />
           </button>
           
           <AnimatePresence>
@@ -175,47 +212,40 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
           <button
             type="button"
             onClick={() => setDropdownOpen(o => !o)}
-            className="flex items-center gap-1.5 relative"
+            className="flex items-center gap-2 relative hover:bg-[rgba(124,77,186,0.04)] transition-all"
             style={{
-              height: 34,
-              padding: "0 12px",
-              borderRadius: 9999,
-              border: `1px solid ${dropdownOpen ? "rgba(124, 77, 186, 0.45)" : "rgba(64, 41, 112, 0.18)"}`,
-              background: dropdownOpen ? "rgba(124, 77, 186, 0.08)" : "rgba(255, 255, 255, 0.7)",
-              color: "#402970",
+              height: 36,
+              padding: "0 14px",
+              borderRadius: 10,
+              border: "1px solid #f0ebfa",
+              background: "#fdfbfe",
+              color: "#7c4dba",
               cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
               fontSize: 13,
-              fontWeight: 600,
-              transition: "all 0.15s",
+              fontWeight: 700,
               whiteSpace: "nowrap",
             }}
           >
-            <Package size={14} strokeWidth={2} />
+            <Package size={15} strokeWidth={2.2} />
             <span>Ordered Items</span>
-            {orderedItems.length > 0 && (
-              <span
-                style={{
-                  background: "linear-gradient(135deg, #7c4dba, #402970)",
-                  color: "#ffffff",
-                  fontSize: 9,
-                  fontWeight: 800,
-                  borderRadius: "50%",
-                  width: 16,
-                  height: 16,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  marginLeft: 2,
-                  boxShadow: "0 2px 5px rgba(64,41,112,0.2)",
-                }}
-              >
-                {orderedItems.length}
-              </span>
-            )}
-            <motion.span animate={{ rotate: dropdownOpen ? 180 : 0 }} transition={{ duration: 0.2 }} style={{ display: "flex", alignItems: "center" }}>
-              <ChevronDown size={13} strokeWidth={2.5} />
-            </motion.span>
+            <span
+              style={{
+                background: "#7c4dba",
+                color: "#ffffff",
+                fontSize: 10,
+                fontWeight: 800,
+                borderRadius: "50%",
+                width: 18,
+                height: 18,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginLeft: 4,
+              }}
+            >
+              {orderedItems.length > 0 ? orderedItems.length : 5}
+            </span>
           </button>
 
           <AnimatePresence>
@@ -288,7 +318,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
                           transition: "all 0.2s",
                         }}
                       >
-                        <div style={{ display: "flex", justifycontent: "space-between", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <span style={{ fontSize: 10.5, fontWeight: 800, color: "#7c4dba", fontFamily: "monospace" }}>
                             {order.orderNumber}
                           </span>
@@ -374,24 +404,41 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
           </AnimatePresence>
         </div>
 
+        <div style={{ width: 1, height: 26, background: "rgba(64, 41, 112, 0.12)", margin: "0 10px" }} />
+
         {/* Profile Button */}
         <div ref={profileRef} className="relative">
           <button
             type="button"
             onClick={() => setProfileOpen(o => !o)}
-            className="flex items-center justify-center hover:bg-[rgba(64,41,112,0.08)] transition-all"
+            className="flex items-center justify-center hover:bg-[rgba(64,41,112,0.06)] rounded-full transition-all"
             style={{
-              width: 36,
-              height: 36,
-              borderRadius: 9999,
+              width: 38,
+              height: 38,
               border: "none",
               cursor: "pointer",
-              background: profileOpen ? "rgba(124, 77, 186, 0.08)" : "transparent",
-              color: profileOpen ? "#402970" : "#7c6a9e",
-              transition: "background 0.15s, color 0.15s",
+              background: profileOpen ? "rgba(124, 77, 186, 0.06)" : "transparent",
+              padding: 0,
             }}
           >
-            <UserCircle size={22} strokeWidth={1.8} />
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                background: "#f0ebfa",
+                color: "#7c4dba",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 800,
+                fontSize: 15,
+                fontFamily: "'Nunito', sans-serif",
+                flexShrink: 0,
+              }}
+            >
+              U
+            </div>
           </button>
           
           <AnimatePresence>
@@ -405,7 +452,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
                   position: "absolute",
                   top: "calc(100% + 6px)",
                   right: 0,
-                  width: 200,
+                  width: 210,
                   background: "rgba(255, 255, 255, 0.98)",
                   backdropFilter: "blur(20px)",
                   borderRadius: 14,
@@ -419,12 +466,12 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onRightPanel, onTrackOrder
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid rgba(64, 41, 112, 0.08)", paddingBottom: 8 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "linear-gradient(135deg, #7c4dba, #402970)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>
-                    AJ
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f0ebfa", color: "#7c4dba", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>
+                    U
                   </div>
                   <div style={{ minWidth: 0, textAlign: "left" }}>
-                    <h5 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito', sans-serif" }}>Alex Johnson</h5>
-                    <p style={{ color: "#7c6a9e", fontSize: 10, margin: 0, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "'Nunito', sans-serif" }}>alex@example.com</p>
+                    <h5 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito', sans-serif" }}>Member</h5>
+                    <p style={{ color: "#7c6a9e", fontSize: 10, margin: 0, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "'Nunito', sans-serif" }}>abbyyogathas@gmail.com</p>
                   </div>
                 </div>
                 

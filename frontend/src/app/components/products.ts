@@ -20,6 +20,9 @@ export interface Product {
   isMcp?: boolean;
   currency?: string;
   explanation?: string[];
+  score?: number;
+  recommendationType?: string;
+  recommendationReason?: string;
 }
 
 export const PRODUCTS: Product[] = [

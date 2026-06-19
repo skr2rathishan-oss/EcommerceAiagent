@@ -38,10 +38,12 @@ export const fetchProductDetails = async (productId: string): Promise<ProductDet
 };
 
 export const checkDelivery = async (req: DeliveryRequest): Promise<DeliveryResponse> => {
+  const sessionId = sessionStorage.getItem("velora_session_id") || "default";
   const response = await fetch("/api/delivery/check", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-session-id": sessionId,
     },
     body: JSON.stringify(req),
   });

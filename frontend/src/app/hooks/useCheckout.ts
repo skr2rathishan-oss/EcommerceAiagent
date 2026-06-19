@@ -3,11 +3,12 @@ import { type Product } from "../components/products";
 import { type DeliveryInfo, getDefaultSeller } from "../components/InteractiveOrderSummary";
 import { type OrderConfirmationDetails } from "../components/OrderConfirmationCard";
 import { checkDelivery } from "../services/productServices";
+import { useCart } from "../contexts/CartContext";
 
 export const useCheckout = () => {
+  const { clearCart } = useCart();
   const {
     cartItems,
-    setCartItems,
     setMessages,
     setCheckoutOpen,
     orderedItems,
@@ -180,7 +181,7 @@ export const useCheckout = () => {
         order: orderDetails
       }
     ]);
-    setCartItems([]);
+    clearCart();
     setCheckoutOpen(false);
   };
 

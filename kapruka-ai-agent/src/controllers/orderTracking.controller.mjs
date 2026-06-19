@@ -1,4 +1,4 @@
-import { trackOrder } from "../services/orderTracking.service.mjs";
+import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const getOrderTracking = async (req, res) => {
@@ -21,7 +21,11 @@ export const getOrderTracking = async (req, res) => {
     return res.json(result);
   } catch (error) {
     logger.error("[ERROR] Failed in getOrderTracking", { error: error.message, stack: error.stack });
-    return res.status(500).json({
+    
+    const isNotFound = error.code === "ORDER_NOT_FOUND" || error.message?.toLowerCase().includes("not found");
+    const statusCode = isNotFound ? 404 : 500;
+    
+    return res.status(statusCode).json({
       success: false,
       message: error.message || "Failed to retrieve order tracking information."
     });
