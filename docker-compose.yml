@@ -1,14 +1,18 @@
 services:
   backend:
-    build:
-      context: ./kapruka-ai-agent
-      dockerfile: Dockerfile
-    container_name: velora-backend
-    ports:
-      - "5000:5000"
-    env_file:
-      - ./kapruka-ai-agent/.env
-    restart: always
+  build:
+    context: ./kapruka-ai-agent
+    dockerfile: Dockerfile
+  container_name: velora-backend
+  ports:
+    - "5000:5000"
+  env_file:
+    - ./kapruka-ai-agent/.env
+  volumes:
+    - /home/Rathishan/.config/gcloud:/root/.config/gcloud:ro
+  environment:
+    GOOGLE_CLOUD_PROJECT: spheric-algebra-499718-r2
+  restart: always
 
   frontend:
     build:
