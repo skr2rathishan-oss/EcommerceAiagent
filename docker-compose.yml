@@ -1,0 +1,22 @@
+services:
+  backend:
+    build:
+      context: ./kapruka-ai-agent
+      dockerfile: Dockerfile
+    container_name: velora-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - ./kapruka-ai-agent/.env
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: velora-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: always
