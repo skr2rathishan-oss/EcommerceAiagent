@@ -211,3 +211,6 @@
 2026-06-18T19:10:05.995Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 1698ms
 2026-06-19T04:43:44.039Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 1305ms
 2026-06-19T04:44:34.911Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2769ms
+2026-06-19T05:56:58.856Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 1767ms
+2026-06-19T06:00:15.049Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2254ms
+2026-06-19T06:33:53.549Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2191ms
