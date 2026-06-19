@@ -15,6 +15,7 @@ import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
 import { ChatInputBox } from "./components/ChatInputBox";
+import { VoiceDashboard } from "./components/VoiceDashboard";
 import { SuggestedPrompts } from "./components/SuggestedPrompts";
 import { PanelPopup } from "./components/PanelPopup";
 import { CartScreen } from "./components/CartScreen";
@@ -233,6 +234,8 @@ function MainApp() {
     activeSmartPanel,
     setActiveSmartPanel
   } = useApp();
+
+  const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
 
   const {
     handleProductSelect,
@@ -479,7 +482,7 @@ function MainApp() {
                     <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                       onKeyDown={handleKeyDown} canSend={canSend}
                       textareaRef={textareaRef} fileInputRef={fileInputRef}
-                      isTyping={isTyping} onStop={handleStop} variant="centered" />
+                      isTyping={isTyping} onStop={handleStop} variant="centered" onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
                   </div>
 
                   {/* Quick Actions (Pill Buttons) */}
@@ -1087,7 +1090,7 @@ function MainApp() {
                 <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
                   onKeyDown={handleKeyDown} canSend={canSend}
                   textareaRef={textareaRef} fileInputRef={fileInputRef}
-                  isTyping={isTyping} onStop={handleStop} />
+                  isTyping={isTyping} onStop={handleStop} onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
                 <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
                   Enter to send · Shift + Enter for new line
                 </p>
@@ -1097,6 +1100,17 @@ function MainApp() {
         )}
           </>
         )}
+        
+        {/* Voice Dashboard Overlay (Inside main content area) */}
+        <VoiceDashboard 
+          isOpen={voiceDashboardOpen} 
+          onClose={() => setVoiceDashboardOpen(false)} 
+          messages={messages} 
+          onSendMessage={(text) => {
+            setValue(text);
+            setTimeout(() => handleSend(), 10);
+          }} 
+        />
       </div>
 
       {/* Floating popup panels */}

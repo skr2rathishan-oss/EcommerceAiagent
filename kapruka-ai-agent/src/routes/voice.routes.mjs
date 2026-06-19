@@ -1,5 +1,8 @@
 import express from "express";
-import { generateSpeech } from "../services/media/voiceService.js";
+import { generateSpeech, transcribeAudio } from "../services/media/voiceService.js";
+import multer from "multer";
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -43,6 +46,30 @@ router.post("/", async (req, res) => {
             success: false,
             message: errorMessage
         });
+    }
+});
+
+// STT Route
+router.post("/transcribe", upload.single("audio"), async (req, res) => {
+    try {
+        let audioBuffer;
+        let mimetype = "audio/webm";
+
+        if (req.file) {
+            audioBuffer = req.file.buffer;
+            mimetype = req.file.mimetype;
+        } else if (req.body.audioBase64) {
+            audioBuffer = Buffer.from(req.body.audioBase64, "base64");
+            if (req.body.mimetype) mimetype = req.body.mimetype;
+        } else {
+            return res.status(400).json({ success: false, message: "No audio file or base64 provided." });
+        }
+
+        const transcription = await transcribeAudio(audioBuffer, mimetype);
+        return res.json({ success: true, text: transcription });
+    } catch (err) {
+        console.error("Route error in /api/voice/transcribe:", err);
+        return res.status(500).json({ success: false, message: err.message || "Failed to transcribe audio." });
     }
 });
 

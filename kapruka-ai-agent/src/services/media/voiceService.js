@@ -1,4 +1,7 @@
 import { ElevenLabsClient } from "elevenlabs";
+import speech from "@google-cloud/speech";
+
+const speechClient = new speech.SpeechClient();
 
 /**
  * Initialize ElevenLabs client using the API key from environment variables.
@@ -80,6 +83,53 @@ export async function generateSpeech(text, options = {}) {
             }
         }
 
+        throw err;
+    }
+}
+
+/**
+ * Transcribes audio buffer to text using Google Cloud Speech-to-Text.
+ * @param {Buffer} audioBuffer - The audio file buffer.
+ * @param {string} mimetype - The mimetype of the audio file.
+ * @returns {Promise<string>} - Transcribed text.
+ */
+export async function transcribeAudio(audioBuffer, mimetype) {
+    if (!audioBuffer) {
+        throw new Error("Audio buffer is required for transcription.");
+    }
+
+    // Default to WEBM_OPUS if from Chrome MediaRecorder
+    let encoding = "WEBM_OPUS";
+    if (mimetype && mimetype.includes("mp4")) encoding = "MP4";
+    else if (mimetype && mimetype.includes("mp3")) encoding = "MP3";
+    else if (mimetype && mimetype.includes("wav")) encoding = "LINEAR16";
+
+    // Set sample rate depending on typical formats. For webm, 48000 is common.
+    // If not matching perfectly, Google Cloud STT can often infer or handle it gracefully
+    // when using webm/opus or mp3 formats natively.
+
+    const request = {
+        audio: {
+            content: audioBuffer.toString("base64"),
+        },
+        config: {
+            encoding: encoding,
+            // sampleRateHertz: 48000,
+            languageCode: "en-US",
+            enableAutomaticPunctuation: true,
+        },
+    };
+
+    console.log("[STT] Transcription Request Started...");
+    try {
+        const [response] = await speechClient.recognize(request);
+        const transcription = response.results
+            .map(result => result.alternatives[0].transcript)
+            .join("\\n");
+        console.log(`[STT SUCCESS] Transcribed: "${transcription}"`);
+        return transcription;
+    } catch (err) {
+        console.error("[STT ERROR] Transcription failed:", err);
         throw err;
     }
 }
