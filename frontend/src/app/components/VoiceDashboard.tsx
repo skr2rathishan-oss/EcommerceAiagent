@@ -19,6 +19,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "speaking">("idle");
   const [waveform, setWaveform] = useState<number[]>([1.5, 2.5, 4, 5.5, 6, 5.5, 4, 2.5, 1.5]);
   const [isMuted, setIsMuted] = useState(false);
+  const [waitingForAI, setWaitingForAI] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -29,6 +30,18 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isOpen]);
+
+  // Detect when AI response arrives
+  useEffect(() => {
+    if (waitingForAI && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg.role === "ai") {
+        console.log("[VOICE] AI response received");
+        setWaitingForAI(false);
+        setStatus("speaking");
+      }
+    }
+  }, [messages, waitingForAI]);
 
   // Handle listening animation
   useEffect(() => {
@@ -72,11 +85,20 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
             });
             
             const data = await response.json();
-            if (data.success && data.text) {
-              onSendMessage(data.text);
-              // Expected AI response logic will trigger "speaking"
+            if (data.success) {
+              if (data.text && data.text.trim().length > 0) {
+                console.log("[VOICE] Transcript received:", data.text);
+                console.log("[VOICE] Creating user message");
+                console.log("[VOICE] Sending transcript to chat pipeline");
+                setWaitingForAI(true);
+                onSendMessage(data.text);
+                console.log("[VOICE] Waiting for AI response");
+              } else {
+                console.log("[VOICE] No speech detected (empty transcript).");
+                setStatus("idle");
+              }
             } else {
-              console.error("STT Error:", data.message);
+              console.error("STT Backend Error:", data.message || "Unknown error occurred");
               setStatus("idle");
             }
           } catch (error) {

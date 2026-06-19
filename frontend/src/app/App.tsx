@@ -1106,10 +1106,7 @@ function MainApp() {
           isOpen={voiceDashboardOpen} 
           onClose={() => setVoiceDashboardOpen(false)} 
           messages={messages} 
-          onSendMessage={(text) => {
-            setValue(text);
-            setTimeout(() => handleSend(), 10);
-          }} 
+          onSendMessage={(text) => handleSend(text)} 
         />
       </div>
 
