@@ -11,6 +11,7 @@ import { AgentActivityBar } from "./AgentActivityBar";
 import { type Message, useApp } from "../contexts/AppContext";
 import { GuidedWorkflowPanel } from "./GuidedWorkflowPanel";
 import { playVoice } from "../services/voiceServices";
+import { useVoiceAssistant } from "../hooks/useVoiceAssistant";
 
 interface MessageAreaProps {
   messages: Message[];
@@ -61,15 +62,61 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   const [voiceStates, setVoiceStates] = useState<Record<number, 'idle' | 'generating' | 'playing' | 'error'>>({});
   const [voiceErrors, setVoiceErrors] = useState<Record<number, string>>({});
   const activeAudioRef = useRef<HTMLAudioElement | null>(null);
+  const lastMessageCountRef = useRef(messages.length);
 
+  // Initialize voice assistant for auto-speak capability
+  const { isSpeaking, speak, stopSpeaking } = useVoiceAssistant({
+    lang: 'en-US',
+  });
+
+  // Auto-speak the latest AI message when a new message arrives
+  useEffect(() => {
+    // Only auto-speak if a new message was added
+    if (messages.length > lastMessageCountRef.current) {
+      const latestMessage = messages[messages.length - 1];
+      
+      // Only auto-speak AI messages that are not just products
+      if (latestMessage.role === "ai" && latestMessage.text && !latestMessage.products?.length) {
+        // Stop any currently playing audio
+        if (activeAudioRef.current) {
+          activeAudioRef.current.pause();
+          activeAudioRef.current = null;
+        }
+        
+        // Stop any ongoing speech synthesis
+        stopSpeaking();
+        
+        // Small delay to ensure clean transition
+        const timeout = setTimeout(() => {
+          // Clean the text for speech
+          const cleanText = latestMessage.text
+            .replace(/[*#_~`>]/g, "")
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+            .trim();
+          
+          // Use speech synthesis for natural voice
+          if (cleanText.length > 0) {
+            speak(cleanText);
+          }
+        }, 300);
+        
+        return () => clearTimeout(timeout);
+      }
+      
+      lastMessageCountRef.current = messages.length;
+    }
+  }, [messages, speak, stopSpeaking]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (activeAudioRef.current) {
         activeAudioRef.current.pause();
         activeAudioRef.current = null;
       }
+      stopSpeaking();
     };
-  }, []);
+  }, [stopSpeaking]);
 
   const handleListen = async (index: number, text: string) => {
     if (activeAudioRef.current) {

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Paperclip, Mic, ArrowUp, Square, Headphones, Sparkles } from "lucide-react";
+import { useVoiceAssistant } from "../hooks/useVoiceAssistant";
+import { VoiceIndicator } from "./ui/VoiceIndicator";
 
 interface ChatInputBoxProps {
   value: string;
@@ -28,9 +30,32 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   variant = "bottom",
 }) => {
   const [focused, setFocused] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const [voiceChatOpen, setVoiceChatOpen] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  
+  // Initialize voice assistant hook
+  const {
+    transcript,
+    isListening,
+    isSpeaking,
+    error,
+    isSupported: isVoiceSupported,
+    startListening,
+    stopListening,
+    clearTranscript,
+    clearError,
+  } = useVoiceAssistant({
+    lang: 'en-US',
+    continuous: false,
+    interimResults: true,
+  });
+
+  // Update input field when transcript changes
+  useEffect(() => {
+    if (transcript && transcript.trim()) {
+      onChange(transcript);
+    }
+  }, [transcript, onChange]);
 
   // Simulated Voice Call Timer
   useEffect(() => {
@@ -44,6 +69,13 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     }
     return () => clearInterval(timer);
   }, [voiceChatOpen]);
+
+  // Stop listening when user starts typing manually
+  useEffect(() => {
+    if (value && isListening) {
+      stopListening();
+    }
+  }, [value, isListening, stopListening]);
 
   // Auto-resize textarea height dynamically based on content
   useEffect(() => {
@@ -62,38 +94,34 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   };
 
   const handleVoiceClick = () => {
-    if (isListening) return;
-    setIsListening(true);
-    
-    const mockQueries = [
-      "Gaming laptops",
-      "Casual shirts",
-      "iPhone vs Samsung",
-      "Gift ideas for friend",
-      "Best leather shoes"
-    ];
-    const randomQuery = mockQueries[Math.floor(Math.random() * mockQueries.length)];
+    if (isListening) {
+      stopListening();
+    } else {
+      clearTranscript();
+      clearError();
+      startListening();
+    }
+  };
 
-    let counter = 0;
-    let currentText = "";
-    
-    const interval = setInterval(() => {
-      if (counter < randomQuery.length) {
-        currentText += randomQuery[counter];
-        onChange(currentText);
-        counter++;
-      } else {
-        clearInterval(interval);
-        setIsListening(false);
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-        }
-      }
-    }, 50);
+  const handleVoiceStop = () => {
+    stopListening();
+    // Focus input after stopping
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
   };
 
   return (
     <>
+      <VoiceIndicator 
+        isListening={isListening}
+        isSpeaking={isSpeaking}
+        error={error}
+        transcript={transcript}
+        position="top"
+        onDismissError={clearError}
+      />
+      
       <div
         style={{
           background: variant === "centered" ? "var(--card-bg, #ffffff)" : "rgba(255,255,255,0.92)",
@@ -143,11 +171,15 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             }}
           />
           <div className="flex items-center gap-1.5 flex-none" style={{ flexShrink: 0 }}>
-            {/* Recording / Voice Message Button (visible next to the main button when empty) */}
-            {!isTyping && !canSend && (
+            {/* Voice Button - visible when field is empty and not typing */}
+            {!isTyping && !canSend && isVoiceSupported && (
               <motion.button
                 type="button"
                 onClick={handleVoiceClick}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (isListening) handleVoiceStop();
+                }}
                 whileTap={{ scale: 0.92 }}
                 animate={isListening ? { scale: [1, 1.15, 1] } : {}}
                 transition={isListening ? { repeat: Infinity, duration: 1.2 } : {}}
@@ -174,7 +206,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
                     e.currentTarget.style.color = "#9e8dc0";
                   }
                 }}
-                title="Voice recording"
+                title={isListening ? "Stop listening (right-click)" : "Start voice input"}
               >
                 <Mic size={17} strokeWidth={2} />
               </motion.button>
