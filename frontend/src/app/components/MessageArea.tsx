@@ -140,52 +140,52 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
 
               {msg.role === "ai" && msg.products && msg.products.length > 0 && (
                 <motion.div
-                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
-                    style={{ marginTop: 12 }}
-                  >
-                    {/* Determine how many products to display */}
-                    {(() => {
-                      const total = msg.products.length;
-                      const currentCount = displayedCounts[i] ?? (total >= 5 ? 5 : total);
-                      const showCount = Math.min(currentCount, total);
-                      return (
-                        <>
-                          <ProductShowcase
-                            products={msg.products.slice(0, showCount)}
-                            selectedId={selectedIds[i] ?? null}
-                            onSelect={p => setSelectedIds(prev => ({ ...prev, [i]: p ? p.id : null }))}
-                            onAddToCart={onAddToCart}
-                            onBuyNow={onBuyNow}
-                            onWishlist={onWishlist}
-                            onViewDetails={onViewDetails}
-                            onSelectProduct={onSelectProduct}
-                          />
-                          {showCount < total && (
-                            <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
-                              <button
-                                onClick={() => {
-                                  const newCount = Math.min(showCount + 5, total);
-                                  setDisplayedCounts(prev => ({ ...prev, [i]: newCount }));
-                                }}
-                                style={{
-                                  padding: "8px 16px",
-                                  background: "linear-gradient(135deg,#7c4dba,#402970)",
-                                  color: "#fff",
-                                  border: "none",
-                                  borderRadius: 6,
-                                  fontFamily: "'Nunito',sans-serif",
-                                  cursor: "pointer",
-                                  boxShadow: "0 2px 8px rgba(64,41,112,0.2)"
-                                }}
-                              >
-                                Load More (+5)
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </motion.div>
+                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                  style={{ marginTop: 12 }}
+                >
+                  {/* Determine how many products to display */}
+                  {(() => {
+                    const total = msg.products.length;
+                    const currentCount = displayedCounts[i] ?? (total >= 5 ? 5 : total);
+                    const showCount = Math.min(currentCount, total);
+                    return (
+                      <>
+                        <ProductShowcase
+                          products={msg.products.slice(0, showCount)}
+                          selectedId={selectedIds[i] ?? null}
+                          onSelect={p => setSelectedIds(prev => ({ ...prev, [i]: p ? p.id : null }))}
+                          onAddToCart={onAddToCart}
+                          onBuyNow={onBuyNow}
+                          onWishlist={onWishlist}
+                          onViewDetails={onViewDetails}
+                          onSelectProduct={onSelectProduct}
+                        />
+                        {showCount < total && (
+                          <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+                            <button
+                              onClick={() => {
+                                const newCount = Math.min(showCount + 5, total);
+                                setDisplayedCounts(prev => ({ ...prev, [i]: newCount }));
+                              }}
+                              style={{
+                                padding: "8px 16px",
+                                background: "linear-gradient(135deg,#7c4dba,#402970)",
+                                color: "#fff",
+                                border: "none",
+                                borderRadius: 6,
+                                fontFamily: "'Nunito',sans-serif",
+                                cursor: "pointer",
+                                boxShadow: "0 2px 8px rgba(64,41,112,0.2)"
+                              }}
+                            >
+                              Load More (+5)
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </motion.div>
               )}
 
               {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && (

@@ -250,9 +250,9 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         rightPanel, setRightPanel,
         value, setValue,
         messages, setMessages,
-        cartItems, setCartItems: () => {}, // NO-OP since managed by CartContext
-        wishlistItems: wishlistItemsProducts, setWishlistItems: () => {}, // NO-OP since managed by WishlistContext
-        savedItems: [], setSavedItems: () => {},
+        cartItems, setCartItems: () => { }, // NO-OP since managed by CartContext
+        wishlistItems: wishlistItemsProducts, setWishlistItems: () => { }, // NO-OP since managed by WishlistContext
+        savedItems: [], setSavedItems: () => { },
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,

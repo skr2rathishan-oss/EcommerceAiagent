@@ -153,7 +153,7 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
         >
           {prod.name}
         </span>
-        
+
         {/* Rating and Reviews */}
         <div style={{ display: "flex", alignItems: "center", gap: 2.5, marginTop: 0.5 }}>
           <span style={{ color: "#fbbf24", fontSize: 10, lineHeight: 1 }}>★</span>
@@ -161,13 +161,13 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             {mockRating.rating} ({mockRating.reviews})
           </span>
         </div>
-        
+
         {/* Bottom Row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 1 }}>
           <span style={{ color: "#7c4dba", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
             {formatUIPrice(prod.price, prod.currency)}
           </span>
-          
+
           <motion.button
             whileHover={{ scale: 1.15 }}
             whileTap={{ scale: 0.85 }}
@@ -431,18 +431,18 @@ function MainApp() {
             {/* Centered phase */}
             <AnimatePresence>
               {phase === "centered" && (
-            <motion.div
-              key="centered"
-              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              <style>{`
+                <motion.div
+                  key="centered"
+                  className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
+                  style={{
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                  }}
+                >
+                  <style>{`
                 .custom-scrollbar::-webkit-scrollbar {
                   display: none;
                 }
@@ -451,650 +451,650 @@ function MainApp() {
                 }
               `}</style>
 
-              {/* Hero Banner Card */}
-              <motion.div
-                className="hero-banner relative w-full max-w-7xl rounded-3xl border p-12 md:py-32 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[400px]"
-                style={{
-                  borderColor: "var(--banner-border)",
-                  boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
-                }}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
-              >
-                {/* Content Wrapper */}
-                <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
-                  <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
-                      style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
-                    Discover Smart Shopping
-                    <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
-                      with Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
-                    </span>
-                  </h1>
-                  
-                  <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
-                    Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
-                  </p>
-
-                  <div className="w-full">
-                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                      onKeyDown={handleKeyDown} canSend={canSend}
-                      textareaRef={textareaRef} fileInputRef={fileInputRef}
-                      isTyping={isTyping} onStop={handleStop} variant="centered" />
-                  </div>
-
-                  {/* Quick Actions (Pill Buttons) */}
-                  <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
-                    {[
-                      { title: "Find Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
-                      { title: "Find Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
-                      { title: "Track My Order", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
-                    ].map((act, idx) => {
-                      const Icon = act.icon;
-                      return (
-                        <motion.button
-                          key={idx}
-                          whileHover={{
-                            y: -1.5,
-                            backgroundColor: "var(--card-hover-bg, rgba(255, 255, 255, 0.95))",
-                            borderColor: "var(--card-hover-border, rgba(124, 77, 186, 0.35))",
-                            boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
-                          }}
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => handleStartWorkflow(act.type)}
-                          className="cursor-pointer border transition-all duration-150 inline-flex items-center gap-1.5"
-                          style={{
-                            padding: "8px 16px",
-                            background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
-                            backdropFilter: "blur(8px)",
-                            borderColor: "var(--card-border, rgba(64, 41, 112, 0.12))",
-                            borderRadius: 9999,
-                            color: "var(--text-primary, #1a1025)",
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            fontFamily: "'Nunito', sans-serif"
-                          }}
-                        >
-                          <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
-                          <span>{act.title}</span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Product Recommendations Section */}
-              <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
-                {/* Section Header */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
-                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
-                      Top Recommendations
-                    </span>
-                  </div>
-                  <button
-                    type="button"
+                  {/* Hero Banner Card */}
+                  <motion.div
+                    className="hero-banner relative w-full max-w-7xl rounded-3xl border p-12 md:py-32 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[400px]"
                     style={{
-                      border: "none",
-                      background: "transparent",
-                      color: "#7c4dba",
-                      fontSize: "13px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      fontFamily: "'Nunito', sans-serif",
+                      borderColor: "var(--banner-border)",
+                      boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
                     }}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
                   >
-                    View all <ChevronRight size={14} strokeWidth={2.5} />
-                  </button>
-                </div>
+                    {/* Content Wrapper */}
+                    <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
+                      <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
+                        style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
+                        Discover Smart Shopping
+                        <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
+                          with Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
+                        </span>
+                      </h1>
 
-                {/* Recommendations Carousel Row with Arrow Buttons */}
-                <div className="relative w-full group">
-                  {/* Left Scroll Button */}
-                  <AnimatePresence>
-                    {canScrollLeft && (
-                      <motion.button
-                        key="left-scroll-btn"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        type="button"
-                        onClick={scrollLeft}
-                        className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9999,
-                          background: "var(--card-bg, #ffffff)",
-                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
-                          color: "#7c4dba",
-                        }}
-                      >
-                        <ChevronLeft size={20} strokeWidth={2.5} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
+                      <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
+                        Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
+                      </p>
 
-                  {/* Right Scroll Button */}
-                  <AnimatePresence>
-                    {canScrollRight && (
-                      <motion.button
-                        key="right-scroll-btn"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        type="button"
-                        onClick={scrollRight}
-                        className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9999,
-                          background: "var(--card-bg, #ffffff)",
-                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
-                          color: "#7c4dba",
-                        }}
-                      >
-                        <ChevronRight size={20} strokeWidth={2.5} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Card Horizontal Scroll Row */}
-                  <div
-                    ref={scrollContainerRef}
-                    onScroll={handleScrollEvent}
-                    style={{
-                      display: "flex",
-                      gap: 20,
-                      overflowX: "auto",
-                      padding: "8px 4px 16px",
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                      WebkitOverflowScrolling: "touch",
-                    }}
-                    className="no-scrollbar"
-                  >
-                    {loadingRecs ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: 160,
-                            height: 202,
-                            borderRadius: 14,
-                            background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
-                            border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
-                            boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
-                            position: "relative",
-                            overflow: "hidden"
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                              animation: "pulse 1.5s infinite"
-                            }}
-                          />
-                        </div>
-                      ))
-                    ) : recommendations.length === 0 ? (
-                      <div style={{ width: "100%", padding: "40px 0", textAlign: "center", color: "var(--text-secondary, #7c6a9e)", fontSize: 13, fontWeight: 600 }}>
-                        No recommendations available at the moment.
-                      </div>
-                    ) : (
-                      recommendations.map((prod) => (
-                        <RecommendationCard
-                          key={prod.id}
-                          prod={prod}
-                          onClick={() => {
-                            handleRequestProductDetails(prod.id, prod.name);
-                          }}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bottom phase */}
-        {phase === "bottom" && (
-          <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <MessageArea
-                messages={messages}
-                selectedIds={selectedIds}
-                setSelectedIds={setSelectedIds}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
-                onWishlist={handleWishlist}
-                onPlaceInlineOrder={handlePlaceInlineOrder}
-                isTyping={isTyping}
-                onViewDetails={(id) => {
-                  const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
-                  handleRequestProductDetails(id, found?.name);
-                }}
-                onContinueShopping={() => textareaRef.current?.focus()}
-                onSelectProduct={handleProductSelect}
-                activity={activity}
-                onRetry={handleRetry}
-                activityExpanded={activityExpanded}
-                onExpandedChange={setActivityExpanded}
-              />
-            </div>
-
-            <motion.div
-              className="w-full pt-3 flex justify-center flex-none"
-              initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
-            >
-              <div className="w-full" style={{ maxWidth: 720 }}>
-                <AnimatePresence>
-                  {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
-                  {activeSmartPanel && (
-                    <SmartInputPanel key="smart-input-panel" />
-                  )}
-
-                  {/* ── Product Actions Popup ─────────────────────────────────────────── */}
-                  {pendingProductActions && !pendingConfirmProduct && (
-                    <motion.div
-                      id="product-actions-popup"
-                      key="product-actions-popup"
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.97)",
-                        backdropFilter: "blur(14px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 18,
-                        padding: "13px 16px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 28px rgba(64, 41, 112, 0.15)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 11 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 700, margin: 0, lineHeight: 1.45 }}>
-                            Great choice! 😊 That looks like a promising option. What would you like to do next?
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPendingProductActions(null);
-                            setSelectedIds({});
-                            setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
-                          }}
-                          style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-                        >
-                          <X size={11} strokeWidth={2.5} />
-                        </button>
+                      <div className="w-full">
+                        <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                          onKeyDown={handleKeyDown} canSend={canSend}
+                          textareaRef={textareaRef} fileInputRef={fileInputRef}
+                          isTyping={isTyping} onStop={handleStop} onOpenChat={() => setPhase("bottom")} variant="centered" />
                       </div>
 
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {pendingProductActions.actions.map((action) => (
+                      {/* Quick Actions (Pill Buttons) */}
+                      <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
+                        {[
+                          { title: "Find Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
+                          { title: "Find Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                          { title: "Track My Order", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
+                        ].map((act, idx) => {
+                          const Icon = act.icon;
+                          return (
+                            <motion.button
+                              key={idx}
+                              whileHover={{
+                                y: -1.5,
+                                backgroundColor: "var(--card-hover-bg, rgba(255, 255, 255, 0.95))",
+                                borderColor: "var(--card-hover-border, rgba(124, 77, 186, 0.35))",
+                                boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
+                              }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => handleStartWorkflow(act.type)}
+                              className="cursor-pointer border transition-all duration-150 inline-flex items-center gap-1.5"
+                              style={{
+                                padding: "8px 16px",
+                                background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
+                                backdropFilter: "blur(8px)",
+                                borderColor: "var(--card-border, rgba(64, 41, 112, 0.12))",
+                                borderRadius: 9999,
+                                color: "var(--text-primary, #1a1025)",
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                fontFamily: "'Nunito', sans-serif"
+                              }}
+                            >
+                              <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
+                              <span>{act.title}</span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Product Recommendations Section */}
+                  <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
+                    {/* Section Header */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
+                        <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
+                          Top Recommendations
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: "#7c4dba",
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          fontFamily: "'Nunito', sans-serif",
+                        }}
+                      >
+                        View all <ChevronRight size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+
+                    {/* Recommendations Carousel Row with Arrow Buttons */}
+                    <div className="relative w-full group">
+                      {/* Left Scroll Button */}
+                      <AnimatePresence>
+                        {canScrollLeft && (
                           <motion.button
-                            key={action.id}
+                            key="left-scroll-btn"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             type="button"
-                            whileTap={{ scale: 0.94 }}
-                            onClick={() => handleProductAction(action.id, pendingProductActions.product)}
+                            onClick={scrollLeft}
+                            className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
                             style={{
-                              flex: 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              gap: 4,
-                              padding: "7px 6px",
-                              borderRadius: 9,
-                              border: "1.5px solid rgba(64,41,112,0.13)",
-                              background: "rgba(64,41,112,0.03)",
-                              color: "#402970",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              fontFamily: "'Nunito', sans-serif",
-                              transition: "background 0.15s, border-color 0.15s",
-                              whiteSpace: "nowrap",
-                              minWidth: 0,
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = "rgba(124,77,186,0.10)";
-                              e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = "rgba(64,41,112,0.03)";
-                              e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
+                              width: 40,
+                              height: 40,
+                              borderRadius: 9999,
+                              background: "var(--card-bg, #ffffff)",
+                              border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                              boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                              color: "#7c4dba",
                             }}
                           >
-                            <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
+                            <ChevronLeft size={20} strokeWidth={2.5} />
                           </motion.button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
+                        )}
+                      </AnimatePresence>
 
-                  {pendingConfirmProduct && !pendingAddressChoice && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(8px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 16,
-                        padding: "12px 16px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        overflow: "hidden",
-                        position: "relative",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={resetPendingPurchaseState}
-                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
-                      >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
-                          <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
-                          <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
-                          </h4>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={resetPendingPurchaseState}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPendingAddressChoice(true)}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
-                        >
-                          Confirm
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
+                      {/* Right Scroll Button */}
+                      <AnimatePresence>
+                        {canScrollRight && (
+                          <motion.button
+                            key="right-scroll-btn"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            type="button"
+                            onClick={scrollRight}
+                            className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 9999,
+                              background: "var(--card-bg, #ffffff)",
+                              border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                              boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                              color: "#7c4dba",
+                            }}
+                          >
+                            <ChevronRight size={20} strokeWidth={2.5} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
 
-                  {pendingConfirmProduct && pendingAddressChoice && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(8px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 16,
-                        padding: "16px 20px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "stretch",
-                        justifyContent: "flex-start",
-                        gap: 12,
-                        overflow: "hidden",
-                        position: "relative",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={resetPendingPurchaseState}
-                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                      {/* Card Horizontal Scroll Row */}
+                      <div
+                        ref={scrollContainerRef}
+                        onScroll={handleScrollEvent}
+                        style={{
+                          display: "flex",
+                          gap: 20,
+                          overflowX: "auto",
+                          padding: "8px 4px 16px",
+                          scrollbarWidth: "none",
+                          msOverflowStyle: "none",
+                          WebkitOverflowScrolling: "touch",
+                        }}
+                        className="no-scrollbar"
                       >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                      {isEnteringCustomDetails ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => setIsEnteringCustomDetails(false)}
+                        {loadingRecs ? (
+                          Array.from({ length: 5 }).map((_, i) => (
+                            <div
+                              key={i}
                               style={{
-                                background: "rgba(64,41,112,0.07)",
-                                border: "none",
-                                borderRadius: 6,
-                                width: 24,
-                                height: 24,
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#7c6a9e",
+                                width: 160,
+                                height: 202,
+                                borderRadius: 14,
+                                background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
+                                border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
+                                boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
+                                position: "relative",
+                                overflow: "hidden"
                               }}
                             >
-                              <ChevronLeft size={14} strokeWidth={2.5} />
-                            </button>
-                            <div>
-                              <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Details</p>
-                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: 0 }}>
-                                Enter Delivery & Owner Info
-                              </h4>
-                            </div>
-                          </div>
-
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>FULL NAME *</label>
-                                <input
-                                  type="text"
-                                  value={customName}
-                                  onChange={(e) => setCustomName(e.target.value)}
-                                  placeholder="e.g. Alex Johnson"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>PHONE NUMBER *</label>
-                                <input
-                                  type="text"
-                                  value={customPhone}
-                                  onChange={(e) => setCustomPhone(e.target.value)}
-                                  placeholder="e.g. +94 77 123 4567"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>EMAIL ADDRESS *</label>
-                              <input
-                                type="email"
-                                value={customEmail}
-                                onChange={(e) => setCustomEmail(e.target.value)}
-                                placeholder="e.g. alex@example.com"
+                              <div
                                 style={{
-                                  width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                  position: "absolute",
+                                  inset: 0,
+                                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+                                  animation: "pulse 1.5s infinite"
                                 }}
                               />
                             </div>
-
-                            <div>
-                              <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 1 *</label>
-                              <input
-                                type="text"
-                                value={newStreet1}
-                                onChange={(e) => setNewStreet1(e.target.value)}
-                                placeholder="e.g. No 15, Temple Road"
-                                style={{
-                                  width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                }}
-                              />
-                            </div>
-
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <div style={{ flex: 1.2 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 2 (OPTIONAL)</label>
-                                <input
-                                  type="text"
-                                  value={newStreet2}
-                                  onChange={(e) => setNewStreet2(e.target.value)}
-                                  placeholder="e.g. Near Kovil"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: 0.8 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>CITY *</label>
-                                <input
-                                  type="text"
-                                  value={newCity}
-                                  onChange={(e) => setNewCity(e.target.value)}
-                                  placeholder="e.g. Jaffna"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                            </div>
+                          ))
+                        ) : recommendations.length === 0 ? (
+                          <div style={{ width: "100%", padding: "40px 0", textAlign: "center", color: "var(--text-secondary, #7c6a9e)", fontSize: 13, fontWeight: 600 }}>
+                            No recommendations available at the moment.
                           </div>
-
-                          {addressError && (
-                            <p style={{ color: "#d4183d", fontSize: 11, margin: "2px 0 0 0", fontWeight: 600 }}>
-                              ⚠️ {addressError}
-                            </p>
-                          )}
-
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => setIsEnteringCustomDetails(false)}
-                              disabled={checkingAddress}
-                              style={{
-                                padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer"
+                        ) : (
+                          recommendations.map((prod) => (
+                            <RecommendationCard
+                              key={prod.id}
+                              prod={prod}
+                              onClick={() => {
+                                handleRequestProductDetails(prod.id, prod.name);
                               }}
-                            >
-                              Back
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleVerifyCustomDetails}
-                              disabled={checkingAddress}
-                              style={{
-                                padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)", opacity: checkingAddress ? 0.7 : 1
-                              }}
-                            >
-                              {checkingAddress ? "Verifying..." : "Verify & Confirm"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <MapPin size={20} color="#fff" />
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Details</p>
-                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                Choose shipping location and owner for order
-                              </h4>
-                            </div>
-                          </div>
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-                          <div style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                            padding: "10px 12px",
-                            background: "rgba(64,41,112,0.03)",
-                            border: "1px solid rgba(64,41,112,0.07)",
-                            borderRadius: 12,
-                            fontSize: 11.5,
-                            color: "#402970",
-                            fontFamily: "'Nunito', sans-serif"
-                          }}>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.name}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.phone}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.email}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
-                              {[savedDelivery.street1, savedDelivery.street2, savedDelivery.city].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
-                            </span></div>
-                          </div>
+            {/* Bottom phase */}
+            {phase === "bottom" && (
+              <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                  <MessageArea
+                    messages={messages}
+                    selectedIds={selectedIds}
+                    setSelectedIds={setSelectedIds}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleBuyNow}
+                    onWishlist={handleWishlist}
+                    onPlaceInlineOrder={handlePlaceInlineOrder}
+                    isTyping={isTyping}
+                    onViewDetails={(id) => {
+                      const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
+                      handleRequestProductDetails(id, found?.name);
+                    }}
+                    onContinueShopping={() => textareaRef.current?.focus()}
+                    onSelectProduct={handleProductSelect}
+                    activity={activity}
+                    onRetry={handleRetry}
+                    activityExpanded={activityExpanded}
+                    onExpandedChange={setActivityExpanded}
+                  />
+                </div>
 
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                <motion.div
+                  className="w-full pt-3 flex justify-center flex-none"
+                  initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+                >
+                  <div className="w-full" style={{ maxWidth: 720 }}>
+                    <AnimatePresence>
+                      {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
+                      {activeSmartPanel && (
+                        <SmartInputPanel key="smart-input-panel" />
+                      )}
+
+                      {/* ── Product Actions Popup ─────────────────────────────────────────── */}
+                      {pendingProductActions && !pendingConfirmProduct && (
+                        <motion.div
+                          id="product-actions-popup"
+                          key="product-actions-popup"
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.97)",
+                            backdropFilter: "blur(14px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 18,
+                            padding: "13px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 28px rgba(64, 41, 112, 0.15)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 11 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 700, margin: 0, lineHeight: 1.45 }}>
+                                Great choice! 😊 That looks like a promising option. What would you like to do next?
+                              </p>
+                            </div>
                             <button
                               type="button"
                               onClick={() => {
-                                setIsEnteringCustomDetails(true);
-                                setCustomName(localStorage.getItem("delivery_name") || "Alex Johnson");
-                                setCustomPhone(localStorage.getItem("delivery_phone") || "+94 77 123 4567");
-                                setCustomEmail(localStorage.getItem("delivery_email") || "alex@example.com");
-                                setNewStreet1(localStorage.getItem("delivery_street1") || "");
-                                setNewStreet2(localStorage.getItem("delivery_street2") || "");
-                                setNewCity(localStorage.getItem("delivery_city") || "Colombo 03");
+                                setPendingProductActions(null);
+                                setSelectedIds({});
+                                setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
                               }}
+                              style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                            >
+                              <X size={11} strokeWidth={2.5} />
+                            </button>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {pendingProductActions.actions.map((action) => (
+                              <motion.button
+                                key={action.id}
+                                type="button"
+                                whileTap={{ scale: 0.94 }}
+                                onClick={() => handleProductAction(action.id, pendingProductActions.product)}
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 6px",
+                                  borderRadius: 9,
+                                  border: "1.5px solid rgba(64,41,112,0.13)",
+                                  background: "rgba(64,41,112,0.03)",
+                                  color: "#402970",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  fontFamily: "'Nunito', sans-serif",
+                                  transition: "background 0.15s, border-color 0.15s",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background = "rgba(124,77,186,0.10)";
+                                  e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background = "rgba(64,41,112,0.03)";
+                                  e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
+                                }}
+                              >
+                                <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+
+                      {pendingConfirmProduct && !pendingAddressChoice && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.95)",
+                            backdropFilter: "blur(8px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 16,
+                            padding: "12px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 12,
+                            overflow: "hidden",
+                            position: "relative",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={resetPendingPurchaseState}
+                            style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                          >
+                            <X size={12} strokeWidth={2.5} />
+                          </button>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
+                              <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
+                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
+                              </h4>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                            <button
+                              type="button"
+                              onClick={resetPendingPurchaseState}
                               style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
                             >
-                              Another Details
+                              Cancel
                             </button>
                             <button
                               type="button"
-                              onClick={handleUseDefaultAddress}
+                              onClick={() => setPendingAddressChoice(true)}
                               style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
                             >
-                              Use Default
+                              Confirm
                             </button>
                           </div>
-                        </div>
+                        </motion.div>
                       )}
-                    </motion.div>
-                  )}
 
-                  </AnimatePresence>
-                <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                  onKeyDown={handleKeyDown} canSend={canSend}
-                  textareaRef={textareaRef} fileInputRef={fileInputRef}
-                  isTyping={isTyping} onStop={handleStop} />
-                <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
-                  Enter to send · Shift + Enter for new line
-                </p>
+                      {pendingConfirmProduct && pendingAddressChoice && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.95)",
+                            backdropFilter: "blur(8px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 16,
+                            padding: "16px 20px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "stretch",
+                            justifyContent: "flex-start",
+                            gap: 12,
+                            overflow: "hidden",
+                            position: "relative",
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={resetPendingPurchaseState}
+                            style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
+                          >
+                            <X size={12} strokeWidth={2.5} />
+                          </button>
+                          {isEnteringCustomDetails ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEnteringCustomDetails(false)}
+                                  style={{
+                                    background: "rgba(64,41,112,0.07)",
+                                    border: "none",
+                                    borderRadius: 6,
+                                    width: 24,
+                                    height: 24,
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "#7c6a9e",
+                                  }}
+                                >
+                                  <ChevronLeft size={14} strokeWidth={2.5} />
+                                </button>
+                                <div>
+                                  <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Details</p>
+                                  <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: 0 }}>
+                                    Enter Delivery & Owner Info
+                                  </h4>
+                                </div>
+                              </div>
+
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>FULL NAME *</label>
+                                    <input
+                                      type="text"
+                                      value={customName}
+                                      onChange={(e) => setCustomName(e.target.value)}
+                                      placeholder="e.g. Alex Johnson"
+                                      style={{
+                                        width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 1 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>PHONE NUMBER *</label>
+                                    <input
+                                      type="text"
+                                      value={customPhone}
+                                      onChange={(e) => setCustomPhone(e.target.value)}
+                                      placeholder="e.g. +94 77 123 4567"
+                                      style={{
+                                        width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>EMAIL ADDRESS *</label>
+                                  <input
+                                    type="email"
+                                    value={customEmail}
+                                    onChange={(e) => setCustomEmail(e.target.value)}
+                                    placeholder="e.g. alex@example.com"
+                                    style={{
+                                      width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                    }}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 1 *</label>
+                                  <input
+                                    type="text"
+                                    value={newStreet1}
+                                    onChange={(e) => setNewStreet1(e.target.value)}
+                                    placeholder="e.g. No 15, Temple Road"
+                                    style={{
+                                      width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                    }}
+                                  />
+                                </div>
+
+                                <div style={{ display: "flex", gap: 8 }}>
+                                  <div style={{ flex: 1.2 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 2 (OPTIONAL)</label>
+                                    <input
+                                      type="text"
+                                      value={newStreet2}
+                                      onChange={(e) => setNewStreet2(e.target.value)}
+                                      placeholder="e.g. Near Kovil"
+                                      style={{
+                                        width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                      }}
+                                    />
+                                  </div>
+                                  <div style={{ flex: 0.8 }}>
+                                    <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>CITY *</label>
+                                    <input
+                                      type="text"
+                                      value={newCity}
+                                      onChange={(e) => setNewCity(e.target.value)}
+                                      placeholder="e.g. Jaffna"
+                                      style={{
+                                        width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {addressError && (
+                                <p style={{ color: "#d4183d", fontSize: 11, margin: "2px 0 0 0", fontWeight: 600 }}>
+                                  ⚠️ {addressError}
+                                </p>
+                              )}
+
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsEnteringCustomDetails(false)}
+                                  disabled={checkingAddress}
+                                  style={{
+                                    padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer"
+                                  }}
+                                >
+                                  Back
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyCustomDetails}
+                                  disabled={checkingAddress}
+                                  style={{
+                                    padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)", opacity: checkingAddress ? 0.7 : 1
+                                  }}
+                                >
+                                  {checkingAddress ? "Verifying..." : "Verify & Confirm"}
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                                <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <MapPin size={20} color="#fff" />
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Details</p>
+                                  <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    Choose shipping location and owner for order
+                                  </h4>
+                                </div>
+                              </div>
+
+                              <div style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 6,
+                                padding: "10px 12px",
+                                background: "rgba(64,41,112,0.03)",
+                                border: "1px solid rgba(64,41,112,0.07)",
+                                borderRadius: 12,
+                                fontSize: 11.5,
+                                color: "#402970",
+                                fontFamily: "'Nunito', sans-serif"
+                              }}>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.name}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.phone}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.email}</span></div>
+                                <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
+                                  {[savedDelivery.street1, savedDelivery.street2, savedDelivery.city].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
+                                </span></div>
+                              </div>
+
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setIsEnteringCustomDetails(true);
+                                    setCustomName(localStorage.getItem("delivery_name") || "Alex Johnson");
+                                    setCustomPhone(localStorage.getItem("delivery_phone") || "+94 77 123 4567");
+                                    setCustomEmail(localStorage.getItem("delivery_email") || "alex@example.com");
+                                    setNewStreet1(localStorage.getItem("delivery_street1") || "");
+                                    setNewStreet2(localStorage.getItem("delivery_street2") || "");
+                                    setNewCity(localStorage.getItem("delivery_city") || "Colombo 03");
+                                  }}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
+                                >
+                                  Another Details
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleUseDefaultAddress}
+                                  style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
+                                >
+                                  Use Default
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+
+                    </AnimatePresence>
+                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                      onKeyDown={handleKeyDown} canSend={canSend}
+                      textareaRef={textareaRef} fileInputRef={fileInputRef}
+                      isTyping={isTyping} onStop={handleStop} />
+                    <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
+                      Enter to send · Shift + Enter for new line
+                    </p>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-        )}
+            )}
           </>
         )}
       </div>

@@ -2,8 +2,11 @@
  * Service to handle text-to-speech using browser-native window.speechSynthesis.
  */
 
+type OnSpeechEndCallback = (() => void) | null;
+
 class SpeechService {
   private isSupported: boolean;
+  private onSpeechEndRef: OnSpeechEndCallback = null;
 
   constructor() {
     this.isSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
@@ -29,11 +32,18 @@ class SpeechService {
     // Small delay ensures previous cancellation is fully processed by the browser
     setTimeout(() => {
       const utterance = new SpeechSynthesisUtterance(text);
-      
+
       // Optional: Set default voice, pitch, and rate here
       // utterance.rate = 1.0;
       // utterance.pitch = 1.0;
-      
+
+      // Call onSpeechEnd callback when speech finishes
+      utterance.onend = () => {
+        if (this.onSpeechEndRef) {
+          this.onSpeechEndRef();
+        }
+      };
+
       window.speechSynthesis.speak(utterance);
     }, 50);
   }
@@ -63,6 +73,20 @@ class SpeechService {
     if (this.isSupported && window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
+  }
+
+  /**
+   * Register a callback to be called when speech finishes.
+   */
+  setOnSpeechEnd(callback: () => void): void {
+    this.onSpeechEndRef = callback;
+  }
+
+  /**
+   * Clear the speech end callback.
+   */
+  clearOnSpeechEnd(): void {
+    this.onSpeechEndRef = null;
   }
 }
 
