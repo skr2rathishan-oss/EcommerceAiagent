@@ -11,7 +11,7 @@ type VoiceModeState = "listening" | "processing" | "speaking";
 interface ChatInputBoxProps {
   value: string;
   onChange: (v: string) => void;
-  onSend: () => void;
+  onSend: (textOverride?: string) => void;  // Allow optional text override
   onKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   canSend: boolean;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -87,12 +87,12 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
         setVoiceState("processing");
         // Use setTimeout to allow state updates to process
         setTimeout(() => {
-          onSend();
+          onSend(text);  // Pass text directly to handleSend as override
           setVoiceState("speaking");
         }, 0);
       }
     });
-  }, [voiceModeOpen, onSend, setOnAutoSubmit]);
+  }, [voiceModeOpen, onSend, setOnAutoSubmit, onChange]);
 
   // Update transcript in input value
   useEffect(() => {
