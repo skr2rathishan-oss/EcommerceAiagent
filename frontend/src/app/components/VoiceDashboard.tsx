@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Mic, Square, Volume2, VolumeX, PhoneOff } from "lucide-react";
-import { Message } from "../../types/chat"; // Adjust import path if needed
+import { Message } from "../../types/chat";
 
 interface VoiceDashboardProps {
   isOpen: boolean;
@@ -20,9 +20,12 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
   const [waveform, setWaveform] = useState<number[]>([1.5, 2.5, 4, 5.5, 6, 5.5, 4, 2.5, 1.5]);
   const [isMuted, setIsMuted] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
+  
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const voiceSessionActive = useRef(false);
   
   // Auto-scroll to latest message
   useEffect(() => {
@@ -30,6 +33,158 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isOpen]);
+
+  // Handle muting active audio
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.muted = isMuted;
+    }
+  }, [isMuted]);
+
+  // Start continuous loop when dashboard opens
+  useEffect(() => {
+    if (isOpen) {
+      voiceSessionActive.current = true;
+      startListening();
+    } else {
+      voiceSessionActive.current = false;
+      stopListening();
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      setStatus("idle");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+
+  const startListening = async () => {
+    if (!voiceSessionActive.current) return;
+    if (status === "listening" || status === "processing") return;
+
+    try {
+      console.log("[VOICE] Listening started");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        if (!voiceSessionActive.current) return; // ignore if session ended
+        
+        setStatus("processing");
+        console.log("[VOICE] Processing transcript");
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        
+        try {
+          // Process STT with backend
+          const formData = new FormData();
+          formData.append("audio", audioBlob);
+
+          const response = await fetch("http://localhost:5000/api/voice/transcribe", {
+            method: "POST",
+            body: formData,
+          });
+          
+          const data = await response.json();
+          if (data.success) {
+            if (data.text && data.text.trim().length > 0) {
+              console.log("[VOICE] Speech detected:", data.text);
+              setWaitingForAI(true);
+              onSendMessage(data.text);
+            } else {
+              console.log("[VOICE] No speech detected (empty transcript).");
+              setStatus("idle");
+              // Restart listening after a small delay if user was just quiet
+              setTimeout(() => {
+                if (voiceSessionActive.current && status !== "speaking") {
+                  console.log("[VOICE] Restarting listening after silence");
+                  startListening();
+                }
+              }, 1000);
+            }
+          } else {
+            console.error("STT Backend Error:", data.message || "Unknown error occurred");
+            setStatus("idle");
+          }
+        } catch (error) {
+          console.error("Error transcribing audio:", error);
+          setStatus("idle");
+        }
+        
+        // Stop all tracks
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setStatus("listening");
+    } catch (err) {
+      console.error("Microphone access denied or error:", err);
+      alert("Please allow microphone access to use Voice Chat.");
+    }
+  };
+
+  const stopListening = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const playAIResponse = async (text: string) => {
+    if (isMuted || !voiceSessionActive.current) {
+      setStatus("idle");
+      // If muted, we still want to keep the loop going!
+      setTimeout(() => {
+        if (voiceSessionActive.current) startListening();
+      }, 1000);
+      return;
+    }
+    
+    try {
+      console.log("[VOICE] Speaking response");
+      const response = await fetch("http://localhost:5000/api/voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text })
+      });
+      
+      if (!response.ok) throw new Error("TTS fetch failed");
+      
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      
+      audio.onended = () => {
+        URL.revokeObjectURL(url);
+        console.log("[VOICE] Speech finished");
+        if (voiceSessionActive.current) {
+          console.log("[VOICE] Restarting listening");
+          setTimeout(() => {
+            if (voiceSessionActive.current) {
+              startListening();
+            }
+          }, 1000); // add a delay before restart as requested
+        } else {
+          setStatus("idle");
+        }
+      };
+      
+      await audio.play();
+    } catch (err) {
+      console.error("Audio playback error:", err);
+      setStatus("idle");
+      setTimeout(() => {
+        if (voiceSessionActive.current) startListening();
+      }, 1000);
+    }
+  };
 
   // Detect when AI response arrives
   useEffect(() => {
@@ -39,6 +194,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
         console.log("[VOICE] AI response received");
         setWaitingForAI(false);
         setStatus("speaking");
+        playAIResponse(lastMsg.text);
       }
     }
   }, [messages, waitingForAI]);
@@ -56,77 +212,30 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
     return () => clearInterval(interval);
   }, [status]);
 
-  const handleMicTap = async () => {
-    if (status === "idle" || status === "speaking") {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const mediaRecorder = new MediaRecorder(stream);
-        mediaRecorderRef.current = mediaRecorder;
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          setStatus("processing");
-          const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-          
-          try {
-            // Process STT with backend
-            const formData = new FormData();
-            formData.append("audio", audioBlob);
-
-            const response = await fetch("http://localhost:5000/api/voice/transcribe", {
-              method: "POST",
-              body: formData,
-            });
-            
-            const data = await response.json();
-            if (data.success) {
-              if (data.text && data.text.trim().length > 0) {
-                console.log("[VOICE] Transcript received:", data.text);
-                console.log("[VOICE] Creating user message");
-                console.log("[VOICE] Sending transcript to chat pipeline");
-                setWaitingForAI(true);
-                onSendMessage(data.text);
-                console.log("[VOICE] Waiting for AI response");
-              } else {
-                console.log("[VOICE] No speech detected (empty transcript).");
-                setStatus("idle");
-              }
-            } else {
-              console.error("STT Backend Error:", data.message || "Unknown error occurred");
-              setStatus("idle");
-            }
-          } catch (error) {
-            console.error("Error transcribing audio:", error);
-            setStatus("idle");
-          }
-          
-          // Stop all tracks
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
-        setStatus("listening");
-      } catch (err) {
-        console.error("Microphone access denied or error:", err);
-        alert("Please allow microphone access to use Voice Chat.");
+  const handleMicTap = () => {
+    // If speaking, interrupt
+    if (status === "speaking") {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
       }
+      setStatus("idle");
+      console.log("[VOICE] Speech interrupted");
+      startListening();
+    } else if (status === "idle") {
+      startListening();
     } else if (status === "listening") {
-      mediaRecorderRef.current?.stop();
+      // Manual stop
+      stopListening();
     }
   };
 
   const getStatusText = () => {
     switch (status) {
-      case "idle": return "Ready to help";
+      case "idle": return "Ready";
       case "listening": return "Listening...";
       case "processing": return "Processing...";
-      case "speaking": return "Velora is speaking...";
+      case "speaking": return "Speaking...";
     }
   };
 
@@ -250,6 +359,8 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
               
               <button 
                 onClick={() => {
+                  voiceSessionActive.current = false;
+                  if (audioRef.current) audioRef.current.pause();
                   if (status === "listening") mediaRecorderRef.current?.stop();
                   onClose();
                 }}

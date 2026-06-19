@@ -1,111 +1,192 @@
-The Google Speech-to-Text integration is already working.
+Implement Continuous Voice Conversation Mode for Velora.
 
-Current status:
+Current state:
 
-✅ Voice Dashboard UI completed
-✅ Audio recording using MediaRecorder
-✅ Audio upload to backend working
-✅ Google Cloud Speech-to-Text working
-✅ Transcript successfully generated
-✅ Transcript visible in backend logs
+✅ User speaks
+✅ Speech-to-Text works
+✅ Transcript sent to AI
+✅ AI responds
+✅ Text-to-Speech works
 
-Now implement the next stage of the voice pipeline.
+New requirement:
 
-GOAL:
+After Velora finishes speaking, automatically start listening again.
 
-When Speech-to-Text returns a transcript, the transcript must automatically behave exactly like a normal text message typed by the user.
+The user should not need to press the microphone button every turn.
 
-Requirements:
+Desired conversation flow:
 
-1. Find the existing text chat message flow.
-   Examples:
+1. User opens Voice Mode
 
-   * handleSendMessage()
-   * sendMessage()
-   * onSendMessage()
-   * chatService.send()
-   * whichever function is currently used when the user presses the normal Send button.
+2. Voice Mode automatically starts listening
 
-2. DO NOT create a separate AI flow for voice.
+State:
+Listening
 
-3. After transcription completes:
+3. User speaks
+
+4. Detect silence/end of speech
+
+5. Stop recording
+
+6. Send audio to Speech-to-Text
+
+7. Generate transcript
+
+8. Send transcript to existing chat pipeline
+
+9. Receive AI response
+
+10. Display AI response
+
+11. Velora speaks response using Text-to-Speech
+
+12. When speech finishes:
+
+Automatically restart listening
+
+13. Repeat forever until user exits Voice Mode.
+
+---
+
+State Machine:
+
+IDLE
+↓
+LISTENING
+↓
+PROCESSING
+↓
+SPEAKING
+↓
+LISTENING
+↓
+PROCESSING
+↓
+SPEAKING
+↓
+LISTENING
+
+Loop continuously.
+
+---
+
+Implementation Requirements
+
+Create:
 
 ```javascript
-const transcript = result.text;
+startListening()
+stopListening()
+processVoiceMessage()
+speakResponse()
 ```
 
-Immediately pass the transcript into the existing chat flow.
+---
+
+When TTS starts:
+
+```javascript
+setVoiceState("speaking");
+```
+
+---
+
+When TTS ends:
+
+```javascript
+setVoiceState("listening");
+startListening();
+```
 
 Example:
 
 ```javascript
-await handleSendMessage(transcript);
+utterance.onend = () => {
+  console.log("[VOICE] AI finished speaking");
+
+  setVoiceState("listening");
+
+  startListening();
+};
 ```
 
-or the equivalent existing function.
+---
 
-4. Voice messages and typed messages must share the exact same pipeline:
+When user manually exits Voice Mode:
 
-Voice
-→ Speech To Text
-→ Existing Chat Flow
-→ Intent Detection
-→ Context Extraction
-→ Product Search / MCP Tools
-→ AI Response
+```javascript
+voiceSessionActive = false;
+```
 
-Typed Message
-→ Existing Chat Flow
-→ Intent Detection
-→ Context Extraction
-→ Product Search / MCP Tools
-→ AI Response
-
-5. Automatically create and display the user message in the conversation history.
+Prevent automatic restart.
 
 Example:
 
-User speaks:
-"Show flowers under 5000"
+```javascript
+if (!voiceSessionActive) {
+  return;
+}
 
-Conversation should immediately show:
+startListening();
+```
 
-👤 Show flowers under 5000
+---
 
-before waiting for the AI response.
+Interrupt Handling
 
-6. The Voice Dashboard conversation area must display the same messages as the main chat screen.
+If user taps microphone while Velora is speaking:
 
-Use the existing message state/store/context instead of creating a second conversation state.
+```javascript
+speechSynthesis.cancel();
+```
 
-7. When the AI response arrives:
+Immediately:
 
-Display it inside the Voice Dashboard conversation.
+```javascript
+setVoiceState("listening");
+startListening();
+```
 
-Example:
+---
 
-🤖 Here are some beautiful flower arrangements under Rs. 5000.
+Voice Status Labels
 
-8. Add detailed console logs:
+Listening...
+Processing...
+Speaking...
+Ready
 
-[VOICE] Transcript received
-[VOICE] Creating user message
-[VOICE] Sending transcript to chat pipeline
-[VOICE] Waiting for AI response
+---
+
+Waveform Behavior
+
+Listening:
+Audio-reactive waveform
+
+Processing:
+Loading animation
+
+Speaking:
+Speech waveform animation
+
+---
+
+Logs
+
+[VOICE] Listening started
+[VOICE] Speech detected
+[VOICE] Processing transcript
 [VOICE] AI response received
+[VOICE] Speaking response
+[VOICE] Speech finished
+[VOICE] Restarting listening
 
-9. Do not modify existing intent detection, context extraction, MCP integration, or chat logic.
+---
 
-Only connect the voice transcript to the existing message flow.
+Goal:
 
-10. After implementation verify this complete flow:
+The user should be able to have a natural continuous conversation with Velora without pressing the microphone after every message.
 
-User speaks
-→ Audio recorded
-→ STT transcript generated
-→ User message created
-→ Existing chat function called
-→ AI response generated
-→ AI response displayed in Voice Dashboard
-
-Provide all modified files and explain every change made.
+Voice Mode should behave similarly to ChatGPT Voice Mode and modern AI voice assistants.
+add an delay before restart

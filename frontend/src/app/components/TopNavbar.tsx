@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Heart, ShoppingCart, Package, ChevronDown, PanelLeft, Sparkles,
-  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle, Languages
+  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle, Languages, Menu
 } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
@@ -67,6 +67,14 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
       }}
     >
       <div className="flex items-center gap-3">
+        {/* Mobile Hamburger Menu */}
+        <button 
+          className="md:hidden flex items-center justify-center text-[#7c4dba] hover:bg-[rgba(124,77,186,0.1)] p-1.5 rounded-lg transition-colors"
+          onClick={() => setSidebarOpen(true)}
+        >
+          <Menu size={22} strokeWidth={2.5} />
+        </button>
+
         {/* Squircle Brand Logo */}
         <div 
           onClick={handleHomeClick}
@@ -90,7 +98,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
           <div className="flex flex-col justify-center">
             <div className="flex items-center gap-2">
               <span 
-                className="group-hover:text-[#7c4dba] transition-colors duration-200"
+                className="hidden sm:block group-hover:text-[#7c4dba] transition-colors duration-200"
                 style={{ fontSize: 15, fontWeight: 800, color: "#1a1025", letterSpacing: "0.03em" }}
               >
                 VELORA AI
@@ -110,7 +118,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
                 PRO
               </span>
             </div>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "#7c4dba", marginTop: 0 }}>
+            <span className="hidden sm:block" style={{ fontSize: 11, fontWeight: 600, color: "#7c4dba", marginTop: 0 }}>
               Smart Shopping Assistant
             </span>
           </div>
@@ -141,7 +149,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
             }}
           >
             <Languages size={14} strokeWidth={2} />
-            <span>{selectedLang.code}</span>
+            <span className="hidden sm:inline">{selectedLang.code}</span>
             <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.7 }} />
           </button>
           

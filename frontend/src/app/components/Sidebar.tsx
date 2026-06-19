@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
             />
 
             <motion.aside
-              className="relative z-40 flex flex-col h-full"
+              className="absolute md:relative z-40 flex flex-col h-full left-0 top-0 bottom-0"
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 68, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}

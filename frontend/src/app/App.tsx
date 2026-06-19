@@ -677,7 +677,7 @@ function MainApp() {
 
         {/* Bottom phase */}
         {phase === "bottom" && (
-          <div className="flex-1 min-w-0 min-h-0 px-4 pb-3 pt-0 flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-0 min-h-0 px-4 pb-6 md:pb-3 pt-0 flex flex-col overflow-hidden">
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <MessageArea
                 messages={messages}
