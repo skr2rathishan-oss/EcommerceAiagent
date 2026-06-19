@@ -15,6 +15,7 @@ export const useVoiceAssistant = () => {
   const isStartingRef = useRef(false);
   const onAutoSubmitRef = useRef<((text: string) => void) | null>(null);
   const onRestartListeningRef = useRef<(() => void) | null>(null);
+  const transcriptRef = useRef("");  // Keep latest transcript for onend callback
 
   useEffect(() => {
     const win = window as IWindow;
@@ -48,6 +49,7 @@ export const useVoiceAssistant = () => {
       }
 
       setTranscript(finalTranscript);
+      transcriptRef.current = finalTranscript;  // Keep ref in sync
     };
 
     recognition.onerror = (event: any) => {
@@ -86,10 +88,10 @@ export const useVoiceAssistant = () => {
       setIsListening(false);
       isStartingRef.current = false;
 
-      // Get current transcript from state via callback
+      // Get current transcript from ref (not state - avoids stale closure)
       const handler = onAutoSubmitRef.current;
       if (handler) {
-        handler(transcript);
+        handler(transcriptRef.current);
       }
     };
 
@@ -105,6 +107,7 @@ export const useVoiceAssistant = () => {
 
     isStartingRef.current = true;
     setTranscript("");
+    transcriptRef.current = "";  // Reset ref
 
     try {
       recognitionRef.current.start();
