@@ -23,6 +23,7 @@ export const useChat = () => {
     setMessages,
     waitingForAddressInput,
     setActiveSmartPanel,
+    voiceDashboardOpen,
   } = useApp();
 
   const { handleProductSelect, handleProductAction, handleRequestProductDetails } = useProductActions();
@@ -49,22 +50,24 @@ export const useChat = () => {
 
     const lowerText = trimmed.toLowerCase();
 
-    // ── Smart panel keyword shortcuts ──────────────────────────────────────
-    const recKeywords = ["gift", "birthday gift", "recommend", "present", "surprise", "anniversary gift", "gift idea", "find gift", "shopping recommendation"];
-    if (recKeywords.some(kw => lowerText.includes(kw))) {
-      setActiveSmartPanel("recommendation");
-      return;
-    }
+    // ── Smart panel keyword shortcuts (Only if not in voice assistant mode) ──
+    if (!voiceDashboardOpen) {
+      const recKeywords = ["gift", "birthday gift", "recommend", "present", "surprise", "anniversary gift", "gift idea", "find gift", "shopping recommendation"];
+      if (recKeywords.some(kw => lowerText.includes(kw))) {
+        setActiveSmartPanel("recommendation");
+        return;
+      }
 
-    const delKeywords = ["check delivery", "can this be delivered", "delivery cost"];
-    if (delKeywords.some(kw => lowerText.includes(kw))) {
-      setActiveSmartPanel("delivery");
-      return;
-    }
+      const delKeywords = ["check delivery", "can this be delivered", "delivery cost"];
+      if (delKeywords.some(kw => lowerText.includes(kw))) {
+        setActiveSmartPanel("delivery");
+        return;
+      }
 
-    if (lowerText.includes("track order")) {
-      setActiveSmartPanel("track_order");
-      return;
+      if (lowerText.includes("track order")) {
+        setActiveSmartPanel("track_order");
+        return;
+      }
     }
 
     // ── Default: AI search ────────────────────────────────────────────────

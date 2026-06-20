@@ -5,12 +5,14 @@ import { useWishlist } from "../contexts/WishlistContext";
 import { useCart } from "../contexts/CartContext";
 import { type Product, PRODUCTS } from "./products";
 import { formatUIPrice } from "../services/mapping";
+import { useIsMobile } from "./ui/use-mobile";
 
 interface WishlistScreenProps {
   onContinueShopping: () => void;
 }
 
 export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShopping }) => {
+  const isMobile = useIsMobile();
   const {
     wishlistItems,
     removeFromWishlist,
@@ -83,8 +85,8 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
               <ArrowLeft size={16} strokeWidth={2.5} />
             </motion.button>
             <div>
-              <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1a1025", margin: 0 }}>Your Wishlist</h1>
-              <p style={{ fontSize: 13, color: "#7c6a9e", margin: "2px 0 0 0" }}>Keep track of your favorite products and move them to cart anytime.</p>
+              <h1 style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: "#1a1025", margin: 0 }}>Your Wishlist</h1>
+              <p style={{ fontSize: isMobile ? 11.5 : 13, color: "#7c6a9e", margin: "2px 0 0 0" }}>Keep track of your favorite products and move them to cart anytime.</p>
             </div>
           </div>
 
@@ -96,7 +98,7 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
                 navigator.clipboard.writeText(text);
                 alert("Wishlist link copied to clipboard!");
               }}
-              style={{ padding: "8px 16px", borderRadius: 10, border: "1.5px solid rgba(124,77,186,0.2)", background: "#fff", color: "#7c4dba", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: isMobile ? "6px 12px" : "8px 16px", borderRadius: 10, border: "1.5px solid rgba(124,77,186,0.2)", background: "#fff", color: "#7c4dba", fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: "pointer" }}
             >
               Share Wishlist
             </motion.button>
@@ -135,7 +137,7 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
               
               {/* Bulk Selector Header */}
               <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(64,41,112,0.06)" }}>
-                <label className="flex items-center gap-3 cursor-pointer text-sm font-bold text-[#1a1025]">
+                <label className="flex items-center gap-3 cursor-pointer font-bold text-[#1a1025]" style={{ fontSize: isMobile ? "11.5px" : "14px" }}>
                   <input
                     type="checkbox"
                     checked={allSelected}
@@ -149,14 +151,14 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handleMoveSelectedToCart}
-                      style={{ border: "none", background: "transparent", color: "#7c4dba", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      style={{ border: "none", background: "transparent", color: "#7c4dba", fontSize: isMobile ? 10.5 : 12, fontWeight: 700, cursor: "pointer" }}
                     >
-                      Add Selected to Cart
+                      Add Selected
                     </button>
                     <div style={{ width: 1, height: 12, background: "rgba(64,41,112,0.15)" }} />
                     <button
                       onClick={handleDeleteSelected}
-                      style={{ border: "none", background: "transparent", color: "#d4183d", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      style={{ border: "none", background: "transparent", color: "#d4183d", fontSize: isMobile ? 10.5 : 12, fontWeight: 700, cursor: "pointer" }}
                     >
                       Delete Selected
                     </button>
@@ -175,96 +177,102 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
                       key={item.productId}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5"
+                      className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3.5 md:p-5"
                       style={{ borderBottom: idx < wishlistItems.length - 1 ? "1px solid rgba(64,41,112,0.06)" : "none" }}
                     >
                       {/* Selector checkbox & Product Info */}
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => handleSelectItem(item.productId, e.target.checked)}
                           style={{ width: 17, height: 17, cursor: "pointer", accentColor: "#7c4dba" }}
                         />
-                        <div style={{ width: 72, height: 72, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", flexShrink: 0 }}>
+                        <div style={{ width: isMobile ? 56 : 72, height: isMobile ? 56 : 72, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", flexShrink: 0 }}>
                           <img src={item.product.images[0]} alt={item.product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         </div>
                         <div className="min-w-0">
                           <span style={{ fontSize: 10, fontWeight: 800, color: "#7c6a9e", textTransform: "uppercase", letterSpacing: "0.04em" }}>{item.product.brand}</span>
-                          <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1a1025", margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <h3 style={{ fontSize: isMobile ? 12.5 : 14, fontWeight: 700, color: "#1a1025", margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {item.product.name}
                           </h3>
                           <div className="flex items-center gap-2 mt-1">
-                            <span style={{ fontSize: 11, fontWeight: 700, color: "#7c6a9e", padding: "2px 8px", borderRadius: 20, background: "rgba(64,41,112,0.06)" }}>
+                            <span style={{ fontSize: isMobile ? 9.5 : 11, fontWeight: 700, color: "#7c6a9e", padding: "2px 6px", borderRadius: 20, background: "rgba(64,41,112,0.06)" }}>
                               {item.product.category}
                             </span>
-                            <span style={{ fontSize: 10.5, fontWeight: 700, color: isInStock ? "#2a9e6a" : "#d4183d" }}>
-                              {isInStock ? `In Stock (${item.product.stock} left)` : "Out of Stock"}
+                            <span style={{ fontSize: isMobile ? 9.5 : 10.5, fontWeight: 700, color: isInStock ? "#2a9e6a" : "#d4183d" }}>
+                              {isInStock ? "In Stock" : "Out of Stock"}
                             </span>
                           </div>
                         </div>
                       </div>
 
                       {/* Price, Notification settings, and Actions */}
-                      <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
+                      <div className="flex items-center justify-between md:justify-end gap-3 md:gap-6 w-full md:w-auto">
                         
-                        {/* Price */}
-                        <div style={{ minWidth: 100, textAlign: "right" }}>
-                          <span style={{ fontSize: 15, fontWeight: 800, color: "#402970" }}>
-                            {formatUIPrice(item.product.price, item.product.currency)}
-                          </span>
-                          {item.product.originalPrice && (
-                            <p style={{ margin: "2px 0 0 0", fontSize: 11, color: "#9e8dc0", textDecoration: "line-through" }}>
-                              {formatUIPrice(item.product.originalPrice, item.product.currency)}
-                            </p>
-                          )}
+                        {/* Price & Price Alerts */}
+                        <div className="flex items-center gap-3">
+                          {/* Price */}
+                          <div style={{ minWidth: isMobile ? 65 : 100, textAlign: "right" }}>
+                            <span style={{ fontSize: isMobile ? 13.5 : 15, fontWeight: 800, color: "#402970" }}>
+                              {formatUIPrice(item.product.price, item.product.currency)}
+                            </span>
+                            {item.product.originalPrice && (
+                              <p style={{ margin: "2px 0 0 0", fontSize: isMobile ? 9.5 : 11, color: "#9e8dc0", textDecoration: "line-through" }}>
+                                {formatUIPrice(item.product.originalPrice, item.product.currency)}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Price Alerts Toggles */}
+                          <div className="flex items-center gap-1.5" style={{ background: "rgba(64,41,112,0.03)", padding: isMobile ? "3px 6px" : "4px 8px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.06)" }}>
+                            <button
+                              onClick={() => toggleAlerts(item.productId, "priceDrop")}
+                              title={item.notifyOnPriceDrop ? "Disable Price Drop Alert" : "Enable Price Drop Alert"}
+                              style={{
+                                border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 3,
+                                color: item.notifyOnPriceDrop ? "#7c4dba" : "#9e8dc0", padding: "3px", borderRadius: 6
+                              }}
+                            >
+                              {item.notifyOnPriceDrop ? <Bell size={isMobile ? 11 : 13} strokeWidth={2.5} /> : <BellOff size={isMobile ? 11 : 13} strokeWidth={2} />}
+                              <span style={{ fontSize: isMobile ? 9 : 10, fontWeight: 700 }}>Alert</span>
+                            </button>
+                          </div>
                         </div>
 
-                        {/* Price Alerts Toggles */}
-                        <div className="flex items-center gap-1.5" style={{ background: "rgba(64,41,112,0.03)", padding: "4px 8px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.06)" }}>
-                          <button
-                            onClick={() => toggleAlerts(item.productId, "priceDrop")}
-                            title={item.notifyOnPriceDrop ? "Disable Price Drop Alert" : "Enable Price Drop Alert"}
+                        {/* Add to Cart & Delete */}
+                        <div className="flex items-center gap-2">
+                          {/* Add to Cart button */}
+                          <motion.button
+                            whileTap={isInStock ? { scale: 0.95 } : {}}
+                            disabled={!isInStock}
+                            onClick={() => {
+                              moveToCart(item.product);
+                              removeFromWishlist(item.productId);
+                            }}
                             style={{
-                              border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
-                              color: item.notifyOnPriceDrop ? "#7c4dba" : "#9e8dc0", padding: "4px", borderRadius: 6
+                              padding: isMobile ? "6px 12px" : "8px 16px", borderRadius: 10, border: "none",
+                              background: isInStock ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.1)",
+                              color: isInStock ? "#fff" : "#b8aed0", fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: isInStock ? "pointer" : "not-allowed"
                             }}
                           >
-                            {item.notifyOnPriceDrop ? <Bell size={13} strokeWidth={2.5} /> : <BellOff size={13} strokeWidth={2} />}
-                            <span style={{ fontSize: 10, fontWeight: 700 }}>Price Alert</span>
-                          </button>
+                            Add to Cart
+                          </motion.button>
+
+                          {/* Delete icon */}
+                          <motion.button
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => removeFromWishlist(item.productId)}
+                            title="Remove item"
+                            style={{
+                              width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, borderRadius: 8, border: "none", cursor: "pointer",
+                              background: "rgba(212,24,61,0.06)", color: "#d4183d",
+                              display: "flex", alignItems: "center", justifyContent: "center"
+                            }}
+                          >
+                            <Trash2 size={isMobile ? 11 : 13} strokeWidth={2.5} />
+                          </motion.button>
                         </div>
-
-                        {/* Add to Cart button */}
-                        <motion.button
-                          whileTap={isInStock ? { scale: 0.95 } : {}}
-                          disabled={!isInStock}
-                          onClick={() => {
-                            moveToCart(item.product);
-                            removeFromWishlist(item.productId);
-                          }}
-                          style={{
-                            padding: "8px 16px", borderRadius: 10, border: "none",
-                            background: isInStock ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.1)",
-                            color: isInStock ? "#fff" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: isInStock ? "pointer" : "not-allowed"
-                          }}
-                        >
-                          Add to Cart
-                        </motion.button>
-
-                        {/* Delete icon */}
-                        <motion.button
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => removeFromWishlist(item.productId)}
-                          title="Remove item"
-                          style={{
-                            width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer",
-                            background: "rgba(212,24,61,0.06)", color: "#d4183d",
-                            display: "flex", alignItems: "center", justifyContent: "center"
-                          }}
-                        >
-                          <Trash2 size={13} strokeWidth={2.5} />
-                        </motion.button>
 
                       </div>
                     </motion.div>
@@ -290,7 +298,7 @@ export const WishlistScreen: React.FC<WishlistScreenProps> = ({ onContinueShoppi
               <div
                 key={prod.id}
                 style={{
-                  width: 180,
+                  width: isMobile ? 140 : 180,
                   flexShrink: 0,
                   background: "#fff",
                   border: "1.5px solid rgba(124, 77, 186, 0.12)",

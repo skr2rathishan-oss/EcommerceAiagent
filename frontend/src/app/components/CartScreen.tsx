@@ -5,6 +5,7 @@ import { useCart } from "../contexts/CartContext";
 import { useWishlist } from "../contexts/WishlistContext";
 import { type Product, PRODUCTS } from "./products";
 import { formatUIPrice } from "../services/mapping";
+import { useIsMobile } from "./ui/use-mobile";
 
 interface CartScreenProps {
   onContinueShopping: () => void;
@@ -12,6 +13,7 @@ interface CartScreenProps {
 }
 
 export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCheckout }) => {
+  const isMobile = useIsMobile();
   const {
     cartItems,
     promoCode,
@@ -88,8 +90,8 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
             <ArrowLeft size={16} strokeWidth={2.5} />
           </motion.button>
           <div>
-            <h1 style={{ fontSize: 24, fontWeight: 800, color: "#1a1025", margin: 0 }}>Your Cart</h1>
-            <p style={{ fontSize: 13, color: "#7c6a9e", margin: "2px 0 0 0" }}>Review your items and proceed to checkout.</p>
+            <h1 style={{ fontSize: isMobile ? 18 : 24, fontWeight: 800, color: "#1a1025", margin: 0 }}>Your Cart</h1>
+            <p style={{ fontSize: isMobile ? 11.5 : 13, color: "#7c6a9e", margin: "2px 0 0 0" }}>Review your items and proceed to checkout.</p>
           </div>
         </div>
 
@@ -125,9 +127,9 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
               
               {/* Delivery Progress Banner */}
               <div className="bg-white p-5 rounded-2xl flex flex-col gap-3" style={{ border: "1px solid rgba(64,41,112,0.08)", boxShadow: "0 10px 30px rgba(64,41,112,0.04)" }}>
-                <div className="flex justify-between items-center text-sm font-semibold">
-                  <span style={{ color: remainingForFreeDelivery > 0 ? "#7c4dba" : "#2a9e6a", display: "flex", alignItems: "center", gap: 6 }}>
-                    <Truck size={16} />
+                <div className="flex justify-between items-center font-semibold" style={{ fontSize: isMobile ? "11.5px" : "14px" }}>
+                  <span style={{ color: remainingForFreeDelivery > 0 ? "#7c4dba" : "#2a9e6a", display: "flex", alignItems: "center", gap: 5 }}>
+                    <Truck size={isMobile ? 13 : 16} />
                     {remainingForFreeDelivery > 0 ? (
                       <>You're Rs. <span style={{ fontWeight: 800 }}>{remainingForFreeDelivery.toLocaleString()}</span> away from <span style={{ color: "#2a9e6a", fontWeight: 800 }}>FREE delivery!</span></>
                     ) : (
@@ -153,7 +155,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                 
                 {/* Bulk Selector Header */}
                 <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid rgba(64,41,112,0.06)" }}>
-                  <label className="flex items-center gap-3 cursor-pointer text-sm font-bold text-[#1a1025]">
+                  <label className="flex items-center gap-3 cursor-pointer font-bold text-[#1a1025]" style={{ fontSize: isMobile ? "11.5px" : "14px" }}>
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -168,7 +170,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                         const selectedIds = cartItems.filter(item => item.selected).map(item => item.productId);
                         selectedIds.forEach(id => removeFromCart(id));
                       }}
-                      style={{ border: "none", background: "transparent", color: "#d4183d", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      style={{ border: "none", background: "transparent", color: "#d4183d", fontSize: isMobile ? 10.5 : 12, fontWeight: 700, cursor: "pointer" }}
                     >
                       Delete Selected
                     </button>
@@ -184,27 +186,27 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                         key={item.productId}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-5"
+                        className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 p-3.5 md:p-5"
                         style={{ borderBottom: idx < cartItems.length - 1 ? "1px solid rgba(64,41,112,0.06)" : "none" }}
                       >
                         {/* Selector checkbox & Product Info */}
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
                           <input
                             type="checkbox"
                             checked={item.selected}
                             onChange={(e) => selectItem(item.productId, e.target.checked)}
                             style={{ width: 17, height: 17, cursor: "pointer", accentColor: "#7c4dba" }}
                           />
-                          <div style={{ width: 72, height: 72, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", flexShrink: 0 }}>
+                          <div style={{ width: isMobile ? 56 : 72, height: isMobile ? 56 : 72, borderRadius: 12, overflow: "hidden", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", flexShrink: 0 }}>
                             <img src={item.image} alt={item.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                           </div>
                           <div className="min-w-0">
                             <span style={{ fontSize: 10, fontWeight: 800, color: "#7c6a9e", textTransform: "uppercase", letterSpacing: "0.04em" }}>{item.brand}</span>
-                            <h3 style={{ fontSize: 14, fontWeight: 700, color: "#1a1025", margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <h3 style={{ fontSize: isMobile ? 12.5 : 14, fontWeight: 700, color: "#1a1025", margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {item.name}
                             </h3>
                             <div className="flex items-center gap-2 mt-1">
-                              <span style={{ fontSize: 11, fontWeight: 700, color: "#7c6a9e", padding: "2px 8px", borderRadius: 20, background: "rgba(64,41,112,0.06)" }}>
+                              <span style={{ fontSize: isMobile ? 9.5 : 11, fontWeight: 700, color: "#7c6a9e", padding: "2px 6px", borderRadius: 20, background: "rgba(64,41,112,0.06)" }}>
                                 {item.product.category}
                               </span>
                               {item.product.stock <= 5 && (
@@ -217,67 +219,67 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                         </div>
 
                         {/* Quantity Controls, Actions, Price */}
-                        <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto">
+                        <div className="flex items-center justify-between md:justify-end gap-3 md:gap-6 w-full md:w-auto">
                           
                           {/* Quantity selector */}
                           <div className="flex items-center" style={{ border: "1.5px solid rgba(64,41,112,0.12)", borderRadius: 10, background: "rgba(64,41,112,0.02)", overflow: "hidden" }}>
                             <button
                               onClick={() => updateQuantity(item.productId, item.quantity - 1)}
                               disabled={item.quantity <= 1}
-                              style={{ border: "none", background: "transparent", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: item.quantity <= 1 ? "default" : "pointer", color: item.quantity <= 1 ? "#9e8dc0" : "#402970" }}
+                              style={{ border: "none", background: "transparent", width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: item.quantity <= 1 ? "default" : "pointer", color: item.quantity <= 1 ? "#9e8dc0" : "#402970" }}
                             >
-                              <Minus size={11} strokeWidth={3} />
+                              <Minus size={10} strokeWidth={3} />
                             </button>
-                            <span style={{ minWidth: 20, textAlign: "center", fontSize: 12.5, fontWeight: 700, color: "#1a1025" }}>
+                            <span style={{ minWidth: 18, textAlign: "center", fontSize: isMobile ? 11.5 : 12.5, fontWeight: 700, color: "#1a1025" }}>
                               {item.quantity}
                             </span>
                             <button
                               onClick={() => updateQuantity(item.productId, item.quantity + 1)}
                               disabled={item.quantity >= (item.product.stock ?? 100)}
-                              style={{ border: "none", background: "transparent", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: item.quantity >= (item.product.stock ?? 100) ? "default" : "pointer", color: item.quantity >= (item.product.stock ?? 100) ? "#9e8dc0" : "#402970" }}
+                              style={{ border: "none", background: "transparent", width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: item.quantity >= (item.product.stock ?? 100) ? "default" : "pointer", color: item.quantity >= (item.product.stock ?? 100) ? "#9e8dc0" : "#402970" }}
                             >
-                              <Plus size={11} strokeWidth={3} />
+                              <Plus size={10} strokeWidth={3} />
                             </button>
                           </div>
 
                           {/* Price */}
-                          <div style={{ minWidth: 80, textAlign: "right" }}>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: "#402970" }}>
+                          <div style={{ minWidth: isMobile ? 70 : 80, textAlign: "right" }}>
+                            <span style={{ fontSize: isMobile ? 13.5 : 15, fontWeight: 800, color: "#402970" }}>
                               {formatUIPrice(item.price * item.quantity, item.product.currency)}
                             </span>
                             {item.quantity > 1 && (
-                              <p style={{ margin: "2px 0 0 0", fontSize: 10.5, color: "#9e8dc0" }}>
+                              <p style={{ margin: "2px 0 0 0", fontSize: isMobile ? 9.5 : 10.5, color: "#9e8dc0" }}>
                                 {formatUIPrice(item.price, item.product.currency)} each
                               </p>
                             )}
                           </div>
 
                           {/* Actions */}
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 md:gap-2">
                             <motion.button
                               whileTap={{ scale: 0.9 }}
                               onClick={() => handleToggleWishlist(item.product)}
                               title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
                               style={{
-                                width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer",
+                                width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, borderRadius: 8, border: "none", cursor: "pointer",
                                 background: isWishlisted ? "rgba(212,24,61,0.06)" : "rgba(64,41,112,0.05)",
                                 color: isWishlisted ? "#d4183d" : "#7c6a9e",
                                 display: "flex", alignItems: "center", justifyContent: "center"
                               }}
                             >
-                              <Heart size={14} fill={isWishlisted ? "#d4183d" : "none"} strokeWidth={2.5} />
+                              <Heart size={isMobile ? 12 : 14} fill={isWishlisted ? "#d4183d" : "none"} strokeWidth={2.5} />
                             </motion.button>
                             <motion.button
                               whileTap={{ scale: 0.9 }}
                               onClick={() => removeFromCart(item.productId)}
                               title="Remove item"
                               style={{
-                                width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer",
+                                width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, borderRadius: 8, border: "none", cursor: "pointer",
                                 background: "rgba(212,24,61,0.06)", color: "#d4183d",
                                 display: "flex", alignItems: "center", justifyContent: "center"
                               }}
                             >
-                              <Trash2 size={13} strokeWidth={2.5} />
+                              <Trash2 size={isMobile ? 11 : 13} strokeWidth={2.5} />
                             </motion.button>
                           </div>
 
@@ -296,10 +298,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
               
               {/* Summary Card */}
               <div className="bg-white p-5 rounded-2xl flex flex-col gap-4" style={{ border: "1px solid rgba(64,41,112,0.08)", boxShadow: "0 10px 30px rgba(64,41,112,0.04)" }}>
-                <h2 style={{ fontSize: 16, fontWeight: 800, color: "#1a1025", margin: 0, borderBottom: "1px solid rgba(64,41,112,0.06)", paddingBottom: 10 }}>Order Summary</h2>
+                <h2 style={{ fontSize: isMobile ? 14 : 16, fontWeight: 800, color: "#1a1025", margin: 0, borderBottom: "1px solid rgba(64,41,112,0.06)", paddingBottom: 10 }}>Order Summary</h2>
                 
                 {/* Breakdowns */}
-                <div className="flex flex-col gap-3 text-sm">
+                <div className="flex flex-col gap-3" style={{ fontSize: isMobile ? "12px" : "14px" }}>
                   <div className="flex justify-between items-center">
                     <span style={{ color: "#7c6a9e" }}>Subtotal ({selectedItemsCount} item{selectedItemsCount !== 1 && "s"})</span>
                     <span style={{ color: "#1a1025", fontWeight: 700 }}>{formatUIPrice(subtotal, cartItems[0]?.product.currency)}</span>
@@ -313,7 +315,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                   {discountAmount > 0 && (
                     <div className="flex justify-between items-center text-[#2a9e6a] font-semibold">
                       <span className="flex items-center gap-1">
-                        <Tag size={13} />
+                        <Tag size={isMobile ? 11.5 : 13} />
                         Discount {promoCode && `(${promoCode})`}
                       </span>
                       <span>-{formatUIPrice(discountAmount, cartItems[0]?.product.currency)}</span>
@@ -322,9 +324,9 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                   
                   <div style={{ height: 1, background: "rgba(64,41,112,0.08)", margin: "4px 0" }} />
                   
-                  <div className="flex justify-between items-center text-base font-extrabold">
+                  <div className="flex justify-between items-center font-extrabold" style={{ fontSize: isMobile ? "13.5px" : "16px" }}>
                     <span style={{ color: "#1a1025" }}>Total</span>
-                    <span style={{ color: "#7c4dba", fontSize: 19 }}>{formatUIPrice(grandTotal, cartItems[0]?.product.currency)}</span>
+                    <span style={{ color: "#7c4dba", fontSize: isMobile ? 16 : 19 }}>{formatUIPrice(grandTotal, cartItems[0]?.product.currency)}</span>
                   </div>
                 </div>
 
@@ -374,10 +376,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                   disabled={selectedItemsCount === 0}
                   className="flex items-center justify-center gap-2 w-full mt-2"
                   style={{
-                    padding: "13px", borderRadius: 14, border: "none",
+                    padding: isMobile ? "10px" : "13px", borderRadius: 14, border: "none",
                     background: selectedItemsCount === 0 ? "rgba(64,41,112,0.15)" : "linear-gradient(135deg,#7c4dba,#402970)",
                     color: selectedItemsCount === 0 ? "#b8aed0" : "#fff",
-                    fontSize: 14, fontWeight: 700, cursor: selectedItemsCount === 0 ? "not-allowed" : "pointer",
+                    fontSize: isMobile ? 12.5 : 14, fontWeight: 700, cursor: selectedItemsCount === 0 ? "not-allowed" : "pointer",
                     boxShadow: selectedItemsCount === 0 ? "none" : "0 4px 16px rgba(64,41,112,0.3)"
                   }}
                 >
@@ -385,10 +387,10 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
                 </motion.button>
 
                 {/* Safe assurance labels */}
-                <div className="flex flex-col gap-2.5 mt-2.5 border-t border-[rgba(64,41,112,0.06)] pt-4 text-xs font-semibold text-[#7c6a9e]">
+                <div className="flex flex-col gap-2.5 mt-2.5 border-t border-[rgba(64,41,112,0.06)] pt-4 font-semibold text-[#7c6a9e]" style={{ fontSize: isMobile ? "10.5px" : "12px" }}>
                   <div className="flex items-center gap-2">
-                    <ShieldCheck size={16} color="#3fc78e" />
-                    <span>Secure Checkout · Your details are protected</span>
+                    <ShieldCheck size={isMobile ? 13 : 16} color="#3fc78e" />
+                    <span>Secure Checkout · Protected details</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Truck size={16} color="#7c4dba" />
@@ -420,7 +422,7 @@ export const CartScreen: React.FC<CartScreenProps> = ({ onContinueShopping, onCh
               <div
                 key={prod.id}
                 style={{
-                  width: 180,
+                  width: isMobile ? 140 : 180,
                   flexShrink: 0,
                   background: "#fff",
                   border: "1.5px solid rgba(124, 77, 186, 0.12)",

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { Product } from "./products";
 import { formatUIPrice } from "../services/mapping";
+import { useIsMobile } from "./ui/use-mobile";
 
 interface Props {
   content: string;          // markdown formatted string from productDetailsFormatter
@@ -31,6 +32,7 @@ export function ProductDetailsCard({
   onWishlist,
   onClose,
 }: Props) {
+  const isMobile = useIsMobile();
   const [addedToCart, setAddedToCart] = useState(false);
   const [imgErr, setImgErr] = useState(false);
 
@@ -60,7 +62,7 @@ export function ProductDetailsCard({
       {/* ── Gradient header strip ── */}
       <div style={{
         background: "linear-gradient(135deg, #7c4dba 0%, #402970 100%)",
-        padding: "14px 18px",
+        padding: isMobile ? "10px 14px" : "14px 18px",
         display: "flex",
         alignItems: "center",
         gap: 12,
@@ -68,7 +70,7 @@ export function ProductDetailsCard({
       }}>
         {/* Product thumbnail */}
         <div style={{
-          width: 52, height: 52, borderRadius: 12, overflow: "hidden",
+          width: isMobile ? 40 : 52, height: isMobile ? 40 : 52, borderRadius: 12, overflow: "hidden",
           flexShrink: 0, background: "rgba(255,255,255,0.15)",
           border: "2px solid rgba(255,255,255,0.25)",
         }}>
@@ -88,13 +90,13 @@ export function ProductDetailsCard({
 
         {/* Name + price */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
+          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: isMobile ? 8 : 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>
             🎁 Product Details
           </p>
-          <p style={{ color: "#fff", fontSize: 14, fontWeight: 800, margin: "3px 0 0", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <p style={{ color: "#fff", fontSize: isMobile ? 12 : 14, fontWeight: 800, margin: "3px 0 0", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {product.name}
           </p>
-          <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: 700, margin: "3px 0 0" }}>
+          <p style={{ color: "rgba(255,255,255,0.85)", fontSize: isMobile ? 11 : 13, fontWeight: 700, margin: "3px 0 0" }}>
             {formatUIPrice(product.price, product.currency)}
           </p>
         </div>
@@ -117,28 +119,31 @@ export function ProductDetailsCard({
       </div>
 
       {/* ── Formatted markdown content ── */}
-      <div style={{ padding: "16px 18px 12px", borderBottom: "1px solid rgba(64,41,112,0.08)" }}>
+      <div style={{
+        padding: isMobile ? "8px 12px" : "16px 18px 12px",
+        borderBottom: "1px solid rgba(64,41,112,0.08)",
+      }}>
         <div className="product-details-markdown">
           <style dangerouslySetInnerHTML={{ __html: `
             .product-details-markdown h2 {
-              font-size: 1.1rem;
+              font-size: ${isMobile ? "0.95rem" : "1.1rem"};
               font-weight: 800;
               color: #1a1025;
-              margin: 0 0 10px 0;
+              margin: 0 0 ${isMobile ? "4px" : "10px"} 0;
               font-family: 'Nunito', sans-serif;
             }
             .product-details-markdown h3 {
-              font-size: 1.05rem;
+              font-size: ${isMobile ? "0.9rem" : "1.05rem"};
               font-weight: 700;
               color: #1a1025;
-              margin: 12px 0 4px;
+              margin: ${isMobile ? "8px" : "12px"} 0 4px;
               font-family: 'Nunito', sans-serif;
             }
             .product-details-markdown p {
-              margin: 0 0 8px 0;
-              line-height: 1.65;
+              margin: 0 0 ${isMobile ? "4px" : "8px"} 0;
+              line-height: ${isMobile ? "1.4" : "1.65"};
               color: #3d2d5c;
-              font-size: 13px;
+              font-size: ${isMobile ? "11.5px" : "13px"};
               font-family: 'Nunito', sans-serif;
             }
             .product-details-markdown strong {
@@ -147,20 +152,20 @@ export function ProductDetailsCard({
             }
             .product-details-markdown ul,
             .product-details-markdown ol {
-              margin: 4px 0 8px 0;
-              padding-left: 18px;
+              margin: ${isMobile ? "2px" : "4px"} 0 ${isMobile ? "4px" : "8px"} 0;
+              padding-left: ${isMobile ? "14px" : "18px"};
               font-family: 'Nunito', sans-serif;
             }
             .product-details-markdown li {
-              margin-bottom: 3px;
+              margin-bottom: ${isMobile ? "2px" : "3px"};
               color: #3d2d5c;
-              font-size: 13px;
-              line-height: 1.5;
+              font-size: ${isMobile ? "11.5px" : "13px"};
+              line-height: ${isMobile ? "1.35" : "1.5"};
             }
             .product-details-markdown hr {
               border: none;
               border-top: 1px solid rgba(64,41,112,0.1);
-              margin: 10px 0;
+              margin: ${isMobile ? "6px" : "10px"} 0;
             }
             .product-details-markdown > :first-child { margin-top: 0 !important; }
             .product-details-markdown > :last-child  { margin-bottom: 0 !important; }
@@ -171,7 +176,7 @@ export function ProductDetailsCard({
 
       {/* ── CTA Buttons ── */}
       <div style={{
-        padding: "12px 18px 14px",
+        padding: isMobile ? "10px 14px" : "12px 18px 14px",
         display: "flex",
         gap: 8,
         flexWrap: "wrap",
@@ -183,14 +188,14 @@ export function ProductDetailsCard({
           disabled={product.stock === 0}
           style={{
             flex: 1,
-            minWidth: 100,
+            minWidth: isMobile ? 80 : 100,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "9px 14px", borderRadius: 10, border: "none",
+            padding: isMobile ? "7px 10px" : "9px 14px", borderRadius: 10, border: "none",
             background: product.stock > 0
               ? "linear-gradient(135deg,#7c4dba,#402970)"
               : "rgba(64,41,112,0.12)",
             color: product.stock > 0 ? "#fff" : "#b8aed0",
-            fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed",
+            fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed",
             fontFamily: "'Nunito', sans-serif",
           }}
         >
@@ -205,13 +210,13 @@ export function ProductDetailsCard({
           disabled={product.stock === 0}
           style={{
             flex: 1,
-            minWidth: 100,
+            minWidth: isMobile ? 80 : 100,
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "9px 14px", borderRadius: 10,
+            padding: isMobile ? "7px 10px" : "9px 14px", borderRadius: 10,
             border: `1.5px solid ${product.stock > 0 ? "rgba(64,41,112,0.22)" : "rgba(64,41,112,0.1)"}`,
             background: addedToCart ? "rgba(63,199,142,0.1)" : "transparent",
             color: addedToCart ? "#2a9e6a" : (product.stock > 0 ? "#402970" : "#b8aed0"),
-            fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed",
+            fontSize: isMobile ? 11 : 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed",
             fontFamily: "'Nunito', sans-serif",
             transition: "all 0.2s",
           }}
@@ -225,7 +230,7 @@ export function ProductDetailsCard({
           whileTap={{ scale: 0.9 }}
           onClick={() => onWishlist(product)}
           style={{
-            width: 38, height: 38, borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.15)",
+            width: isMobile ? 32 : 38, height: isMobile ? 32 : 38, borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.15)",
             background: "transparent", cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,

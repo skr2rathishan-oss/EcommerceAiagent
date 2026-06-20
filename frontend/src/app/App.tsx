@@ -23,6 +23,7 @@ import { WishlistScreen } from "./components/WishlistScreen";
 import { SmartInputPanel } from "./components/SmartInputPanel";
 import { fetchRecommendations } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
+import { useIsMobile } from "./components/ui/use-mobile";
 
 function SpeechBubble({ children, style, tailPosition }: { children: React.ReactNode; style: React.CSSProperties; tailPosition: "bottom-left" | "bottom-right" }) {
   return (
@@ -68,6 +69,7 @@ const getRatingInfo = (id: string) => {
 };
 
 function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => void }) {
+  const isMobile = useIsMobile();
   const [imgErr, setImgErr] = useState(false);
   const { wishlistItems, handleWishlist } = useApp();
   const isWishlisted = wishlistItems.some(item => item.id === prod.id);
@@ -85,13 +87,12 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
       whileHover={{ y: -3, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 6px 18px rgba(64, 41, 112, 0.06)" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
+      className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 mx-auto"
       style={{
-        width: 160,
-        flexShrink: 0,
         background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
         backdropFilter: "blur(10px)",
         border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-        borderRadius: 14,
+        borderRadius: isMobile ? 8 : 14,
         overflow: "hidden",
         cursor: "pointer",
         display: "flex",
@@ -109,9 +110,9 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             left: 5,
             background: "#7c4dba",
             color: "#ffffff",
-            fontSize: "8px",
+            fontSize: isMobile ? "6.5px" : "8px",
             fontWeight: 800,
-            padding: "1.5px 4px",
+            padding: isMobile ? "1px 3px" : "1.5px 4px",
             borderRadius: 3,
             zIndex: 2,
             fontFamily: "'Nunito', sans-serif",
@@ -131,44 +132,7 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             <Sparkles size={16} color="rgba(124,77,186,0.25)" />
           </div>
         )}
-      </div>
-
-      {/* Info */}
-      <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: 2.5, flex: 1 }}>
-        <span style={{ color: "#7c6a9e", fontSize: 8.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
-          {prod.brand}
-        </span>
-        <span
-          style={{
-            color: "var(--text-primary, #1a1025)",
-            fontSize: 11,
-            fontWeight: 700,
-            fontFamily: "'Nunito', sans-serif",
-            lineHeight: 1.2,
-            overflow: "hidden",
-            display: "-webkit-box",
-            WebkitLineClamp: 1,
-            WebkitBoxOrient: "vertical",
-            height: 14
-          }}
-        >
-          {prod.name}
-        </span>
-        
-        {/* Rating and Reviews */}
-        <div style={{ display: "flex", alignItems: "center", gap: 2.5, marginTop: 0.5 }}>
-          <span style={{ color: "#fbbf24", fontSize: 10, lineHeight: 1 }}>★</span>
-          <span style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: 9.5, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
-            {mockRating.rating} ({mockRating.reviews})
-          </span>
-        </div>
-        
-        {/* Bottom Row */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 1 }}>
-          <span style={{ color: "#7c4dba", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
-            {formatUIPrice(prod.price, prod.currency)}
-          </span>
-          
+        {isMobile && (
           <motion.button
             whileHover={{ scale: 1.15 }}
             whileTap={{ scale: 0.85 }}
@@ -177,18 +141,87 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
               handleWishlist(prod);
             }}
             style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
               border: "none",
-              background: "transparent",
+              background: "rgba(255, 255, 255, 0.9)",
+              backdropFilter: "blur(4px)",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+              borderRadius: "50%",
               cursor: "pointer",
-              padding: 3,
+              width: 18,
+              height: 18,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               color: isWishlisted ? "#ec4899" : "#7c6a9e",
+              zIndex: 2,
             }}
           >
-            <Heart size={14} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
+            <Heart size={9} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
           </motion.button>
+        )}
+      </div>
+
+      {/* Info */}
+      <div style={{ padding: isMobile ? "4px 5px 6px" : "8px", display: "flex", flexDirection: "column", gap: isMobile ? 1.5 : 2.5, flex: 1 }}>
+        <span style={{ color: "#7c6a9e", fontSize: isMobile ? 7 : 8.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito', sans-serif" }}>
+          {prod.brand}
+        </span>
+        <span
+          style={{
+            color: "var(--text-primary, #1a1025)",
+            fontSize: isMobile ? 9 : 11,
+            fontWeight: 700,
+            fontFamily: "'Nunito', sans-serif",
+            lineHeight: 1.15,
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: "vertical",
+            height: isMobile ? 12 : 14
+          }}
+        >
+          {prod.name}
+        </span>
+        
+        {/* Rating and Reviews */}
+        <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 0.5 }}>
+          <span style={{ color: "#fbbf24", fontSize: 9, lineHeight: 1 }}>★</span>
+          <span style={{ color: "var(--text-secondary, #7c6a9e)", fontSize: isMobile ? 8 : 9.5, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+            {mockRating.rating} {!isMobile && `(${mockRating.reviews})`}
+          </span>
+        </div>
+        
+        {/* Bottom Row */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 1 }}>
+          <span style={{ color: "#7c4dba", fontSize: isMobile ? 9.5 : 12, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
+            {formatUIPrice(prod.price, prod.currency)}
+          </span>
+          
+          {!isMobile && (
+            <motion.button
+              whileHover={{ scale: 1.15 }}
+              whileTap={{ scale: 0.85 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleWishlist(prod);
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                padding: 3,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: isWishlisted ? "#ec4899" : "#7c6a9e",
+              }}
+            >
+              <Heart size={14} fill={isWishlisted ? "#ec4899" : "none"} strokeWidth={2.2} />
+            </motion.button>
+          )}
         </div>
       </div>
     </motion.div>
@@ -232,10 +265,10 @@ function MainApp() {
     handleWishlist,
     resetPendingPurchaseState,
     activeSmartPanel,
-    setActiveSmartPanel
+    setActiveSmartPanel,
+    voiceDashboardOpen,
+    setVoiceDashboardOpen
   } = useApp();
-
-  const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
 
   const {
     handleProductSelect,
@@ -456,7 +489,7 @@ function MainApp() {
 
               {/* Hero Banner Card */}
               <motion.div
-                className="hero-banner relative w-full max-w-7xl rounded-3xl border p-12 md:py-32 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[400px]"
+                className="hero-banner relative w-full max-w-7xl rounded-3xl border p-6 py-10 md:py-16 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[280px]"
                 style={{
                   borderColor: "var(--banner-border)",
                   boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
@@ -468,14 +501,21 @@ function MainApp() {
                 <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
                   <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
                       style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
-                    Discover Smart Shopping
+                    <span className="hidden md:inline">Discover Smart Shopping</span>
                     <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
-                      with Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
+                      <span className="inline md:hidden">Shop with</span>
+                      <span className="hidden md:inline">with</span>
+                      Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
                     </span>
                   </h1>
                   
                   <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
-                    Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
+                    <span className="hidden md:inline">
+                      Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
+                    </span>
+                    <span className="inline md:hidden">
+                      Your AI shopping assistant. Ask, compare, and track orders in one place.
+                    </span>
                   </p>
 
                   <div className="w-full">
@@ -486,11 +526,12 @@ function MainApp() {
                   </div>
 
                   {/* Quick Actions (Pill Buttons) */}
-                  <div className="w-full mt-5 flex flex-wrap gap-2.5 justify-center select-none">
+                  <div className="w-full mt-5 flex flex-nowrap overflow-x-auto no-scrollbar gap-2.5 justify-center select-none pb-1"
+                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                     {[
-                      { title: "Find Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
-                      { title: "Find Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
-                      { title: "Track My Order", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
+                      { title: "Find Products", mobileTitle: "Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
+                      { title: "Find Gift", mobileTitle: "Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                      { title: "Track My Order", mobileTitle: "Track", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
                     ].map((act, idx) => {
                       const Icon = act.icon;
                       return (
@@ -518,7 +559,8 @@ function MainApp() {
                           }}
                         >
                           <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
-                          <span>{act.title}</span>
+                          <span className="hidden md:inline">{act.title}</span>
+                          <span className="inline md:hidden">{act.mobileTitle}</span>
                         </motion.button>
                       );
                     })}
@@ -613,28 +655,24 @@ function MainApp() {
                     )}
                   </AnimatePresence>
 
-                  {/* Card Horizontal Scroll Row */}
+                  {/* Card Row or Grid */}
                   <div
                     ref={scrollContainerRef}
                     onScroll={handleScrollEvent}
+                    className="no-scrollbar grid grid-cols-4 gap-2 md:flex md:gap-5 md:overflow-x-auto"
                     style={{
-                      display: "flex",
-                      gap: 20,
-                      overflowX: "auto",
                       padding: "8px 4px 16px",
                       scrollbarWidth: "none",
                       msOverflowStyle: "none",
                       WebkitOverflowScrolling: "touch",
                     }}
-                    className="no-scrollbar"
                   >
                     {loadingRecs ? (
                       Array.from({ length: 5 }).map((_, i) => (
                         <div
                           key={i}
+                          className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
                           style={{
-                            width: 160,
-                            height: 202,
                             borderRadius: 14,
                             background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
                             border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
@@ -1107,6 +1145,13 @@ function MainApp() {
           onClose={() => setVoiceDashboardOpen(false)} 
           messages={messages} 
           onSendMessage={(text) => handleSend(text)} 
+          onAddToCart={handleAddToCart}
+          onBuyNow={handleBuyNow}
+          onWishlist={handleWishlist}
+          onViewDetails={(id) => {
+            const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
+            handleRequestProductDetails(id, found?.name);
+          }}
         />
       </div>
 

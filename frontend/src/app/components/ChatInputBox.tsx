@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Paperclip, Mic, ArrowUp, Square, AudioLines, Sparkles } from "lucide-react";
 
@@ -31,10 +31,17 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
 }) => {
   const [focused, setFocused] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-
-  // Auto-resize textarea height dynamically based on content
   useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Auto-resize textarea height dynamically based on content (uses useLayoutEffect to prevent visual jumping)
+  useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
@@ -47,7 +54,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
   const handleVoiceClick = () => {
     if (isListening) return;
     setIsListening(true);
-    
+
     const mockQueries = [
       "Gaming laptops",
       "Casual shirts",
@@ -59,7 +66,7 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
 
     let counter = 0;
     let currentText = "";
-    
+
     const interval = setInterval(() => {
       if (counter < randomQuery.length) {
         currentText += randomQuery[counter];
@@ -110,18 +117,18 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
             onKeyDown={onKeyDown}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            placeholder={isListening ? "Listening..." : "Ask for products, comparisons, or shopping advice..."}
+            placeholder={isListening ? "Listening..." : isMobile ? "Ask Velora..." : "Ask for products, comparisons, or shopping advice..."}
             disabled={isListening}
             rows={1}
             className="flex-1 bg-transparent resize-none outline-none text-foreground placeholder:text-muted-foreground"
             style={{
               lineHeight: 1.4,
-              minHeight: 28,
+              minHeight: 32,
               maxHeight: 120,
               fontFamily: "'Nunito',sans-serif",
               fontSize: 13.5,
-              paddingTop: 4,
-              paddingBottom: 4,
+              paddingTop: 6,
+              paddingBottom: 6,
               border: "none",
             }}
           />

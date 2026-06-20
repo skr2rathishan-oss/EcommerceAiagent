@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import { ProductShowcase } from "./ProductShowcase";
 import { type Product } from "./products";
+import { useIsMobile } from "./ui/use-mobile";
 import { InteractiveOrderSummary, type DeliveryInfo } from "./InteractiveOrderSummary";
 import { ProductDetailsCard } from "./ProductDetailsCard";
 import { OrderConfirmationCard } from "./OrderConfirmationCard";
@@ -56,6 +57,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   onExpandedChange,
 }) => {
   const { displayedCounts, setDisplayedCounts } = useApp();
+  const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const [voiceStates, setVoiceStates] = useState<Record<number, 'idle' | 'generating' | 'playing' | 'error'>>({});
@@ -269,20 +271,21 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                             onSelectProduct={onSelectProduct}
                           />
                           {showCount < total && (
-                            <div style={{ marginTop: 12, display: "flex", justifyContent: "center" }}>
+                            <div style={{ marginTop: isMobile ? 8 : 12, display: "flex", justifyContent: "center" }}>
                               <button
                                 onClick={() => {
                                   const newCount = Math.min(showCount + 5, total);
                                   setDisplayedCounts(prev => ({ ...prev, [i]: newCount }));
                                 }}
                                 style={{
-                                  padding: "8px 16px",
+                                  padding: isMobile ? "5px 10px" : "8px 16px",
                                   background: "linear-gradient(135deg,#7c4dba,#402970)",
                                   color: "#fff",
                                   border: "none",
-                                  borderRadius: 6,
+                                  borderRadius: isMobile ? 5 : 6,
                                   fontFamily: "'Nunito',sans-serif",
                                   cursor: "pointer",
+                                  fontSize: isMobile ? "10.5px" : "12.5px",
                                   boxShadow: "0 2px 8px rgba(64,41,112,0.2)"
                                 }}
                               >

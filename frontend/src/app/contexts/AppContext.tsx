@@ -133,6 +133,8 @@ export interface AppContextType {
   setNearbyCitiesSuggested: React.Dispatch<React.SetStateAction<string[]>>;
   lastCheckedDelivery: { city: string; deliveryDate: string; productId: string } | null;
   setLastCheckedDelivery: React.Dispatch<React.SetStateAction<{ city: string; deliveryDate: string; productId: string } | null>>;
+  voiceDashboardOpen: boolean;
+  setVoiceDashboardOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -155,6 +157,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [activeSmartPanel, setActiveSmartPanel] = useState<"recommendation" | "delivery" | "track_order" | "checkout" | "delivery_recovery" | "nearby_address" | "alternative_date" | null>(null);
   const [nearbyCitiesSuggested, setNearbyCitiesSuggested] = useState<string[]>([]);
   const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string } | null>(null);
+  const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -279,6 +282,8 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         activeSmartPanel, setActiveSmartPanel,
         nearbyCitiesSuggested, setNearbyCitiesSuggested,
         lastCheckedDelivery, setLastCheckedDelivery,
+        voiceDashboardOpen,
+        setVoiceDashboardOpen,
 
         handleAddToCart,
         handleWishlist,

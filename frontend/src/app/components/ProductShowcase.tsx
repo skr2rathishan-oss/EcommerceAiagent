@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import type { Product } from "./products";
 import { formatUIPrice } from "../services/mapping";
+import { useIsMobile } from "./ui/use-mobile";
 
 interface Props {
   products: Product[];
@@ -37,6 +38,7 @@ function MiniCard({
   product, onClick, productId,
 }: { product: Product; onClick: () => void; productId?: string }) {
   const [imgErr, setImgErr] = useState(false);
+  const isMobile = useIsMobile();
   return (
     <motion.div
       layout
@@ -44,7 +46,7 @@ function MiniCard({
       onClick={onClick}
       data-product-id={productId || product.id}
       style={{
-        borderRadius: 12,
+        borderRadius: isMobile ? 8 : 12,
         background: "#fff",
         border: "1.5px solid rgba(64,41,112,0.1)",
         overflow: "hidden",
@@ -72,42 +74,49 @@ function MiniCard({
         {product.recommendationType && (
           <div style={{
             position: "absolute",
-            top: 6,
-            left: 6,
+            top: 4,
+            left: 4,
             background: "rgba(255, 255, 255, 0.95)",
             backdropFilter: "blur(4px)",
-            padding: "2px 6px",
-            borderRadius: 6,
-            fontSize: 8,
+            padding: "1.5px 4px",
+            borderRadius: 4,
+            fontSize: 7,
             fontWeight: 800,
             color: "#402970",
-            boxShadow: "0 2px 6px rgba(64,41,112,0.15)",
+            boxShadow: "0 1px 4px rgba(64,41,112,0.15)",
             zIndex: 2,
             fontFamily: "'Nunito', sans-serif",
             display: "flex",
             alignItems: "center",
-            gap: 3
+            gap: 2
           }}>
-            {getBadgeEmoji(product.recommendationType)} {product.recommendationType}
+            {getBadgeEmoji(product.recommendationType)} {!isMobile && product.recommendationType}
           </div>
         )}
       </motion.div>
 
-      <div style={{ padding: "7px 9px 9px" }}>
-        <p style={{ color: "#9e8dc0", fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>{product.brand}</p>
-        <p style={{ color: "#1a1025", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", lineHeight: 1.25, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>{product.name}</p>
+      <div style={{ padding: isMobile ? "4px 5px 6px" : "7px 9px 9px" }}>
+        <p style={{ color: "#9e8dc0", fontSize: isMobile ? 7 : 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Nunito',sans-serif", marginBottom: isMobile ? 1 : 2 }}>{product.brand}</p>
+        <p style={{ color: "#1a1025", fontSize: isMobile ? 9 : 11, fontWeight: 700, fontFamily: "'Nunito',sans-serif", lineHeight: 1.2, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical" }}>{product.name}</p>
         {!product.isMcp && (
-          <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
-            ))}
-            <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
-          </div>
+          isMobile ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 2 }}>
+              <Star size={8} strokeWidth={0} fill="#f59e0b" />
+              <span style={{ color: "#f59e0b", fontSize: 8, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
+              ))}
+              <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+            </div>
+          )
         )}
-        <p style={{ color: "#1a1025", fontSize: 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: 4 }}>
+        <p style={{ color: "#1a1025", fontSize: isMobile ? 9.5 : 12, fontWeight: 800, fontFamily: "'Nunito',sans-serif", marginTop: isMobile ? 2 : 4 }}>
           {formatUIPrice(product.price, product.currency)}
         </p>
-        {product.explanation && product.explanation.length > 0 ? (
+        {!isMobile && product.explanation && product.explanation.length > 0 ? (
           <div style={{ marginTop: 6, padding: "5px 6px", borderRadius: 6, background: "rgba(124,77,186,0.05)", borderLeft: "2px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
             <p style={{ color: "#7c4dba", fontSize: 7.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif", textTransform: "uppercase", letterSpacing: "0.02em" }}>
               Recommended:
@@ -124,10 +133,17 @@ function MiniCard({
   );
 }
 
-/* ── Selected product banner — 3 columns ── */
+/* ── Selected product banner ── */
 function SelectedBanner({
-  product, onAddToCart, onBuyNow, onWishlist, onViewDetails,
-}: { product: Product; onAddToCart: (p: Product) => void; onBuyNow: (p: Product, variants?: Record<string, string>) => void; onWishlist: (p: Product) => void; onViewDetails: (productId: string) => void }) {
+  product, onAddToCart, onBuyNow, onWishlist, onViewDetails, isMobile,
+}: {
+  product: Product;
+  onAddToCart: (p: Product) => void;
+  onBuyNow: (p: Product, variants?: Record<string, string>) => void;
+  onWishlist: (p: Product) => void;
+  onViewDetails: (productId: string) => void;
+  isMobile: boolean;
+}) {
   const [imgErr, setImgErr] = useState(false);
   const [imgIdx, setImgIdx] = useState(0);
   const [lightbox, setLightbox] = useState(false);
@@ -147,6 +163,7 @@ function SelectedBanner({
         layout
         style={{
           display: "flex",
+          flexDirection: isMobile ? "column" : "row",
           background: "#fff",
           borderRadius: 14,
           border: "1.5px solid rgba(124,77,186,0.2)",
@@ -184,8 +201,9 @@ function SelectedBanner({
           layoutId={`product-img-${product.id}`}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
           style={{
-            width: 190,
-            minHeight: IMG_H,
+            width: isMobile ? "100%" : 190,
+            minHeight: isMobile ? 120 : IMG_H,
+            height: isMobile ? 120 : "auto",
             alignSelf: "stretch",
             flexShrink: 0,
             position: "relative",
@@ -246,50 +264,60 @@ function SelectedBanner({
           initial={{ opacity: 0, x: 16 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.28, delay: 0.15, ease: "easeOut" }}
-          style={{ flex: 1, padding: "13px 16px", display: "flex", flexDirection: "column", gap: 6, minWidth: 0, borderLeft: "1px solid rgba(124,77,186,0.08)", overflow: "hidden" }}
+          style={{
+            flex: 1,
+            padding: isMobile ? "12px 14px" : "13px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            minWidth: 0,
+            borderLeft: isMobile ? "none" : "1px solid rgba(124,77,186,0.08)",
+            borderTop: isMobile ? "1px solid rgba(124,77,186,0.08)" : "none",
+            overflow: "hidden"
+          }}
         >
           <div style={{ cursor: "default" }}>
-            <p style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>
+            <p style={{ color: "#9e8dc0", fontSize: isMobile ? 8 : 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", fontFamily: "'Nunito',sans-serif", marginBottom: 2 }}>
               {product.brand} · {product.category}
             </p>
-            <p style={{ color: "#1a1025", fontSize: 14, fontWeight: 800, fontFamily: "'Nunito',sans-serif", lineHeight: 1.3 }}>{product.name}</p>
+            <p style={{ color: "#1a1025", fontSize: isMobile ? 12.5 : 14, fontWeight: 800, fontFamily: "'Nunito',sans-serif", lineHeight: 1.3 }}>{product.name}</p>
           </div>
 
           {!product.isMcp && (
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={10} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
+                <Star key={i} size={isMobile ? 8.5 : 10} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
               ))}
-              <span style={{ color: "#f59e0b", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
-              <span style={{ color: "#b8aed0", fontSize: 10, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
+              <span style={{ color: "#f59e0b", fontSize: isMobile ? 9 : 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+              <span style={{ color: "#b8aed0", fontSize: isMobile ? 9 : 10, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
             </div>
           )}
 
           <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
-            <span style={{ color: "#1a1025", fontSize: 17, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>
+            <span style={{ color: "#1a1025", fontSize: isMobile ? 14.5 : 17, fontWeight: 800, fontFamily: "'Nunito',sans-serif" }}>
               {formatUIPrice(product.price, product.currency)}
             </span>
             {product.originalPrice && (
-              <span style={{ color: "#b8aed0", fontSize: 11, textDecoration: "line-through", fontFamily: "'Nunito',sans-serif" }}>
+              <span style={{ color: "#b8aed0", fontSize: isMobile ? 10 : 11, textDecoration: "line-through", fontFamily: "'Nunito',sans-serif" }}>
                 {formatUIPrice(product.originalPrice, product.currency)}
               </span>
             )}
             {discount && product.originalPrice && (
-              <span style={{ color: "#3fc78e", fontSize: 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
+              <span style={{ color: "#3fc78e", fontSize: isMobile ? 9 : 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
                 Save {formatUIPrice(product.originalPrice - product.price, product.currency)}
               </span>
             )}
           </div>
 
-          <p style={{ color: "#7c6a9e", fontSize: 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
+          <p style={{ color: "#7c6a9e", fontSize: isMobile ? 9.5 : 11, fontFamily: "'Nunito',sans-serif", lineHeight: 1.45, margin: 0 }}>{product.shortDesc}</p>
 
           {product.explanation && product.explanation.length > 0 ? (
-            <div style={{ padding: "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
-              <p style={{ color: "#7c4dba", fontSize: 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif" }}>
+            <div style={{ padding: isMobile ? "4px 8px" : "6px 10px", borderRadius: 8, background: "rgba(124,77,186,0.05)", borderLeft: "3px solid #7c4dba", display: "flex", flexDirection: "column", gap: 2 }}>
+              <p style={{ color: "#7c4dba", fontSize: isMobile ? 9 : 10, fontWeight: 800, margin: 0, fontFamily: "'Nunito',sans-serif" }}>
                 Recommended for you because:
               </p>
               {product.explanation.slice(0, 3).map((reason, idx) => (
-                <p key={idx} style={{ color: "#402970", fontSize: 10, margin: 0, fontFamily: "'Nunito',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
+                <p key={idx} style={{ color: "#402970", fontSize: isMobile ? 9 : 10, margin: 0, fontFamily: "'Nunito',sans-serif", display: "flex", alignItems: "center", gap: 4 }}>
                   • {reason}
                 </p>
               ))}
@@ -300,10 +328,10 @@ function SelectedBanner({
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {product.variants.map(v => (
                 <div key={v.type} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5 }}>
-                  <span style={{ color: "#9e8dc0", fontSize: 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{v.type}:</span>
+                  <span style={{ color: "#9e8dc0", fontSize: isMobile ? 8.5 : 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{v.type}:</span>
                   {v.options.map(opt => (
                     <button key={opt} type="button" onClick={() => setVariants(sv => ({ ...sv, [v.type]: opt }))}
-                      style={{ padding: "2px 8px", borderRadius: 20, border: `1.5px solid ${variants[v.type] === opt ? "rgba(124,77,186,0.6)" : "rgba(64,41,112,0.14)"}`, background: variants[v.type] === opt ? "rgba(124,77,186,0.1)" : "transparent", color: variants[v.type] === opt ? "#402970" : "#9e8dc0", fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", transition: "all 0.15s" }}>
+                      style={{ padding: isMobile ? "1px 6px" : "2px 8px", borderRadius: 20, border: `1.5px solid ${variants[v.type] === opt ? "rgba(124,77,186,0.6)" : "rgba(64,41,112,0.14)"}`, background: variants[v.type] === opt ? "rgba(124,77,186,0.1)" : "transparent", color: variants[v.type] === opt ? "#402970" : "#9e8dc0", fontSize: isMobile ? 9 : 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", transition: "all 0.15s" }}>
                       {opt}
                     </button>
                   ))}
@@ -363,48 +391,54 @@ function SelectedBanner({
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.28, delay: 0.22, ease: "easeOut" }}
           style={{
-            width: 148,
+            width: isMobile ? "100%" : 148,
             flexShrink: 0,
-            borderLeft: "1px solid rgba(124,77,186,0.08)",
-            display: "flex",
-            flexDirection: "column",
+            borderLeft: isMobile ? "none" : "1px solid rgba(124,77,186,0.08)",
+            borderTop: isMobile ? "1px solid rgba(124,77,186,0.08)" : "none",
+            display: isMobile ? "grid" : "flex",
+            gridTemplateColumns: isMobile ? "repeat(2, minmax(0, 1fr))" : "none",
+            flexDirection: isMobile ? "unset" : "column",
             alignItems: "stretch",
             justifyContent: "flex-end",
             gap: 8,
-            padding: "14px 12px 14px 12px",
+            padding: isMobile ? "12px 14px" : "14px 12px",
           }}
         >
           <motion.button type="button" whileTap={product.stock > 0 ? { scale: 0.97 } : {}}
             onClick={() => { if (product.stock > 0) onBuyNow(product, variants); }}
             disabled={product.stock === 0}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: product.stock > 0 ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.15)", color: product.stock > 0 ? "#fff" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif", marginTop: 24 }}>
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: "none", background: product.stock > 0 ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(64,41,112,0.15)", color: product.stock > 0 ? "#fff" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif", marginTop: isMobile ? 0 : 24 }}>
             <Zap size={13} strokeWidth={2.5} />
             Buy Now
           </motion.button>
 
-          <AnimatePresence mode="wait">
-            {added ? (
-              <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "10px", borderRadius: 10, background: "rgba(63,199,142,0.12)", border: "1px solid rgba(63,199,142,0.3)" }}>
-                <CheckCircle size={12} color="#3fc78e" strokeWidth={2.5} />
-                <span style={{ color: "#2a9e6a", fontSize: 12, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Added!</span>
-              </motion.div>
-            ) : (
-              <motion.button key="cart" type="button" whileTap={product.stock > 0 ? { scale: 0.97 } : {}}
-                onClick={() => { if (product.stock > 0) doAdd(); }}
-                disabled={product.stock === 0}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: `1.5px solid ${product.stock > 0 ? "rgba(64,41,112,0.22)" : "rgba(64,41,112,0.1)"}`, background: "transparent", color: product.stock > 0 ? "#402970" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif" }}>
-                <ShoppingCart size={13} strokeWidth={2.5} />
-                Add to Cart
-              </motion.button>
-            )}
-          </AnimatePresence>
+          {!isMobile && (
+            <AnimatePresence mode="wait">
+              {added ? (
+                <motion.div key="done" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "10px", borderRadius: 10, background: "rgba(63,199,142,0.12)", border: "1px solid rgba(63,199,142,0.3)" }}>
+                  <CheckCircle size={12} color="#3fc78e" strokeWidth={2.5} />
+                  <span style={{ color: "#2a9e6a", fontSize: 12, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Added!</span>
+                </motion.div>
+              ) : (
+                <motion.button key="cart" type="button" whileTap={product.stock > 0 ? { scale: 0.97 } : {}}
+                  onClick={() => { if (product.stock > 0) doAdd(); }}
+                  disabled={product.stock === 0}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px", borderRadius: 10, border: `1.5px solid ${product.stock > 0 ? "rgba(64,41,112,0.22)" : "rgba(64,41,112,0.1)"}`, background: "transparent", color: product.stock > 0 ? "#402970" : "#b8aed0", fontSize: 12, fontWeight: 700, cursor: product.stock > 0 ? "pointer" : "not-allowed", fontFamily: "'Nunito',sans-serif" }}>
+                  <ShoppingCart size={13} strokeWidth={2.5} />
+                  Add to Cart
+                </motion.button>
+              )}
+            </AnimatePresence>
+          )}
 
-          <motion.button type="button" whileTap={{ scale: 0.9 }} onClick={() => onWishlist(product)}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
-            <Heart size={13} strokeWidth={2} color="#9e8dc0" fill="none" />
-            <span style={{ color: "#9e8dc0", fontSize: 11, fontWeight: 700 }}>Wishlist</span>
-          </motion.button>
+          {!isMobile && (
+            <motion.button type="button" whileTap={{ scale: 0.9 }} onClick={() => onWishlist(product)}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
+              <Heart size={13} strokeWidth={2} color="#9e8dc0" fill="none" />
+              <span style={{ color: "#9e8dc0", fontSize: 11, fontWeight: 700 }}>Wishlist</span>
+            </motion.button>
+          )}
 
           <motion.button type="button" whileTap={{ scale: 0.94 }} onClick={() => onViewDetails(product.id)}
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(124,77,186,0.2)", background: "transparent", cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
@@ -516,6 +550,7 @@ function SelectedBanner({
 
 /* ── Main export ── */
 export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, onBuyNow, onWishlist, onViewDetails, onSelectProduct }: Props) {
+  const isMobile = useIsMobile();
   const handleSelect = (p: Product) => {
     // Toggle: clicking the already-selected product deselects it
     onSelect(selectedId === p.id ? null : p);
@@ -569,10 +604,10 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
         layout
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 148px)",
-          gap: 10,
+          gridTemplateColumns: isMobile ? "repeat(4, minmax(0, 1fr))" : "repeat(4, 148px)",
+          gap: isMobile ? 6 : 10,
           width: "100%",
-          maxWidth: 622,
+          maxWidth: isMobile ? "100%" : 622,
           margin: "0 auto",
           justifyContent: "center",
         }}
@@ -599,6 +634,7 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
                 onBuyNow={onBuyNow}
                 onWishlist={onWishlist}
                 onViewDetails={onViewDetails}
+                isMobile={isMobile}
               />
             </motion.div>
           ) : (
@@ -609,7 +645,7 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
               layout
               layoutId={`product-slot-${p.id}`}
               style={{
-                width: 148,
+                width: isMobile ? "100%" : 148,
                 display: "flex",
                 flexDirection: "column",
                 height: "100%",
@@ -619,8 +655,8 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
               exit={{ opacity: 0, scale: 0.92 }}
               transition={{ type: "spring", stiffness: 340, damping: 34 }}
             >
-              <MiniCard 
-                product={p} 
+              <MiniCard
+                product={p}
                 productId={p.id}
                 onClick={() => {
                   // First, select the product to show banner

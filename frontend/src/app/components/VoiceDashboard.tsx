@@ -1,13 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Mic, Square, Volume2, VolumeX, PhoneOff } from "lucide-react";
-import { Message } from "../../types/chat";
+import { Message } from "../contexts/AppContext";
+import { ProductShowcase } from "./ProductShowcase";
+import { type Product } from "./products";
 
 interface VoiceDashboardProps {
   isOpen: boolean;
   onClose: () => void;
   messages: Message[];
   onSendMessage: (text: string) => void;
+  onAddToCart?: (p: Product) => void;
+  onBuyNow?: (p: Product, variants?: Record<string, string>) => void;
+  onWishlist?: (p: Product) => void;
+  onViewDetails?: (productId: string) => void;
 }
 
 export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
@@ -15,11 +21,16 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
   onClose,
   messages,
   onSendMessage,
+  onAddToCart,
+  onBuyNow,
+  onWishlist,
+  onViewDetails,
 }) => {
   const [status, setStatus] = useState<"idle" | "listening" | "processing" | "speaking">("idle");
   const [waveform, setWaveform] = useState<number[]>([1.5, 2.5, 4, 5.5, 6, 5.5, 4, 2.5, 1.5]);
   const [isMuted, setIsMuted] = useState(false);
   const [waitingForAI, setWaitingForAI] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Record<number, string | null>>({});
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -271,32 +282,40 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: idx * 0.1 }}
-                className={`flex w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex w-full flex-col gap-2 ${msg.role === "user" ? "items-end" : "items-start"}`}
               >
-                <div 
-                  className="max-w-[85%] rounded-2xl p-4 text-[15px] leading-relaxed shadow-sm"
-                  style={{
-                    background: msg.role === "user" 
-                      ? "linear-gradient(135deg, #6D4AFF, #8A63FF)" 
-                      : "rgba(255, 255, 255, 0.95)",
-                    backdropFilter: msg.role !== "user" ? "blur(12px)" : "none",
-                    border: msg.role !== "user" ? "1px solid rgba(64, 41, 112, 0.08)" : "none",
-                    color: msg.role === "user" ? "#fff" : "#1a1025",
-                    boxShadow: msg.role !== "user" ? "0 4px 15px rgba(64,41,112,0.05)" : "0 4px 15px rgba(109,74,255,0.25)"
-                  }}
-                >
-                  {msg.text}
-                  {msg.products && msg.products.length > 0 && (
-                    <div className="mt-3 flex overflow-x-auto gap-3 py-2 no-scrollbar">
-                      {msg.products.map(p => (
-                        <div key={p.id} className="min-w-[120px] bg-[rgba(64,41,112,0.04)] rounded-lg p-2 border border-[rgba(64,41,112,0.08)]">
-                          <div className="text-xs font-bold truncate text-[#402970]">{p.name}</div>
-                          <div className="text-[10px] text-[#7c4dba]">${p.price}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* Message bubble for text */}
+                {msg.text && (
+                  <div 
+                    className="max-w-[85%] rounded-2xl p-4 text-[15px] leading-relaxed shadow-sm"
+                    style={{
+                      background: msg.role === "user" 
+                        ? "linear-gradient(135deg, #6D4AFF, #8A63FF)" 
+                        : "rgba(255, 255, 255, 0.95)",
+                      backdropFilter: msg.role !== "user" ? "blur(12px)" : "none",
+                      border: msg.role !== "user" ? "1px solid rgba(64, 41, 112, 0.08)" : "none",
+                      color: msg.role === "user" ? "#fff" : "#1a1025",
+                      boxShadow: msg.role !== "user" ? "0 4px 15px rgba(64,41,112,0.05)" : "0 4px 15px rgba(109,74,255,0.25)"
+                    }}
+                  >
+                    {msg.text}
+                  </div>
+                )}
+
+                {/* Product grid rendered directly without bubble container wrapper */}
+                {msg.products && msg.products.length > 0 && (
+                  <div className="w-full" style={{ marginTop: 4 }}>
+                    <ProductShowcase
+                      products={msg.products}
+                      selectedId={selectedIds[idx] ?? null}
+                      onSelect={p => setSelectedIds(prev => ({ ...prev, [idx]: p ? p.id : null }))}
+                      onAddToCart={onAddToCart || (() => {})}
+                      onBuyNow={onBuyNow || (() => {})}
+                      onWishlist={onWishlist || (() => {})}
+                      onViewDetails={onViewDetails || (() => {})}
+                    />
+                  </div>
+                )}
               </motion.div>
             ))}
           </div>

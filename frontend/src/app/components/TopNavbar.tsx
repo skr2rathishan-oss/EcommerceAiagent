@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Heart, ShoppingCart, Package, ChevronDown, PanelLeft, Sparkles,
-  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle, Languages, Menu
+  DollarSign, Euro, PoundSterling, IndianRupee, Coins, Globe, UserCircle, Menu
 } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
@@ -25,10 +25,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
 
-  const [langOpen, setLangOpen] = useState(false);
-  const [selectedLang, setSelectedLang] = useState({ code: "EN", name: "English", flag: "🇺🇸" });
-  const langRef = useRef<HTMLDivElement>(null);
-
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -36,9 +32,6 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
     const handler = (e: MouseEvent) => {
       if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
-      }
-      if (langRef.current && !langRef.current.contains(e.target as Node)) {
-        setLangOpen(false);
       }
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
@@ -82,7 +75,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
           title="Go to Home"
         >
           <div
-            className="flex items-center justify-center shadow-sm"
+            className="hidden md:flex items-center justify-center shadow-sm"
             style={{
               width: 40,
               height: 40,
@@ -104,6 +97,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
                 VELORA AI
               </span>
               <span
+                className="hidden md:inline"
                 style={{
                   fontSize: 10,
                   fontWeight: 700,
@@ -129,86 +123,7 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
         <NavbarIconBtn icon={<Heart size={19} strokeWidth={1.9} />} label="Wishlist" onClick={() => setActiveScreen("wishlist")} />
         <NavbarIconBtn icon={<ShoppingCart size={19} strokeWidth={1.9} />} label="Cart" onClick={() => setActiveScreen("cart")} />
 
-        {/* Language Selector */}
-        <div ref={langRef} className="relative ml-1">
-          <button
-            type="button"
-            onClick={() => setLangOpen(o => !o)}
-            className="flex items-center gap-1.5 hover:bg-[rgba(64,41,112,0.06)] transition-all"
-            style={{
-              height: 36,
-              padding: "0 12px",
-              borderRadius: 9999,
-              border: `1px solid ${langOpen ? "rgba(124, 77, 186, 0.35)" : "rgba(64, 41, 112, 0.12)"}`,
-              background: langOpen ? "rgba(124, 77, 186, 0.05)" : "#fdfbfe",
-              color: "#402970",
-              cursor: "pointer",
-              fontFamily: "'Nunito', sans-serif",
-              fontSize: 12.5,
-              fontWeight: 700,
-            }}
-          >
-            <Languages size={14} strokeWidth={2} />
-            <span className="hidden sm:inline">{selectedLang.code}</span>
-            <ChevronDown size={12} strokeWidth={2.5} style={{ opacity: 0.7 }} />
-          </button>
-          
-          <AnimatePresence>
-            {langOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.96 }}
-                transition={{ duration: 0.15, ease: "easeOut" }}
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 6px)",
-                  right: 0,
-                  width: 140,
-                  background: "rgba(255, 255, 255, 0.98)",
-                  backdropFilter: "blur(20px)",
-                  borderRadius: 12,
-                  border: "1px solid rgba(124, 77, 186, 0.18)",
-                  boxShadow: "0 10px 30px rgba(64, 41, 112, 0.12)",
-                  zIndex: 100,
-                  padding: "6px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                }}
-              >
-                {[
-                  { code: "EN", name: "English", flag: "🇺🇸" },
-                  { code: "TA", name: "தமிழ்", flag: "🇱🇰" },
-                  { code: "SI", name: "සිංහල", flag: "🇱🇰" }
-                ].map((lang) => (
-                  <button
-                    key={lang.code}
-                    onClick={() => {
-                      setSelectedLang(lang);
-                      setLangOpen(false);
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors"
-                    style={{
-                      border: "none",
-                      background: "transparent",
-                      color: selectedLang.code === lang.code ? "#7c4dba" : "#402970",
-                      fontSize: 12.5,
-                      fontWeight: selectedLang.code === lang.code ? 800 : 600,
-                      cursor: "pointer",
-                      fontFamily: "'Nunito', sans-serif",
-                    }}
-                  >
-                    <span>{lang.flag}</span>
-                    <span>{lang.name}</span>
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div ref={dropRef} className="relative">
+        <div ref={dropRef} className="relative hidden md:block">
           <button
             type="button"
             onClick={() => setDropdownOpen(o => !o)}
@@ -404,10 +319,10 @@ export const TopNavbar: React.FC<TopNavbarProps> = ({ onTrackOrder }) => {
           </AnimatePresence>
         </div>
 
-        <div style={{ width: 1, height: 26, background: "rgba(64, 41, 112, 0.12)", margin: "0 10px" }} />
+        <div className="hidden md:block" style={{ width: 1, height: 26, background: "rgba(64, 41, 112, 0.12)", margin: "0 10px" }} />
 
         {/* Profile Button */}
-        <div ref={profileRef} className="relative">
+        <div ref={profileRef} className="relative hidden md:block">
           <button
             type="button"
             onClick={() => setProfileOpen(o => !o)}
