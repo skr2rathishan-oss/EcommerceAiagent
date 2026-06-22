@@ -83,7 +83,7 @@ Your response MUST be the text message only.`;
     if (provider === "gemini") {
       textResponse = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, {
         temperature: 0.7,
-        maxOutputTokens: 150
+        maxOutputTokens: 1000
       });
     } else {
       const completion = await withTimeout(
@@ -94,7 +94,7 @@ Your response MUST be the text message only.`;
             { role: "user", content: userPrompt }
           ],
           temperature: 0.7,
-          max_tokens: 150
+          max_tokens: 1000
         }),
         undefined,
         "Delivery recovery"

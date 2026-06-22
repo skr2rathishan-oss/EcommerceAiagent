@@ -370,6 +370,9 @@ Use general_chat only when the message is unrelated to:
 * orders
 * delivery
 
+CRITICAL RULE:
+• Do NOT use general_chat if the user is describing a situation where products, gifts, flowers, or arrangements would be helpful (e.g., "my mother is in hospital", "forgot birthday", "apology", "sympathy"). Such requests MUST be classified as search_products.
+
 Examples:
 
 "Hello"

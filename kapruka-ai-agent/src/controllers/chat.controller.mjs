@@ -7,18 +7,19 @@ import {
   recordFormatting,
   recordTotal
 } from "../services/core/performance.service.mjs";
-import { routeIntent }              from "../agent/intentRouter.mjs";
+import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/memory/chatMemory.service.mjs";
-import { formatRecommendations }    from "../utils/formatters/recommendationFormatter.js";
+import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
 import { getShoppingContext, updateMemory } from "../agent/memoryManager.mjs";
-import { saveMessage }              from "../services/memory/conversation.service.mjs";
+import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
-import { memoryExtractor }          from "../memory/memoryExtractor.mjs";
-import { mergeToProfile }           from "../memory/memoryStore.mjs";
+import { memoryExtractor } from "../memory/memoryExtractor.mjs";
+import { mergeToProfile } from "../memory/memoryStore.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
-import { getContext }               from "../services/core/logger.service.mjs";
-import { cacheService }             from "../cache/cacheService.mjs";
+import { getContext } from "../services/core/logger.service.mjs";
+import { cacheService } from "../cache/cacheService.mjs";
+import { extractContext as localExtractContext } from "../ai/context/contextExtractor.mjs";
 import { localDetectLanguage, detectLanguageFromHistory } from "../utils/language.utils.mjs";
 import {
   buildInitialLogs,
@@ -49,10 +50,10 @@ export const chat = async (req, res) => {
 
   let logs = [];
   let intentLabel = "—";
-  let providerUsed  = "";
+  let providerUsed = "";
 
   try {
-    const { message, commerceState } = req.body;
+    const { message, commerceState, voiceMode } = req.body;
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
 
     // ── Validate ─────────────────────────────────────────────────────────────
@@ -69,7 +70,7 @@ export const chat = async (req, res) => {
         const total = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
         cartSummary = `Current Cart:\n${itemsText}\n\nTotal:\nRs.${total}`;
       }
-      updateMemory(sessionId, { cart: cart||[], wishlist: wishlist||[], savedProducts: saved||[], cartSummary });
+      updateMemory(sessionId, { cart: cart || [], wishlist: wishlist || [], savedProducts: saved || [], cartSummary });
     }
 
     // ── Step 1: Log incoming message ───────────────────────────────────────────
@@ -80,14 +81,14 @@ export const chat = async (req, res) => {
     logStepDone("Language detected", logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English");
 
     // ── Step 2: Persist user message (background) ─────────────────────────────
-    saveMessage(sessionId, "user", message).catch(() => {});
+    saveMessage(sessionId, "user", message).catch(() => { });
 
     // ── Step 3: Memory extraction (background) ────────────────────────────────
     const extracted = memoryExtractor.extractFromText(message);
     const hasEntities = extracted.recipients.length || extracted.occasions.length ||
       extracted.budget !== null || extracted.categories.length;
     if (hasEntities) {
-      mergeToProfile(sessionId, extracted).catch(() => {});
+      mergeToProfile(sessionId, extracted).catch(() => { });
     }
 
     // ── Step 4: Direct intent from frontend (fast path) ───────────────────────
@@ -108,8 +109,8 @@ export const chat = async (req, res) => {
       const assistantText = extractText(directResult);
       if (assistantText) {
         saveMessage(sessionId, "assistant", assistantText)
-          .then((u) => { if (u) checkAndTriggerSummarization(sessionId, u.messages.length).catch(() => {}); })
-          .catch(() => {});
+          .then((u) => { if (u) checkAndTriggerSummarization(sessionId, u.messages.length).catch(() => { }); })
+          .catch(() => { });
       }
       logRequestFooter(intentLabel, Date.now() - requestStart, "—");
       return sendCompleteAndEnd(res, directResult);
@@ -140,7 +141,7 @@ export const chat = async (req, res) => {
         .trim()
         .replace(/^```json\s*/i, "")
         .replace(/^```\s*/i, "")
-        .replace(/```\s*$/,   "")
+        .replace(/```\s*$/, "")
         .trim();
 
       parsedIntent = JSON.parse(cleanIntent);
@@ -153,7 +154,7 @@ export const chat = async (req, res) => {
 
     // ── Step 5b: Context Extraction ───────────────────────────────────────────
     logStepStart("Context extraction");
-    
+
     // Update frontend UI that we are extracting context
     if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({
@@ -173,6 +174,30 @@ export const chat = async (req, res) => {
       const ctxRaw = await extractContext(message);
       const cleanCtx = ctxRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
       extractedContext = JSON.parse(cleanCtx);
+      
+      // Merge deterministic local pattern-based context
+      try {
+        const localCtx = localExtractContext(message);
+        if (localCtx) {
+          if (localCtx.emotion && localCtx.emotion !== "neutral") {
+            extractedContext.emotion = localCtx.emotion;
+            extractedContext.emotionConfidence = localCtx.emotionConfidence;
+          }
+          if (localCtx.situation && localCtx.situation !== "general") {
+            extractedContext.situation = localCtx.situation;
+            extractedContext.situationConfidence = localCtx.situationConfidence;
+          }
+          if (localCtx.urgency && localCtx.urgency === "high") {
+            extractedContext.urgency = localCtx.urgency;
+          }
+        }
+      } catch (localErr) {
+        logger.warn(`Local pattern-based context extraction failed: ${localErr.message}`);
+      }
+
+      if (voiceMode) {
+        extractedContext.voiceMode = true;
+      }
       const ctxMs = Date.now() - ctxStart;
       logStepDone("Context extraction", `(${ctxMs}ms)`);
       logContextExtracted(extractedContext);
@@ -195,7 +220,7 @@ export const chat = async (req, res) => {
           message: "Context extracted",
           logs: [
             { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [`Intent: ${parsedIntent.intent}`] },
-            { id: "EXTRACTING",    title: "Extracting context",    status: "completed", details: ctxDetails }
+            { id: "EXTRACTING", title: "Extracting context", status: "completed", details: ctxDetails }
           ]
         })}\n\n`);
       }
@@ -229,13 +254,13 @@ export const chat = async (req, res) => {
           message: "Context extraction skipped",
           logs: [
             { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [] },
-            { id: "EXTRACTING",    title: "Extracting context",    status: "error",     details: [] }
+            { id: "EXTRACTING", title: "Extracting context", status: "error", details: [] }
           ]
         })}\n\n`);
       }
     }
 
-    const isFastPath = shouldBypassQwen(parsedIntent.intent, message);
+    const isFastPath = shouldBypassQwen(parsedIntent.intent, message, voiceMode);
     let intentType = parsedIntent.intent;
     if (intentType === "general_chat") intentType = getMessageIntent(message, intentType);
     else if (intentType === "search_products" || intentType === "get_product_details") intentType = "product_search";
@@ -279,7 +304,10 @@ export const chat = async (req, res) => {
       logStepStart("LLM generation", "Gemini 2.5 Flash");
       const history = await getRecentHistory(sessionId);
       await addMessage(sessionId, "user", message);
-      const memory = getShoppingContext(sessionId);
+      const memory = {
+        ...getShoppingContext(sessionId),
+        ...(extractedContext || {})
+      };
 
       const llmStart = Date.now();
       result = await chatWithLLM({ message, history, memory, memoryContext });
@@ -317,10 +345,16 @@ export const chat = async (req, res) => {
       const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
-        text = "I found some great options matching your request! Take a look below 😊";
+        if (logLang === "si") {
+          text = "ඔබගේ ඉල්ලීමට ගැලපෙන හොඳම නිෂ්පාදන කිහිපයක් මා සොයාගත්තා! පහතින් බලන්න 😊";
+        } else if (logLang === "ta") {
+          text = "உங்கள் கோரிக்கைக்குப் பொருத்தமான சில சிறந்த தயாரிப்புகளை நான் கண்டறிந்துள்ளேன்! கீழே பாருங்கள் 😊";
+        } else {
+          text = "I found some great options matching your request! Take a look below 😊";
+        }
       } else {
         logStepStart("Formatting results");
-        text = await formatRecommendations(message, result, history);
+        text = await formatRecommendations(message, result, history, voiceMode);
         logStepDone("Formatting done", `${result.length} products`);
       }
       await addMessage(sessionId, "assistant", text);
@@ -328,6 +362,14 @@ export const chat = async (req, res) => {
     } else if (result?.type) {
       if (result.type === "product_grid") {
         await addMessage(sessionId, "user", message);
+        let text = result.text || "";
+        if (!isFastPath) {
+          logStepStart("Formatting suggested results");
+          const history = await getRecentHistory(sessionId);
+          text = await formatRecommendations(message, result.products || [], history, voiceMode);
+          logStepDone("Formatting suggested done");
+        }
+        result.text = text;
         await addMessage(sessionId, "assistant", result.text || "");
       }
       finalPayload = result;
@@ -346,10 +388,10 @@ export const chat = async (req, res) => {
         .then((u) => {
           if (u) {
             logBackground("Memory check", `${u.messages.length} messages in session`);
-            checkAndTriggerSummarization(sessionId, u.messages.length).catch(() => {});
+            checkAndTriggerSummarization(sessionId, u.messages.length).catch(() => { });
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
 
     // ── Final console summary ─────────────────────────────────────────────────

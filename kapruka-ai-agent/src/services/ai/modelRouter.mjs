@@ -279,7 +279,7 @@ export async function callGeminiSingleTurn(client, model, systemPrompt, userProm
       config: {
         systemInstruction: systemPrompt,
         temperature:       options.temperature    ?? 0,
-        maxOutputTokens:   options.maxOutputTokens ?? 200,
+        maxOutputTokens:   options.maxOutputTokens ?? 1000,
       },
     }),
     LLM_TIMEOUT_MS,
@@ -293,7 +293,7 @@ export async function callGeminiSingleTurn(client, model, systemPrompt, userProm
       nvidiaClient.chat.completions.create({
         model:       "qwen/qwen3.5-122b-a10b",
         temperature: options.temperature ?? 0,
-        max_tokens:  options.maxOutputTokens ?? 200,
+        max_tokens:  options.maxOutputTokens ?? 1000,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user",   content: userPrompt },

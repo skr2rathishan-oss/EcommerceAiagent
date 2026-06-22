@@ -9,6 +9,102 @@ import { handleDeliveryFailure, findAlternativeLocations, findAlternativeDates, 
 import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
 import logger from "../utils/logger.mjs";
 
+// ── Fallback Query Mapping ───────────────────────────────────────────────────
+// Maps vague, emotional, or situational search terms to standard product terms.
+export function getFallbackQuery(query, context = {}) {
+    const lowerQuery = query ? query.toLowerCase() : "";
+    const situation = context.situation ? context.situation.toLowerCase() : "";
+
+    // Sinhala/Tamil/English multilingual checks
+    const isHospitalSick = 
+        situation === "hospital" || 
+        situation === "sick" || 
+        lowerQuery.includes("hospital") || 
+        lowerQuery.includes("sick") || 
+        lowerQuery.includes("unwell") ||
+        lowerQuery.includes("get well") || 
+        lowerQuery.includes("comfort") ||
+        // Sinhala keywords for sick/hospital/comfort
+        lowerQuery.includes("හොස්පිට්ල්") ||
+        lowerQuery.includes("රෝහල") ||
+        lowerQuery.includes("සනීප නැතුව") ||
+        lowerQuery.includes("සනීප නැති") ||
+        lowerQuery.includes("අසනීප") ||
+        lowerQuery.includes("සුවවෙන්න") ||
+        lowerQuery.includes("සුවය") ||
+        lowerQuery.includes("අමාරු") ||
+        // Tamil keywords for sick/hospital/comfort
+        lowerQuery.includes("ஹோஸ்பிட்டல்") ||
+        lowerQuery.includes("ஆஸ்பத்திரி") ||
+        lowerQuery.includes("உடம்பு சரியில்லை") ||
+        lowerQuery.includes("உடல்நிலை") ||
+        lowerQuery.includes("சுகம்") ||
+        lowerQuery.includes("குணமாக") ||
+        lowerQuery.includes("நோயாளி");
+
+    const isApologySupport =
+        situation === "apology" || 
+        situation === "apologetic" || 
+        lowerQuery.includes("apology") || 
+        lowerQuery.includes("sorry") || 
+        (lowerQuery.includes("support") && !lowerQuery.includes("supporter")) ||
+        // Sinhala keywords for apology/sorry
+        lowerQuery.includes("සොරි") ||
+        lowerQuery.includes("සමාවෙන්න") ||
+        lowerQuery.includes("කණගාටුයි") ||
+        lowerQuery.includes("සහාය") ||
+        // Tamil keywords for apology/sorry
+        lowerQuery.includes("ஸாரி") ||
+        lowerQuery.includes("மன்னிக்கவும்") ||
+        lowerQuery.includes("வருந்துகிறேன்") ||
+        lowerQuery.includes("ஆதரவு");
+
+    const isForgotBirthday =
+        situation === "forgot_birthday" || 
+        lowerQuery.includes("forgot") ||
+        lowerQuery.includes("birthday") ||
+        lowerQuery.includes("cake") ||
+        // Sinhala keywords for birthday/forgot/cake
+        lowerQuery.includes("උපන් දින") ||
+        lowerQuery.includes("උපන්දින") ||
+        lowerQuery.includes("බර්ත්ඩේ") ||
+        lowerQuery.includes("අමතක") ||
+        lowerQuery.includes("කේක්") ||
+        // Tamil keywords for birthday/forgot/cake
+        lowerQuery.includes("பிறந்தநாள்") ||
+        lowerQuery.includes("பிறந்த நாள்") ||
+        lowerQuery.includes("மறந்து") ||
+        lowerQuery.includes("கேக்");
+
+    if (isHospitalSick) {
+        return "fruits";
+    }
+    if (isApologySupport) {
+        return "flowers";
+    }
+    if (isForgotBirthday) {
+        return "cakes";
+    }
+    
+    // 2. Check general broad query mapping when no results are found
+    const isGift = 
+        lowerQuery === "gifts" || 
+        lowerQuery === "gift" ||
+        lowerQuery === "තෑග්ග" ||
+        lowerQuery === "තෑගි" ||
+        lowerQuery === "තෑග්ගක්" ||
+        lowerQuery === "பரிசு" ||
+        lowerQuery === "அன்பளிப்பு";
+
+    if (isGift) {
+        if (context.recipient === "mother" || context.recipient === "mom") {
+            return "gift hampers";
+        }
+    }
+
+    return null;
+}
+
 // ── Intent Router ────────────────────────────────────────────────────────────
 // Routes a detected intent to the appropriate service.
 //
@@ -25,11 +121,29 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         case INTENTS.SEARCH_PRODUCTS: {
             onProgress?.("SEARCHING", "active");
 
+            let searchQuery = parameters.query || parameters.q;
+            const context = parameters.context || {};
+
+            // Proactively map vague or situational queries/contexts to high-relevance search terms
+            const proactiveFallback = getFallbackQuery(searchQuery, context);
+            if (proactiveFallback) {
+                logger.info(`[SEARCH PRODUCTS] Proactively mapping "${searchQuery}" to fallback: "${proactiveFallback}"`);
+                searchQuery = proactiveFallback;
+            }
+
             let results;
             try {
-                results = await searchProducts(
-                    parameters.query || parameters.q
-                );
+                results = await searchProducts(searchQuery);
+
+                // Fallback mechanism: if search yielded 0 results, retry with mapped fallback keyword
+                if ((!results || results.length === 0) && searchQuery) {
+                    const fallback = getFallbackQuery(searchQuery, context);
+                    if (fallback && fallback !== searchQuery) {
+                        logger.info(`[SEARCH PRODUCTS] 0 results for "${searchQuery}". Retrying with fallback: "${fallback}"`);
+                        searchQuery = fallback;
+                        results = await searchProducts(searchQuery);
+                    }
+                }
             } catch (err) {
                 logger.error("[SEARCH PRODUCTS] MCP Search failed:", err.message);
                 results = [];
@@ -224,74 +338,74 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
 
             let date = parameters.deliveryDate || parameters.delivery_date;
             if (date === "tomorrow") {
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              date = tomorrow.toISOString().split("T")[0];
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                date = tomorrow.toISOString().split("T")[0];
             } else if (date === "next day" || date === "next_day") {
-              const nextDay = new Date();
-              nextDay.setDate(nextDay.getDate() + 2);
-              date = nextDay.toISOString().split("T")[0];
+                const nextDay = new Date();
+                nextDay.setDate(nextDay.getDate() + 2);
+                date = nextDay.toISOString().split("T")[0];
             } else if (!date) {
-              const tomorrow = new Date();
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              date = tomorrow.toISOString().split("T")[0];
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                date = tomorrow.toISOString().split("T")[0];
             }
 
             if (!city) {
-              return {
-                type: "text",
-                text: "Which city would you like to deliver to?"
-              };
+                return {
+                    type: "text",
+                    text: "Which city would you like to deliver to?"
+                };
             }
 
             try {
-              const res = await checkDelivery(city, date, productId);
+                const res = await checkDelivery(city, date, productId);
 
-              if (res.available) {
-                logger.delivery(`Delivery Available to ${city} on ${date}`);
-                return {
-                  type: "delivery_result",
-                  available: true,
-                  city: res.city || city,
-                  deliveryDate: res.deliveryDate || date,
-                  deliveryCharge: res.deliveryCharge || 0,
-                  text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.`
-                };
-              } else {
-                logger.delivery(`Delivery Check Failed for ${city} on ${date} (Unavailable)`);
+                if (res.available) {
+                    logger.delivery(`Delivery Available to ${city} on ${date}`);
+                    return {
+                        type: "delivery_result",
+                        available: true,
+                        city: res.city || city,
+                        deliveryDate: res.deliveryDate || date,
+                        deliveryCharge: res.deliveryCharge || 0,
+                        text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.`
+                    };
+                } else {
+                    logger.delivery(`Delivery Check Failed for ${city} on ${date} (Unavailable)`);
+
+                    const recovery = await handleDeliveryFailure(city, date, productId);
+
+                    updateMemory(sessionId, {
+                        lastCheckedDelivery: {
+                            city: city,
+                            deliveryDate: date,
+                            productId: productId || ""
+                        }
+                    });
+
+                    return {
+                        type: "delivery_result",
+                        ...recovery
+                    };
+                }
+            } catch (err) {
+                logger.delivery(`Delivery Check Error for ${city} on ${date}: ${err.message}`);
 
                 const recovery = await handleDeliveryFailure(city, date, productId);
 
                 updateMemory(sessionId, {
-                  lastCheckedDelivery: {
-                    city: city,
-                    deliveryDate: date,
-                    productId: productId || ""
-                  }
+                    lastCheckedDelivery: {
+                        city: city,
+                        deliveryDate: date,
+                        productId: productId || ""
+                    }
                 });
 
                 return {
-                  type: "delivery_result",
-                  ...recovery
+                    type: "delivery_result",
+                    ...recovery
                 };
-              }
-            } catch (err) {
-              logger.delivery(`Delivery Check Error for ${city} on ${date}: ${err.message}`);
-
-              const recovery = await handleDeliveryFailure(city, date, productId);
-
-              updateMemory(sessionId, {
-                lastCheckedDelivery: {
-                  city: city,
-                  deliveryDate: date,
-                  productId: productId || ""
-                }
-              });
-
-              return {
-                type: "delivery_result",
-                ...recovery
-              };
             }
         }
 
@@ -306,10 +420,10 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             logger.delivery(`Alternative Locations Suggested: ${nearby.join(", ")}`);
 
             return {
-              type: "nearby_cities",
-              city: city,
-              cities: nearby,
-              text: `I couldn't deliver this item to **${city}** on your selected date.\n\nNearby delivery locations:\n${nearby.map(c => `📍 ${c}`).join("\n")}\n\nYou can select one from the panel below or choose another date or similar product.`
+                type: "nearby_cities",
+                city: city,
+                cities: nearby,
+                text: `I couldn't deliver this item to **${city}** on your selected date.\n\nNearby delivery locations:\n${nearby.map(c => `📍 ${c}`).join("\n")}\n\nYou can select one from the panel below or choose another date or similar product.`
             };
         }
 
@@ -319,9 +433,9 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             const dates = findAlternativeDates();
 
             return {
-              type: "alternative_date",
-              dates: dates,
-              text: "📅 Choose Another Delivery Date\n\nPlease choose Tomorrow, Next Day, or a custom date from the panel below to check delivery again."
+                type: "alternative_date",
+                dates: dates,
+                text: "📅 Choose Another Delivery Date\n\nPlease choose Tomorrow, Next Day, or a custom date from the panel below to check delivery again."
             };
         }
 
@@ -336,9 +450,9 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             logger.recommendation(`Similar Products Found: ${products.length} alternatives`);
 
             return {
-              type: "similar_products",
-              products: products,
-              text: `🎁 Find Similar Deliverable Products\n\nHere are some similar products that might be deliverable to your location:`
+                type: "similar_products",
+                products: products,
+                text: `🎁 Find Similar Deliverable Products\n\nHere are some similar products that might be deliverable to your location:`
             };
         }
 
@@ -346,7 +460,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             logger.checkout(`CREATE_ORDER intent detected for session: ${sessionId}`);
             const memory = getMemory(sessionId);
             const cart = memory.cart || [];
-            
+
             if (cart.length === 0) {
                 logger.checkout(`Cart is empty for session: ${sessionId}. Aborting checkout.`);
                 return {
@@ -354,7 +468,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                     text: "Your cart is empty. Please add some products to your cart before checking out!"
                 };
             }
-            
+
             logger.checkout(`Cart has ${cart.length} items. Initializing checkout panel trigger.`);
             return {
                 type: "checkout_init",
@@ -366,7 +480,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         case INTENTS.TRACK_ORDER: {
             const orderNumber = parameters.orderNumber || parameters.order_number;
             logger.tracking(`Tracking order number: ${orderNumber}`);
-            
+
             if (!orderNumber) {
                 return {
                     type: "text",

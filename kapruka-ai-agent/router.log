@@ -218,3 +218,13 @@
 2026-06-20T06:12:28.281Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 3014ms
 2026-06-20T06:13:09.121Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 6628ms
 2026-06-20T06:14:31.480Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 1911ms
+2026-06-22T09:54:10.980Z | [Velora Router] | Message Type: Greeting | Model: gemini-2.5-flash | Provider: gemini | Latency: 1534ms
+2026-06-22T09:57:19.281Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 3229ms
+2026-06-22T09:57:47.399Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2472ms
+2026-06-22T12:06:36.954Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2673ms
+2026-06-22T12:07:30.135Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2986ms
+2026-06-22T12:07:47.294Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2562ms
+2026-06-22T12:29:08.735Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 6055ms
+2026-06-22T12:31:27.304Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 2526ms
+2026-06-22T12:54:24.956Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 4015ms
+2026-06-22T13:40:28.018Z | [Velora Router] | Message Type: Shopping | Model: gemini-2.5-flash | Provider: gemini | Latency: 6888ms

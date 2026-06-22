@@ -15,9 +15,9 @@ Do NOT return reasoning.
 
 If a field is not mentioned, return null.
 
-==================================================
-OUTPUT FORMAT
-=============
+// ==================================================
+// OUTPUT FORMAT
+// =============
 
 {
 "conversationLanguage": null,
@@ -36,7 +36,11 @@ OUTPUT FORMAT
 "preferences": [],
 "negativePreferences": [],
 "urgency": null,
-"relationship": null
+"relationship": null,
+"emotion": null,
+"situation": null,
+"relationshipType": null,
+"shoppingStyle": null
 }
 
 ==================================================
@@ -353,6 +357,78 @@ selectedProduct = "current"
 Otherwise:
 
 selectedProduct = null
+
+==================================================
+EMOTION EXTRACTION
+==================
+
+Extract the user's emotional tone from the message.
+Allowed values:
+- romantic
+- apologetic
+- celebration
+- caring
+- professional
+- null
+
+Examples:
+"need something for my girlfriend to show how much I love her" -> romantic
+"I completely forgot her birthday, help!" -> apologetic
+"Celebrating my promotion!" -> celebration
+"My mother is sick in hospital, need some comfort" -> caring
+"I need a corporate gift for my boss" -> professional
+
+==================================================
+SITUATION EXTRACTION
+====================
+
+Extract the shopping situation/urgency cause if present.
+Allowed values:
+- forgot_birthday
+- apology
+- surprise
+- celebration
+- last_minute
+- self_purchase
+- null
+
+Examples:
+"forgot my wife's birthday" -> forgot_birthday
+"sorry I can't be there" -> apology
+"want to send a surprise gift" -> surprise
+"graduating next week!" -> celebration
+"need it delivered today" -> last_minute
+"need a phone for myself" -> self_purchase
+
+==================================================
+RELATIONSHIP TYPE EXTRACTION
+============================
+
+Extract the type of relationship of the recipient.
+Allowed values:
+- girlfriend
+- boyfriend
+- wife
+- husband
+- mother
+- father
+- friend
+- colleague
+- boss
+- client
+- null
+
+==================================================
+SHOPPING STYLE EXTRACTION
+=========================
+
+Infer the user's shopping style or preferences.
+Allowed values:
+- deal_hunter (user looks for cheap, under budget, discounts, value)
+- premium_buyer (user looks for luxury, high-end, the best quality, premium)
+- gift_buyer (user looks for gifts, hampers, flowers, greeting cards for others)
+- explorer (user is looking for ideas, recommendations, options)
+- null
 
 ==================================================
 EXAMPLES

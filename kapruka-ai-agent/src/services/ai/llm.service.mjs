@@ -241,7 +241,7 @@ export const detectIntent = async (message) => {
         model,
         INTENT_PROMPT,
         message,
-        { temperature: 0, maxOutputTokens: 200 }
+        { temperature: 0, maxOutputTokens: 1000 }
       );
     } else {
       const completion = await withTimeout(
@@ -286,7 +286,7 @@ export const extractContext = async (message) => {
         model,
         CONTEXT_EXTRACTOR_PROMPT,
         message,
-        { temperature: 0, maxOutputTokens: 500 }
+        { temperature: 0, maxOutputTokens: 1000 }
       );
     } else {
       const completion = await withTimeout(

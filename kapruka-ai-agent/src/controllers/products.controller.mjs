@@ -266,10 +266,10 @@ Generate an optimized search query and category.`;
     const { client: activeClient, model, provider } = getRecommendationModel();
     let content;
     if (provider === "gemini") {
-      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+      content = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, { temperature: 0.2, maxOutputTokens: 1000 });
     } else {
       const response = await withTimeout(
-        activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
+        activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 1000, messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }] }),
         undefined, "Search strategy"
       );
       content = response.choices[0].message.content.trim();
@@ -396,10 +396,10 @@ Respond with a single JSON object (no markdown, no code blocks, no backticks, no
       const { client: activeClient, model, provider } = getRecommendationModel();
       let rawStrategy;
       if (provider === "gemini") {
-        rawStrategy = await callGeminiSingleTurn(activeClient, model, strategySystemPrompt, strategyUserPrompt, { temperature: 0.2, maxOutputTokens: 300 });
+        rawStrategy = await callGeminiSingleTurn(activeClient, model, strategySystemPrompt, strategyUserPrompt, { temperature: 0.2, maxOutputTokens: 1000 });
       } else {
         const strategyRes = await withTimeout(
-          activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 300, messages: [{ role: "system", content: strategySystemPrompt }, { role: "user", content: strategyUserPrompt }] }),
+          activeClient.chat.completions.create({ model, temperature: 0.2, max_tokens: 1000, messages: [{ role: "system", content: strategySystemPrompt }, { role: "user", content: strategyUserPrompt }] }),
           undefined, "Strategy"
         );
         rawStrategy = strategyRes.choices[0].message.content.trim();

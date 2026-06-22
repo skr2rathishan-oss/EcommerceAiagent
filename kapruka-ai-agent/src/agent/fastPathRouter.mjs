@@ -26,7 +26,48 @@ export function isComplexQuery(message) {
     "which one is better",
     "choose",
     "suit",
-    "best"
+    "best",
+    "hospital",
+    "sick",
+    "unwell",
+    "support",
+    "sorry",
+    "apology",
+    "comfort",
+    "get well",
+    "love",
+    "forgot",
+    // Sinhala keywords
+    "කියන්න",
+    "යෝජනා",
+    "හොඳම",
+    "තෑග්ග",
+    "තෑගි",
+    "තෑග්ගක්",
+    "උපන්දින",
+    "බර්ත්ඩේ",
+    "සනීප",
+    "අසනීප",
+    "රෝහල",
+    "හොස්පිට්ල්",
+    "සමාවෙන්න",
+    "කණගාටුයි",
+    "සොරි",
+    "අමතක",
+    // Tamil keywords
+    "பரிந்துரை",
+    "பரிசு",
+    "அன்பளிப்பு",
+    "பிறந்தநாள்",
+    "பிறந்த நாள்",
+    "சிறந்த",
+    "ஹோஸ்பிட்டல்",
+    "ஆஸ்பத்திரி",
+    "உடம்பு",
+    "உடல்நிலை",
+    "மன்னிக்கவும்",
+    "ஸாரி",
+    "மறந்து"
   ];
   
   return complexKeywords.some(keyword => cleaned.includes(keyword));
@@ -37,9 +78,13 @@ export function isComplexQuery(message) {
  * 
  * @param {string} intent 
  * @param {string} message 
+ * @param {boolean} voiceMode
  * @returns {boolean}
  */
-export function shouldBypassQwen(intent, message) {
+export function shouldBypassQwen(intent, message, voiceMode = false) {
+  if (voiceMode) {
+    return false; // Never bypass Qwen formatting in voice mode
+  }
   if (intent === "general_chat") {
     return isSimpleConversation(message);
   }

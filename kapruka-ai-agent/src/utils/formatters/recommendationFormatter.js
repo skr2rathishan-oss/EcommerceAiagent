@@ -1,19 +1,5 @@
-// RESPONSE FORMATTER
-// SAFE TO EXTEND LATER
-
-import OpenAI from "openai";
-import dotenv from "dotenv";
-import { fileURLToPath } from "url";
-import { dirname, resolve } from "path";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-dotenv.config({ path: resolve(__dirname, "../../../.env") });
-
-const client = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey: process.env.NVIDIA_API_KEY,
-});
+import { getRecommendationModel, callGeminiSingleTurn } from "../../services/ai/modelRouter.mjs";
+import logger from "../../utils/logger.mjs";
 
 /**
  * Formats a conversational product recommendation above the search results grid.
@@ -21,12 +7,19 @@ const client = new OpenAI({
  * @param {string} query - The user's query
  * @param {Array} products - Raw products array from MCP
  * @param {Array} history - Recent conversation history
+ * @param {boolean} voiceMode - Whether voice interaction is active
  * @returns {Promise<string>} The formatted conversational recommendation text
  */
-export async function formatRecommendations(query, products, history = []) {
+export async function formatRecommendations(query, products, history = [], voiceMode = false) {
   if (!products || products.length === 0) {
     return "I searched but couldn't find any products matching your query.";
   }
+
+  const voiceInstruction = voiceMode
+    ? `\n7. VOICE INTERACTION ENABLED: Since the user is interacting via voice, keep your response extremely brief (exactly 1 short sentence), sound natural as if speaking, and avoid large text blocks so that text-to-speech sounds natural. Do NOT use markdown bold/italic tags like **, and keep the call-to-action minimal or omit it.`
+    : "";
+
+  const systemPrompt = `You are a professional luxury shopping concierge. Format your responses with clear spacing and line breaks. Never list or repeat products in text. Detect the customer's language from conversation history and respond in that same language (English, Sinhala, or Tamil).${voiceMode ? " Keep sentences short, conversational, and voice-mode friendly." : ""}`;
 
   const prompt = `You are Velora, Kapruka's premium AI shopping concierge.
 Your task is to generate a short, warm, and highly personalized conversational introduction to be displayed above the product showcase grid for the user's query: "${query}".
@@ -42,29 +35,35 @@ Please generate a response following these rules strictly:
    - A short friendly call-to-action (e.g., "Take a look below and let me know which one catches your eye. 😊").
 4. Never mention any technical or system jargon (no "API", "MCP", "database", "results returned", "backend").
 5. Use 1-2 suitable emojis naturally (e.g. 🎁, 🎂, 😊).
-6. IMPORTANT: Respond in the same language as the customer's most recent message in the conversation history. If the customer wrote in Sinhala or Singlish, respond in Sinhala. If they wrote in Tamil or Tanglish, respond in Tamil. Otherwise respond in English.`;
+6. IMPORTANT: Respond in the same language as the customer's most recent message in the conversation history. If the customer wrote in Sinhala or Singlish, respond in Sinhala. If they wrote in Tamil or Tanglish, respond in Tamil. Otherwise respond in English.${voiceInstruction}`;
 
   try {
-    const completion = await client.chat.completions.create({
-      model: process.env.NVIDIA_MODEL || "qwen/qwen3.5-122b-a10b",
-      temperature: 0.7,
-      max_tokens: 200,
-      messages: [
-        {
-          role: "system",
-          content: `You are a professional luxury shopping concierge. Format your responses with clear spacing and line breaks. Never list or repeat products in text. Detect the customer's language from conversation history and respond in that same language (English, Sinhala, or Tamil).`
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
-    });
+    const { client, model, provider } = getRecommendationModel();
+    
+    let text;
+    if (provider === "gemini") {
+      text = await callGeminiSingleTurn(client, model, systemPrompt, prompt, {
+        temperature: 0.7,
+        maxOutputTokens: 1000
+      });
+    } else {
+      // Fallback OpenAI provider style
+      const completion = await client.chat.completions.create({
+        model: model,
+        temperature: 0.7,
+        max_tokens: 1000,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: prompt }
+        ]
+      });
+      text = completion.choices[0].message.content;
+    }
 
-    return completion.choices[0].message.content.trim();
+    return text.trim();
   } catch (error) {
-    console.error("Error generating conversational recommendation:", error);
-    // Fallback: generic English introduction (Gemini handles localized responses in normal flow)
+    logger.error("Error generating conversational recommendation:", error);
+    // Fallback: generic English introduction
     return `I found a few options that match what you're looking for 😊\n\nTake a look below and let me know which one catches your eye.`;
   }
 }

@@ -256,7 +256,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                     {/* Determine how many products to display */}
                     {(() => {
                       const total = msg.products.length;
-                      const currentCount = displayedCounts[i] ?? (total >= 5 ? 5 : total);
+                      const currentCount = displayedCounts[i] ?? (total >= 15 ? 15 : total);
                       const showCount = Math.min(currentCount, total);
                       return (
                         <>

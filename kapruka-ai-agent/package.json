@@ -5,6 +5,7 @@
   "main": "server.mjs",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "test:voice": "node src/test/test-voice.js",
     "dev": "nodemon src/server.mjs",
     "start": "node src/server.mjs"
   },
