@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { CheckoutPanel } from "./components/CheckoutPanel";
@@ -267,7 +267,9 @@ function MainApp() {
     activeSmartPanel,
     setActiveSmartPanel,
     voiceDashboardOpen,
-    setVoiceDashboardOpen
+    setVoiceDashboardOpen,
+    activeDetailsProduct,
+    setActiveDetailsProduct
   } = useApp();
 
   const {
@@ -288,11 +290,18 @@ function MainApp() {
     handleUseDefaultAddress
   } = useCheckout();
 
+  const isMobile = useIsMobile();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
+  const [showBuyConfirm, setShowBuyConfirm] = useState<boolean>(false);
+
+  useEffect(() => {
+    setShowBuyConfirm(false);
+  }, [activeDetailsProduct]);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -1121,6 +1130,188 @@ function MainApp() {
                           </div>
                         </div>
                       )}
+                    </motion.div>
+                  )}
+
+                  {activeDetailsProduct && (
+                    <motion.div
+                      id="details-actions-popup"
+                      key="details-actions-popup"
+                      initial={{ opacity: 0, height: 0, y: 10 }}
+                      animate={{ opacity: 1, height: "auto", y: 0 }}
+                      exit={{ opacity: 0, height: 0, y: 10 }}
+                      transition={{ duration: 0.25, ease: "easeOut" }}
+                      style={{
+                        background: "rgba(255, 255, 255, 0.98)",
+                        backdropFilter: "blur(16px)",
+                        border: "1.5px solid rgba(124, 77, 186, 0.25)",
+                        borderRadius: 16,
+                        padding: "10px 14px",
+                        marginBottom: 10,
+                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.16)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        width: "100%",
+                      }}
+                    >
+                      {/* Product Mini Info */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 8,
+                          overflow: "hidden",
+                          background: "#fff",
+                          border: "1px solid rgba(64,41,112,0.08)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0
+                        }}>
+                          {activeDetailsProduct.images?.[0] ? (
+                            <img src={activeDetailsProduct.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ) : (
+                            <Package size={18} color="#7c4dba" />
+                          )}
+                        </div>
+                        <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                          <h4 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'Nunito', sans-serif" }}>
+                            {activeDetailsProduct.name}
+                          </h4>
+                          <span style={{ color: "#7c4dba", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+                            {formatUIPrice(activeDetailsProduct.price || 0, activeDetailsProduct.currency)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* CTA Buttons in Popup */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        {showBuyConfirm ? (
+                          <>
+                            <motion.button
+                              type="button"
+                              whileTap={{ scale: 0.96 }}
+                              onClick={() => {
+                                setShowBuyConfirm(false);
+                                handleBuyNow(activeDetailsProduct);
+                              }}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 4,
+                                padding: "6px 14px", borderRadius: 8, border: "none",
+                                background: "linear-gradient(135deg, #10b981, #059669)",
+                                color: "#fff",
+                                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                fontFamily: "'Nunito', sans-serif",
+                                boxShadow: "0 2px 6px rgba(16,185,129,0.2)",
+                              }}
+                              title="Confirm Order"
+                            >
+                              Confirm
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              whileTap={{ scale: 0.96 }}
+                              onClick={() => setShowBuyConfirm(false)}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 4,
+                                padding: "6px 14px", borderRadius: 8,
+                                border: "1.5px solid rgba(64,41,112,0.2)",
+                                background: "transparent",
+                                color: "#402970",
+                                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                fontFamily: "'Nunito', sans-serif",
+                              }}
+                              title="Cancel"
+                            >
+                              Cancel
+                            </motion.button>
+                          </>
+                        ) : (
+                          <>
+                            <motion.button
+                              type="button"
+                              whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
+                              onClick={() => { if (activeDetailsProduct.stock > 0) setShowBuyConfirm(true); }}
+                              disabled={activeDetailsProduct.stock === 0}
+                              style={{
+                                display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
+                                padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8, border: "none",
+                                background: activeDetailsProduct.stock > 0
+                                  ? "linear-gradient(135deg,#7c4dba,#402970)"
+                                  : "rgba(64,41,112,0.12)",
+                                color: activeDetailsProduct.stock > 0 ? "#fff" : "#b8aed0",
+                                fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
+                                fontFamily: "'Nunito', sans-serif",
+                                boxShadow: activeDetailsProduct.stock > 0 ? "0 2px 6px rgba(124,77,186,0.15)" : "none",
+                              }}
+                              title="Buy Now"
+                            >
+                              <Zap size={11} strokeWidth={2.5} />
+                              {!isMobile && "Buy Now"}
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
+                              onClick={() => { if (activeDetailsProduct.stock > 0) handleAddToCart(activeDetailsProduct); }}
+                              disabled={activeDetailsProduct.stock === 0}
+                              style={{
+                                display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
+                                padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8,
+                                border: `1.5px solid ${activeDetailsProduct.stock > 0 ? "rgba(64,41,112,0.2)" : "rgba(64,41,112,0.08)"}`,
+                                background: "transparent",
+                                color: activeDetailsProduct.stock > 0 ? "#402970" : "#b8aed0",
+                                fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
+                                fontFamily: "'Nunito', sans-serif",
+                              }}
+                              title="Add to Cart"
+                            >
+                              <ShoppingCart size={11} strokeWidth={2.5} />
+                              {!isMobile && "Add Cart"}
+                            </motion.button>
+
+                            <motion.button
+                              type="button"
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleWishlist(activeDetailsProduct)}
+                              style={{
+                                width: 28, height: 28, borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.12)",
+                                background: "transparent", cursor: "pointer",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                              }}
+                              title="Add to Wishlist"
+                            >
+                              <Heart size={12} strokeWidth={2} color="#9e8dc0" />
+                            </motion.button>
+                          </>
+                        )}
+
+                        <div style={{ width: "1px", height: 20, background: "rgba(64,41,112,0.12)", margin: "0 2px" }} />
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (activeDetailsProduct) {
+                              setMessages(prev => prev.map(m => 
+                                m.type === "product_details" && m.productDetails?.product.id === activeDetailsProduct.id
+                                  ? { ...m, isDetailsClosed: true }
+                                  : m
+                              ));
+                            }
+                            setActiveDetailsProduct(null);
+                          }}
+                          style={{
+                            width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer",
+                            background: "rgba(64,41,112,0.06)", color: "#7c4dba",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}
+                          title="Dismiss actions"
+                        >
+                          <X size={12} strokeWidth={2.5} />
+                        </button>
+                      </div>
                     </motion.div>
                   )}
 

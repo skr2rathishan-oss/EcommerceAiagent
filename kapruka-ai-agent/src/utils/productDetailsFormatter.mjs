@@ -167,6 +167,101 @@ function formatPrice(price, currency) {
   return `${symbol} ${Number(price).toFixed(2)}`;
 }
 
+// ── Make Description Attractive ────────────────────────────────────────────────
+// Parses and formats raw descriptions (often with flattened HTML lists or run-on sentences)
+// into a highly readable, structured, and beautiful markdown layout.
+function makeDescriptionAttractive(rawDesc) {
+  if (!rawDesc || typeof rawDesc !== "string") return "";
+
+  // 1. Pre-process HTML tags
+  let text = rawDesc
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/(script|style)>/gi, "")
+    // Replace list items, breaks, and paragraph closings with newlines/bullets
+    .replace(/<li>/gi, "\n- ")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n\n")
+    // Replace other tags with spaces
+    .replace(/<[^>]+>/g, " ")
+    // Decode HTML entities
+    .replace(/&amp;/g,  "&")
+    .replace(/&lt;/g,   "<")
+    .replace(/&gt;/g,   ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g,  "'")
+    .replace(/&nbsp;/g, " ");
+
+  // Normalize spaces (but keep newlines)
+  text = text.split("\n").map(line => line.replace(/[ \t]+/g, " ").trim()).join("\n");
+
+  // Split into sentences
+  const rawSentences = text.split(/(?<=\.|\!|\?)(?:\s+|\n+)/);
+  
+  const introParagraphs = [];
+  const keyFeatures = [];
+  let currentIntro = "";
+
+  for (let sentence of rawSentences) {
+    sentence = sentence.trim();
+    if (!sentence) continue;
+
+    // Check if it matches a key-value pattern: e.g., "Compact Size : Easy to carry" or "USB Connection: Yes" or "Material - Plastic"
+    // The key should be relatively short (e.g., 2 to 35 characters, no terminal punctuation inside the key)
+    const keyValueMatch = sentence.match(/^([^.:!?\n]{2,35})\s*(?::| -)\s*(.+)$/);
+    
+    if (keyValueMatch) {
+      const key = keyValueMatch[1].trim();
+      let val = keyValueMatch[2].trim();
+      
+      // Capitalize first letter of key
+      const formattedKey = key.charAt(0).toUpperCase() + key.slice(1);
+      
+      keyFeatures.push(`- **${formattedKey}:** ${val}`);
+    } else {
+      // Normal narrative sentence
+      // Check if it's already a bullet point (starts with • or - or *)
+      if (sentence.startsWith("•") || sentence.startsWith("-") || sentence.startsWith("*")) {
+        const cleanBullet = sentence.replace(/^[•\-\*]\s*/, "").trim();
+        if (cleanBullet) {
+          keyFeatures.push(`- ${cleanBullet}`);
+        }
+      } else {
+        if (currentIntro.length > 0) {
+          currentIntro += " " + sentence;
+        } else {
+          currentIntro = sentence;
+        }
+        
+        // Group narrative into paragraphs of reasonable length
+        if (currentIntro.length > 200) {
+          introParagraphs.push(currentIntro);
+          currentIntro = "";
+        }
+      }
+    }
+  }
+
+  if (currentIntro) {
+    introParagraphs.push(currentIntro);
+  }
+
+  const formattedLines = [];
+
+  if (introParagraphs.length > 0) {
+    formattedLines.push(introParagraphs.join("\n\n"));
+    formattedLines.push("");
+  }
+
+  if (keyFeatures.length > 0) {
+    formattedLines.push("**✨ Highlights & Features:**\n");
+    formattedLines.push(keyFeatures.join("\n"));
+    formattedLines.push("");
+  }
+
+  return formattedLines.join("\n").trim();
+}
+
 // ── Main Formatter ───────────────────────────────────────────────────────────
 // Takes a raw product object and returns a structured response object.
 //
@@ -183,36 +278,13 @@ export function formatProductDetails(product) {
 
   const lines = [];
 
-  // ── Header ──
-  lines.push("## 🎁 Product Details\n");
-
-  // ── Name ──
-  if (product.name) {
-    lines.push(`### ${product.name}\n`);
-  }
-
-  // ── Price ──
-  const priceStr = formatPrice(product.price, product.currency);
-  lines.push(`**💰 Price:** ${priceStr}\n`);
-
-  // ── Availability ──
-  if (product.inStock !== undefined || product.stock !== undefined) {
-    const inStock = product.inStock ?? (product.stock > 0);
-    lines.push(`**📦 Availability:** ${inStock ? "✅ In Stock" : "❌ Out of Stock"}\n`);
-  }
-
-  lines.push("---\n");
-
   // ── Description ──
   const rawDesc = product.description || product.summary || product.shortDesc || "";
-  const cleanDesc = stripHtml(rawDesc);
+  const cleanDesc = makeDescriptionAttractive(rawDesc);
   if (cleanDesc) {
     lines.push("**📝 Description:**\n");
-    const paragraphs = splitIntoParagraphs(cleanDesc);
-    for (const para of paragraphs) {
-      lines.push(`${para}\n`);
-    }
-    lines.push("---\n");
+    lines.push(cleanDesc);
+    lines.push("\n---\n");
   }
 
   // ── Variations ──
@@ -239,12 +311,7 @@ export function formatProductDetails(product) {
     lines.push("\n---\n");
   }
 
-  // ── Delivery ──
-  const deliveryText = product.delivery || product.shippingInfo || product.shipping || "";
-  if (deliveryText) {
-    const cleanDelivery = stripHtml(typeof deliveryText === "string" ? deliveryText : JSON.stringify(deliveryText));
-    lines.push(`**🚚 Delivery Information:**\n${cleanDelivery}\n`);
-  }
+
 
   // ── Specifications ──
   const specs = extractSpecs(product);

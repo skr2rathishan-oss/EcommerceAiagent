@@ -56,7 +56,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   activityExpanded,
   onExpandedChange,
 }) => {
-  const { displayedCounts, setDisplayedCounts } = useApp();
+  const { displayedCounts, setDisplayedCounts, setMessages, setActiveDetailsProduct } = useApp();
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -160,8 +160,12 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
     >
       <div className="flex flex-col gap-5 mx-auto" style={{ maxWidth: 760 }}>
         <AnimatePresence initial={false}>
-          {messages.map((msg, i) => (
-            <motion.div key={i} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: "easeOut" }}>
+          {messages.map((msg, i) => {
+            if (msg.type === "product_details" && msg.isDetailsClosed) {
+              return null;
+            }
+            return (
+              <motion.div key={i} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: "easeOut" }}>
               <div className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
                   style={{
@@ -299,7 +303,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                   </motion.div>
               )}
 
-              {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && (
+              {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && !msg.isDetailsClosed && (
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -312,6 +316,12 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                     onAddToCart={onAddToCartFromDetails ?? onAddToCart}
                     onBuyNow={onBuyNowFromDetails ?? onBuyNow}
                     onWishlist={onWishlistFromDetails ?? onWishlist}
+                    onClose={() => {
+                      setMessages(prev => prev.map((m, idx) => 
+                        idx === i ? { ...m, isDetailsClosed: true } : m
+                      ));
+                      setActiveDetailsProduct(prev => prev?.id === msg.productDetails?.product.id ? null : prev);
+                    }}
                   />
                 </motion.div>
               )}
@@ -389,7 +399,8 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                 </motion.div>
               )}
             </motion.div>
-          ))}
+            );
+          })}
           {isTyping && activity && (
             <AgentActivityBar
               currentStep={activity.currentStep}

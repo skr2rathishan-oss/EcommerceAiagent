@@ -44,6 +44,7 @@ export interface Message {
   orderNumber?: string;
   productDetails?: { content: string; product: Product };
   workflow?: GuidedWorkflowState;
+  isDetailsClosed?: boolean;
 }
 
 export type { CartItem };
@@ -135,6 +136,8 @@ export interface AppContextType {
   setLastCheckedDelivery: React.Dispatch<React.SetStateAction<{ city: string; deliveryDate: string; productId: string } | null>>;
   voiceDashboardOpen: boolean;
   setVoiceDashboardOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  activeDetailsProduct: Product | null;
+  setActiveDetailsProduct: React.Dispatch<React.SetStateAction<Product | null>>;
 
   // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
@@ -158,6 +161,7 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [nearbyCitiesSuggested, setNearbyCitiesSuggested] = useState<string[]>([]);
   const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string } | null>(null);
   const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
+  const [activeDetailsProduct, setActiveDetailsProduct] = useState<Product | null>(null);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -284,6 +288,8 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         lastCheckedDelivery, setLastCheckedDelivery,
         voiceDashboardOpen,
         setVoiceDashboardOpen,
+        activeDetailsProduct,
+        setActiveDetailsProduct,
 
         handleAddToCart,
         handleWishlist,

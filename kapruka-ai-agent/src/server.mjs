@@ -36,8 +36,8 @@ import {
 
 printBanner();
 
-// Ask Production or Development
-const chosenMode = await askStartupMode();
+// Ask Production or Development (Bypass interactive prompt to avoid hangs on restart)
+const chosenMode = process.env.AI_MODE || "development";
 process.env.AI_MODE = chosenMode;
 setRuntimeMode(chosenMode);
 

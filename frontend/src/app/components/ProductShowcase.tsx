@@ -661,8 +661,6 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
                 onClick={() => {
                   // First, select the product to show banner
                   handleSelect(p);
-                  // Then, directly open the product details
-                  setTimeout(() => onViewDetails(p.id), 150);
                   // Store product ID for comparison feature
                   const comparedIds = JSON.parse(localStorage.getItem('compared_product_ids') || '[]');
                   if (!comparedIds.includes(p.id)) {
