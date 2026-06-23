@@ -63,14 +63,22 @@ export const chat = async (req, res) => {
 
     // ── Cart state update (non-blocking, silent) ──────────────────────────────
     if (commerceState) {
-      const { cart, wishlist, saved } = commerceState;
+      const { cart, wishlist, saved, buyNowProduct, buyNowVariants, deliveryInfo } = commerceState;
       let cartSummary = "Current Cart is empty.";
       if (cart?.length > 0) {
         const itemsText = cart.map(i => `${i.quantity}x ${i.name} - Rs.${i.price}`).join("\n");
         const total = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
         cartSummary = `Current Cart:\n${itemsText}\n\nTotal:\nRs.${total}`;
       }
-      updateMemory(sessionId, { cart: cart || [], wishlist: wishlist || [], savedProducts: saved || [], cartSummary });
+      updateMemory(sessionId, {
+        cart: cart || [],
+        wishlist: wishlist || [],
+        savedProducts: saved || [],
+        cartSummary,
+        buyNowProduct: buyNowProduct || null,
+        buyNowVariants: buyNowVariants || null,
+        deliveryInfo: deliveryInfo || null
+      });
     }
 
     // ── Step 1: Log incoming message ───────────────────────────────────────────
@@ -82,6 +90,7 @@ export const chat = async (req, res) => {
 
     // ── Step 2: Persist user message (background) ─────────────────────────────
     saveMessage(sessionId, "user", message).catch(() => { });
+    addMessage(sessionId, "user", message).catch(() => { });
 
     // ── Step 3: Memory extraction (background) ────────────────────────────────
     const extracted = memoryExtractor.extractFromText(message);
@@ -402,5 +411,27 @@ export const chat = async (req, res) => {
   } catch (error) {
     logError("CHAT", `Unhandled error — ${error.message}`);
     return sendErrorAndEnd(res, logs, error.message || "Internal Server Error");
+  }
+};
+
+export const saveLocalMessage = async (req, res) => {
+  try {
+    const { role, content } = req.body;
+    const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
+
+    if (!role || !content) {
+      return res.status(400).json({ success: false, message: "Role and content are required." });
+    }
+
+    // 1. Save to MongoDB
+    await saveMessage(sessionId, role, content);
+
+    // 2. Save to cache
+    await addMessage(sessionId, role, content);
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error("Failed to save local message:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };

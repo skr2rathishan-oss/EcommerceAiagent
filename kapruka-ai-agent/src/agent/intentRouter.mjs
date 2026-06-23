@@ -459,6 +459,64 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         case INTENTS.CREATE_ORDER: {
             logger.checkout(`CREATE_ORDER intent detected for session: ${sessionId}`);
             const memory = getMemory(sessionId);
+
+            // If we have buyNowProduct and deliveryInfo, place a simulated Buy Now order
+            if (memory.buyNowProduct && memory.deliveryInfo) {
+                logger.checkout(`Buy Now order placement triggered for product ${memory.buyNowProduct.id} in session ${sessionId}`);
+
+                const now = new Date();
+                const formatDate = (date) => {
+                  const day = String(date.getDate()).padStart(2, "0");
+                  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                  return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
+                };
+
+                const deliveryDate = new Date();
+                deliveryDate.setDate(now.getDate() + 2);
+
+                const referenceNumber = `KAP-${now.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+                const orderNumber = `VIMP${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+
+                const orderDetails = {
+                  referenceNumber,
+                  orderNumber,
+                  orderDate: formatDate(now),
+                  estimatedDelivery: formatDate(deliveryDate),
+                  paymentStatus: "Paid",
+                  recipient: {
+                    name: memory.deliveryInfo.fullName,
+                    phone: memory.deliveryInfo.phone,
+                    email: memory.deliveryInfo.email || "customer@velora.ai",
+                    address: memory.deliveryInfo.address,
+                  },
+                  items: [
+                    {
+                      id: memory.buyNowProduct.id,
+                      name: memory.buyNowProduct.name,
+                      image: memory.buyNowProduct.images?.[0] || memory.buyNowProduct.image || "",
+                      qty: 1,
+                      price: memory.buyNowProduct.price,
+                      currency: memory.buyNowProduct.currency || "Rs.",
+                    }
+                  ],
+                  summary: {
+                    subtotal: memory.buyNowProduct.price,
+                    deliveryCharge: 0,
+                    discount: 0,
+                    total: memory.buyNowProduct.price,
+                  }
+                };
+
+                // Clear Buy Now details from session memory
+                updateMemory(sessionId, { buyNowProduct: null, buyNowVariants: null, deliveryInfo: null });
+
+                return {
+                    type: "order_confirmation",
+                    text: "✅ Order Successfully Placed",
+                    order: orderDetails
+                };
+            }
+
             const cart = memory.cart || [];
 
             if (cart.length === 0) {

@@ -15,7 +15,18 @@ export const checkDelivery = async (city, deliveryDate, productId) => {
     }
   });
 
-  const data = JSON.parse(result.structuredContent.result);
+  let data = {};
+  try {
+    data = JSON.parse(result.structuredContent.result);
+  } catch (err) {
+    return {
+      available: false,
+      city: city,
+      deliveryDate: deliveryDate,
+      deliveryCharge: 0,
+      warning: result.structuredContent.result || "Delivery check failed."
+    };
+  }
 
   const deliveryResult = {
     available: data.available,

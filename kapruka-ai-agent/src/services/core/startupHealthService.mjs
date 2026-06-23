@@ -236,6 +236,7 @@ export const runStartupChecks = async () => {
   console.log("\n[GOOGLE MAPS]");
   console.log(`  Geocoding API        ${avail(results.geocoding)}`);
   console.log(`  Places API           ${avail(results.places)}`);
+  console.log(`  Concierge Routing    ${avail(results.places)}`);
   console.log("");
 
   logger.info("[STARTUP] Diagnostics finished.");

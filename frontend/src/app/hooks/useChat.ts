@@ -32,7 +32,7 @@ export const useChat = () => {
 
   const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
 
-  const handleSend = async (textOverride?: string) => {
+  const handleSend = async (textOverride?: string, customCommerceState?: any) => {
     const trimmed = typeof textOverride === "string" ? textOverride.trim() : value.trim();
     if (!trimmed) return;
 
@@ -43,7 +43,7 @@ export const useChat = () => {
     setValue("");
 
     // ── Address input flow ─────────────────────────────────────────────────
-    if (waitingForAddressInput) {
+    if (waitingForAddressInput && !textOverride) {
       await handleAddressInput(trimmed);
       return;
     }
@@ -71,7 +71,7 @@ export const useChat = () => {
     }
 
     // ── Default: AI search ────────────────────────────────────────────────
-    performSearch(trimmed);
+    performSearch(trimmed, customCommerceState);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

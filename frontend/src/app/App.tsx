@@ -279,11 +279,11 @@ function MainApp() {
     handleKeyDown,
     handleSend,
     handleStop,
-    handleRequestProductDetails
+    handleRequestProductDetails,
+    getSessionId
   } = useChat();
 
   const {
-    handleBuyNow,
     handlePlaceInlineOrder,
     handleCartCheckoutComplete,
     handleVerifyCustomDetails,
@@ -291,6 +291,22 @@ function MainApp() {
   } = useCheckout();
 
   const isMobile = useIsMobile();
+
+  const handleConfirmOrder = (p: Product, variants?: Record<string, string>) => {
+    const buyNowCommerceState = {
+      buyNowProduct: {
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        currency: p.currency || "Rs.",
+        brand: p.brand,
+        images: p.images,
+        image: p.images?.[0]
+      },
+      buyNowVariants: variants,
+    };
+    handleSend(`I confirmed the order for ${p.name}.`, buyNowCommerceState);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -731,7 +747,7 @@ function MainApp() {
                 selectedIds={selectedIds}
                 setSelectedIds={setSelectedIds}
                 onAddToCart={handleAddToCart}
-                onBuyNow={handleBuyNow}
+                onBuyNow={handleConfirmOrder}
                 onWishlist={handleWishlist}
                 onPlaceInlineOrder={handlePlaceInlineOrder}
                 isTyping={isTyping}
@@ -841,299 +857,9 @@ function MainApp() {
                     </motion.div>
                   )}
 
-                  {pendingConfirmProduct && !pendingAddressChoice && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(8px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 16,
-                        padding: "12px 16px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        overflow: "hidden",
-                        position: "relative",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={resetPendingPurchaseState}
-                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
-                      >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
-                          <img src={pendingConfirmProduct.images[0]} alt={pendingConfirmProduct.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        </div>
-                        <div style={{ minWidth: 0 }}>
-                          <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Confirm Purchase</p>
-                          <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            Buy {pendingConfirmProduct.name} for ${pendingConfirmProduct.price.toFixed(2)}?
-                          </h4>
-                        </div>
-                      </div>
-                      <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={resetPendingPurchaseState}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPendingAddressChoice(true)}
-                          style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
-                        >
-                          Confirm
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
 
-                  {pendingConfirmProduct && pendingAddressChoice && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.95)",
-                        backdropFilter: "blur(8px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 16,
-                        padding: "16px 20px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.12)",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "stretch",
-                        justifyContent: "flex-start",
-                        gap: 12,
-                        overflow: "hidden",
-                        position: "relative",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={resetPendingPurchaseState}
-                        style={{ position: "absolute", top: 8, right: 8, width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.05)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}
-                      >
-                        <X size={12} strokeWidth={2.5} />
-                      </button>
-                      {isEnteringCustomDetails ? (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <button
-                              type="button"
-                              onClick={() => setIsEnteringCustomDetails(false)}
-                              style={{
-                                background: "rgba(64,41,112,0.07)",
-                                border: "none",
-                                borderRadius: 6,
-                                width: 24,
-                                height: 24,
-                                cursor: "pointer",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                color: "#7c6a9e",
-                              }}
-                            >
-                              <ChevronLeft size={14} strokeWidth={2.5} />
-                            </button>
-                            <div>
-                              <p style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Custom Details</p>
-                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: 0 }}>
-                                Enter Delivery & Owner Info
-                              </h4>
-                            </div>
-                          </div>
 
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>FULL NAME *</label>
-                                <input
-                                  type="text"
-                                  value={customName}
-                                  onChange={(e) => setCustomName(e.target.value)}
-                                  placeholder="e.g. Alex Johnson"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>PHONE NUMBER *</label>
-                                <input
-                                  type="text"
-                                  value={customPhone}
-                                  onChange={(e) => setCustomPhone(e.target.value)}
-                                  placeholder="e.g. +94 77 123 4567"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            <div>
-                              <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>EMAIL ADDRESS *</label>
-                              <input
-                                type="email"
-                                value={customEmail}
-                                onChange={(e) => setCustomEmail(e.target.value)}
-                                placeholder="e.g. alex@example.com"
-                                style={{
-                                  width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                }}
-                              />
-                            </div>
-
-                            <div>
-                              <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 1 *</label>
-                              <input
-                                type="text"
-                                value={newStreet1}
-                                onChange={(e) => setNewStreet1(e.target.value)}
-                                placeholder="e.g. No 15, Temple Road"
-                                style={{
-                                  width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                }}
-                              />
-                            </div>
-
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <div style={{ flex: 1.2 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>STREET LINE 2 (OPTIONAL)</label>
-                                <input
-                                  type="text"
-                                  value={newStreet2}
-                                  onChange={(e) => setNewStreet2(e.target.value)}
-                                  placeholder="e.g. Near Kovil"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                              <div style={{ flex: 0.8 }}>
-                                <label style={{ color: "#7c6a9e", fontSize: 9, fontWeight: 700, display: "block", marginBottom: 3 }}>CITY *</label>
-                                <input
-                                  type="text"
-                                  value={newCity}
-                                  onChange={(e) => setNewCity(e.target.value)}
-                                  placeholder="e.g. Jaffna"
-                                  style={{
-                                    width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "#fff", color: "#1a1025", fontSize: 12, fontFamily: "'Nunito', sans-serif", outline: "none", boxSizing: "border-box"
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          </div>
-
-                          {addressError && (
-                            <p style={{ color: "#d4183d", fontSize: 11, margin: "2px 0 0 0", fontWeight: 600 }}>
-                              ⚠️ {addressError}
-                            </p>
-                          )}
-
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => setIsEnteringCustomDetails(false)}
-                              disabled={checkingAddress}
-                              style={{
-                                padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer"
-                              }}
-                            >
-                              Back
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleVerifyCustomDetails}
-                              disabled={checkingAddress}
-                              style={{
-                                padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: checkingAddress ? "not-allowed" : "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)", opacity: checkingAddress ? 0.7 : 1
-                              }}
-                            >
-                              {checkingAddress ? "Verifying..." : "Verify & Confirm"}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#7c4dba,#402970)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                              <MapPin size={20} color="#fff" />
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              <p style={{ color: "#7c6a9e", fontSize: 10, fontWeight: 800, margin: 0, textTransform: "uppercase", letterSpacing: "0.04em" }}>Delivery Details</p>
-                              <h4 style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, margin: "2px 0 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                Choose shipping location and owner for order
-                              </h4>
-                            </div>
-                          </div>
-
-                          <div style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 6,
-                            padding: "10px 12px",
-                            background: "rgba(64,41,112,0.03)",
-                            border: "1px solid rgba(64,41,112,0.07)",
-                            borderRadius: 12,
-                            fontSize: 11.5,
-                            color: "#402970",
-                            fontFamily: "'Nunito', sans-serif"
-                          }}>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Owner:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.name}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Phone:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.phone}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Email:</span><span style={{ color: "#1a1025", fontWeight: 600 }}>{savedDelivery.email}</span></div>
-                            <div style={{ display: "flex", gap: 4 }}><span style={{ fontWeight: 700, minWidth: 60, color: "#7c6a9e" }}>Address:</span><span style={{ color: "#1a1025", fontWeight: 600, wordBreak: "break-all" }}>
-                              {[savedDelivery.street1, savedDelivery.street2, savedDelivery.city].filter(Boolean).join(", ") || "123 Galle Road, Colombo 03, Sri Lanka"}
-                            </span></div>
-                          </div>
-
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsEnteringCustomDetails(true);
-                                setCustomName(localStorage.getItem("delivery_name") || "Alex Johnson");
-                                setCustomPhone(localStorage.getItem("delivery_phone") || "+94 77 123 4567");
-                                setCustomEmail(localStorage.getItem("delivery_email") || "alex@example.com");
-                                setNewStreet1(localStorage.getItem("delivery_street1") || "");
-                                setNewStreet2(localStorage.getItem("delivery_street2") || "");
-                                setNewCity(localStorage.getItem("delivery_city") || "Colombo 03");
-                              }}
-                              style={{ padding: "6px 12px", borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.15)", background: "transparent", color: "#7c6a9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}
-                            >
-                              Another Details
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleUseDefaultAddress}
-                              style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontSize: 11, fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 10px rgba(64,41,112,0.2)" }}
-                            >
-                              Use Default
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-
-                  {activeDetailsProduct && (
+                  {activeDetailsProduct && !pendingConfirmProduct && (
                     <motion.div
                       id="details-actions-popup"
                       key="details-actions-popup"
@@ -1194,7 +920,7 @@ function MainApp() {
                               whileTap={{ scale: 0.96 }}
                               onClick={() => {
                                 setShowBuyConfirm(false);
-                                handleBuyNow(activeDetailsProduct);
+                                handleConfirmOrder(activeDetailsProduct);
                               }}
                               style={{
                                 display: "flex", alignItems: "center", gap: 4,
@@ -1337,7 +1063,7 @@ function MainApp() {
           messages={messages} 
           onSendMessage={(text) => handleSend(text)} 
           onAddToCart={handleAddToCart}
-          onBuyNow={handleBuyNow}
+          onBuyNow={handleConfirmOrder}
           onWishlist={handleWishlist}
           onViewDetails={(id) => {
             const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);

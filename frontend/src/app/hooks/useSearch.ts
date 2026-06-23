@@ -20,12 +20,13 @@ export const useSearch = () => {
     setLastCheckedDelivery,
     setNearbyCitiesSuggested,
     setActiveSmartPanel,
+    saveOrderToHistory,
   } = useApp();
 
   const { cartItems } = useCart();
   const { wishlistItems } = useWishlist();
 
-  const performSearch = (trimmed: string) => {
+  const performSearch = (trimmed: string, customCommerceState?: any) => {
     setIsTyping(true);
     setActivityExpanded(false);
     setActivity({
@@ -35,7 +36,7 @@ export const useSearch = () => {
       error: false
     });
 
-    const commerceState = {
+    const baseCommerceState = {
       cart: cartItems.map(i => ({
         productId: i.productId,
         name: i.name,
@@ -44,12 +45,16 @@ export const useSearch = () => {
         brand: i.brand,
       })),
       wishlist: wishlistItems.map(i => ({
-        productId: i.productId,
+        productId: i.product.id,
         name: i.product.name,
         price: i.product.price,
       })),
       saved: [],
     };
+
+    const commerceState = customCommerceState
+      ? { ...baseCommerceState, ...customCommerceState }
+      : baseCommerceState;
 
     sendMessage(trimmed, (payload) => {
       setActivity({
@@ -71,7 +76,18 @@ export const useSearch = () => {
           setIsTyping(false);
 
           if (data && typeof data === "object" && !Array.isArray(data)) {
-            if (data.type === "order_tracking") {
+            if (data.type === "order_confirmation") {
+              if (data.order) {
+                saveOrderToHistory(data.order);
+              }
+              setMessages(prev => [...prev, {
+                role: "ai",
+                type: "order_confirmation",
+                text: data.text || "✅ Order Successfully Placed",
+                order: data.order
+              }]);
+              return;
+            } else if (data.type === "order_tracking") {
               setMessages(prev => [...prev, { role: "ai", type: "order_tracking", text: `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`, tracking: data.tracking }]);
               return;
             } else if (data.type === "order_tracking_error") {
