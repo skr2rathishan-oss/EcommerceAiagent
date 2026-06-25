@@ -300,7 +300,7 @@ export function parseAddress(rawAddress) {
     houseNumber: parsed.houseNumber,
     street: parsed.street,
     area: parsed.area,
-    city: parsed.city,
+    city: parsed.city === "Colombo" && parsed.postalCode ? `Colombo ${parsed.postalCode}` : parsed.city,
     postalCode: parsed.postalCode,
     confidence,
     isSufficient,

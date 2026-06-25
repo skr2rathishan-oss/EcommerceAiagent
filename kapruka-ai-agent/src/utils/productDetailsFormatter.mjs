@@ -311,8 +311,6 @@ export function formatProductDetails(product) {
     lines.push("\n---\n");
   }
 
-
-
   // ── Specifications ──
   const specs = extractSpecs(product);
   if (specs.length > 0) {
@@ -322,6 +320,26 @@ export function formatProductDetails(product) {
       lines.push(`• ${spec}`);
     }
     lines.push("");
+  }
+
+  // ── Fallback: Always include at least basic product info ──
+  if (lines.length === 0) {
+    lines.push("**📦 Product Information:**\n");
+    if (product.name) lines.push(`**Name:** ${product.name}`);
+    if (product.price !== undefined) {
+      const priceStr = formatPrice(product.price, product.currency || "LKR");
+      lines.push(`**Price:** ${priceStr}`);
+    }
+    const inStock = product.stock !== undefined ? (product.stock > 0 || product.stock === true) : null;
+    if (inStock !== null) {
+      lines.push(`**Availability:** ${inStock ? "✅ In Stock" : "❌ Out of Stock"}`);
+    }
+    if (product.category) lines.push(`**Category:** ${product.category}`);
+    if (product.shippingInfo) lines.push(`**Shipping:** ${product.shippingInfo}`);
+    if (product.url) lines.push(`\n[🔗 View on Kapruka](${product.url})`);
+    if (lines.length <= 1) {
+      lines.push("No additional details available for this product.");
+    }
   }
 
   return {

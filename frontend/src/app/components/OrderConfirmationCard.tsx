@@ -12,6 +12,7 @@ export interface OrderConfirmationDetails {
   orderDate: string;
   estimatedDelivery: string;
   paymentStatus: string;
+  paymentUrl?: string;
   recipient: {
     name: string;
     phone: string;
@@ -409,6 +410,33 @@ export function OrderConfirmationCard({ order, onContinueShopping, onTrackOrder 
             <ExternalLink size={13} />
             View Full Receipt
           </button>
+          {order.paymentUrl && (
+            <a
+              href={order.paymentUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: "10px",
+                borderRadius: 10,
+                border: "none",
+                background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                color: "#fff",
+                fontSize: 11.5,
+                fontWeight: 800,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                fontFamily: "'Nunito', sans-serif",
+                textDecoration: "none",
+                boxShadow: "0 2px 8px rgba(245,158,11,0.25)",
+              }}
+            >
+              <ExternalLink size={13} />
+              Pay Now
+            </a>
+          )}
           <button
             type="button"
             onClick={onContinueShopping}
@@ -431,6 +459,7 @@ export function OrderConfirmationCard({ order, onContinueShopping, onTrackOrder 
             <ShoppingBag size={13} />
             Continue Shopping
           </button>
+
           <button
             type="button"
             onClick={handleCopyReference}

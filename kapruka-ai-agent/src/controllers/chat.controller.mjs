@@ -27,7 +27,11 @@ import {
   handleDateInput,
   handleRecoveryChoice,
   handleCancelOptions,
-  handleCheckoutConfirmation
+  handleCheckoutConfirmation,
+  handleContactNameInput,
+  handleContactPhoneInput,
+  handleFinalOrderConfirmation,
+  handleCancelChoice
 } from "../services/commerce/deliveryFlowService.mjs";
 import {
   buildInitialLogs,
@@ -127,7 +131,11 @@ export const chat = async (req, res) => {
       "CHECKING_DELIVERY",
       "WAITING_FOR_RECOVERY_CHOICE",
       "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
-      "WAITING_FOR_CONFIRMATION"
+      "WAITING_FOR_CONFIRMATION",
+      "WAITING_FOR_CONTACT_NAME",
+      "WAITING_FOR_CONTACT_PHONE",
+      "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
+      "WAITING_FOR_CANCEL_CHOICE"
     ];
 
     if (deliverySession && activeDeliveryStates.includes(deliveryState)) {
@@ -166,6 +174,14 @@ export const chat = async (req, res) => {
         }
       } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
         serviceResult = await handleCheckoutConfirmation(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+        serviceResult = await handleContactNameInput(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+        serviceResult = await handleContactPhoneInput(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
+        serviceResult = await handleFinalOrderConfirmation(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
+        serviceResult = await handleCancelChoice(deliverySession, message, currentLang);
       }
 
       if (serviceResult === null) {

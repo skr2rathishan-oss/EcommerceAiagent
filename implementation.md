@@ -1,100 +1,94 @@
-# Velora Delivery System — Phase 2 Implementation Plan
+# Velora Delivery System — Phase 3 Implementation Plan
 
-## Agent Integration + Order Confirmation Flow
+## Contact Details Collection + Final Order Summary + Manual Order Confirmation
 
 ## Objective
 
-Integrate the completed **Address Intelligence V1** into Velora’s live delivery agent flow so that:
+Extend the current delivery flow so that **after address and delivery date are confirmed and delivery availability is successful**, Velora will:
 
-1. the agent asks for a delivery address
-2. the address is cleaned and validated using `addressService.mjs`
-3. the user confirms the corrected address
-4. the agent collects the delivery date
-5. the agent runs `kapruka_check_delivery`
-6. if delivery is available, the agent shows a checkout confirmation summary
-7. after the user confirms, the agent calls `kapruka_create_order`
-8. the user receives the order ID + payment link
+1. collect the **contact name**
+2. collect the **phone number**
+3. validate both fields
+4. generate a **full order summary**
+5. ask the user to manually confirm the order by replying **Yes / Y**
+6. place the order only after explicit confirmation
+7. handle **No / Cancel** gracefully in Sri Lankan conversational style
 
-This phase connects the address module to the real conversational delivery journey.
-
----
-
-# Phase 2 Scope
-
-## In Scope
-
-* connect `addressService.mjs` to delivery chat flow
-* store confirmed address inside delivery session
-* collect delivery date after address confirmation
-* run `kapruka_check_delivery(city, delivery_date, product_id)`
-* handle delivery available / unavailable branches
-* show checkout confirmation message/card
-* handle final order confirmation from user
-* call `kapruka_create_order`
-* show order success + payment link
-* preserve delivery session state throughout the flow
-
-## Out of Scope for this phase
-
-Do not add these yet unless already partially built:
-
-* Google address verification improvements
-* advanced nearest-city ranking improvements
-* gift messages
-* occasion intelligence
-* recipient intelligence
-* bundle builder
-* full voice-only checkout confirmation
+This phase turns the delivery flow into a complete **address → date → delivery check → customer details → order summary → confirmation → order creation** journey.
 
 ---
 
-# 1. Delivery Flow We Are Connecting Now
+# 1. Final Flow for This Phase
 
-## Target conversational flow
+## Target happy path
 
-User:
-“I want this cake”
-
-Velora:
-“Super 😊 Please send me the full delivery address for this order.”
-
-User sends address
-
+User selects a product
 ↓
-Address Intelligence cleans + parses it
+Velora asks for delivery address
 ↓
-Velora shows corrected address
-↓
-User confirms
+Address Intelligence cleans + confirms address
 ↓
 Velora asks for delivery date
 ↓
-User gives date
+Velora runs `kapruka_check_delivery`
 ↓
-Velora runs delivery check
+Delivery available
 ↓
-
-## If delivery is available:
-
-* show fee
-* show perishable warning if needed
-* show checkout confirmation
-* ask user to place the order
-* call `kapruka_create_order`
-* show payment link
-
-## If delivery is unavailable:
-
-* go into recovery flow
-* alternative dates / nearby cities / alternative products / cancel flow
+Velora asks for **contact name**
+↓
+Velora asks for **phone number**
+↓
+Velora shows **full order summary**
+↓
+Velora asks user to reply **Yes / Y** to confirm
+↓
+User sends **Yes**
+↓
+Velora calls `kapruka_create_order`
+↓
+Velora shows order success + payment link
 
 ---
 
-# 2. Delivery Session Schema Update
+# 2. Scope of Phase 3
 
-The delivery session must now store **address-specific fields** in addition to delivery fields.
+## In Scope
 
-## Required DeliverySession fields
+* collect contact name after successful delivery check
+* collect contact phone number after contact name
+* validate Sri Lankan mobile numbers
+* store customer details in delivery session
+* build a final order summary using:
+
+  * product
+  * confirmed address
+  * delivery date
+  * delivery fee
+  * contact name
+  * phone number
+* ask for explicit confirmation via text reply:
+
+  * Yes / Y
+* create order only after confirmation
+* handle “No” / cancel gracefully
+
+## Out of Scope
+
+Do not add these in this phase:
+
+* gift messages
+* recipient intelligence
+* occasion flow
+* multiple quantities / cart logic
+* payment status polling
+* edit specific order fields from summary screen
+* advanced OTP / phone verification
+
+---
+
+# 3. Updated Delivery Session Schema
+
+Add customer details + final confirmation state to the delivery session.
 
 ```ts
 type DeliverySession = {
@@ -107,19 +101,21 @@ type DeliverySession = {
     | "WAITING_FOR_ADDRESS_CONFIRMATION"
     | "WAITING_FOR_DATE"
     | "CHECKING_DELIVERY"
-    | "WAITING_FOR_RECOVERY_CHOICE"
-    | "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION"
-    | "WAITING_FOR_CONFIRMATION"
+    | "WAITING_FOR_CONTACT_NAME"
+    | "WAITING_FOR_CONTACT_PHONE"
+    | "WAITING_FOR_FINAL_ORDER_CONFIRMATION"
     | "CREATING_ORDER"
     | "PAYMENT_PENDING"
     | "COMPLETED"
-    | "CANCELLED";
+    | "CANCELLED"
+    | "WAITING_FOR_RECOVERY_CHOICE";
 
   selected_product: {
     product_id: string;
     product_name: string;
     price?: number;
     category?: string;
+    quantity?: number;
   } | null;
 
   raw_address: string | null;
@@ -137,6 +133,11 @@ type DeliverySession = {
   delivery_available: boolean | null;
   delivery_fee: number | null;
 
+  contact_name: string | null;
+  contact_phone: string | null;
+
+  order_summary_text: string | null;
+
   alternative_dates: string[];
   nearest_cities: string[];
   alternative_products: Array<any>;
@@ -151,330 +152,389 @@ type DeliverySession = {
 
 ---
 
-# 3. Backend Files to Update
+# 4. New Delivery States for This Phase
 
-## A) `backend/services/addressService.mjs`
+Add these new states:
 
-Already completed in Phase 1.
+## `WAITING_FOR_CONTACT_NAME`
 
-Use it as the address parser/cleaner.
+Used after successful delivery validation.
 
-### Function to call
+## `WAITING_FOR_CONTACT_PHONE`
+
+Used after valid contact name is collected.
+
+## `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+
+Used after order summary is shown and Velora is waiting for:
+
+* Yes
+* Y
+* No
+* Cancel
+
+---
+
+# 5. Backend Files to Update
+
+## A) `chat.controller.mjs`
+
+Add new state handling for:
+
+* `WAITING_FOR_CONTACT_NAME`
+* `WAITING_FOR_CONTACT_PHONE`
+* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+
+This file will intercept the user’s reply at each stage and route it correctly.
+
+---
+
+## B) `deliveryFlowService.mjs`
+
+Add new functions for contact collection and final confirmation flow.
+
+Suggested functions:
 
 ```js
-parseAddress(rawAddress)
+handleContactNameInput(session, rawName)
+handleContactPhoneInput(session, rawPhone)
+buildOrderSummary(session)
+handleFinalOrderConfirmation(session, userReply)
+confirmAndCreateOrder(session)
 ```
 
-This becomes the main entry point from the delivery agent.
+---
+
+## C) `order.service.mjs`
+
+Update the create-order payload mapping so it uses:
+
+* confirmed normalized delivery address
+* confirmed city
+* confirmed delivery date
+* contact name
+* contact phone
+
+This service should remain the only place that maps Velora session data into Kapruka’s order payload format.
 
 ---
 
-## B) `contextEngine.mjs`
+# 6. Phase 3 State-by-State Flow
 
-Update the delivery session state schema to store:
-
-* raw address
-* cleaned address
-* normalized address
-* confidence
-* extracted city
-* delivery date
-* delivery fee
-* order status
-
-Also ensure:
-
-* `session_version` increments on every delivery mutation
-* stale async responses are ignored
-
----
-
-## C) `chat.controller.mjs`
-
-This becomes the main place that routes the conversational delivery flow state by state.
-
-It should now handle:
-
-* `WAITING_FOR_ADDRESS`
-* `WAITING_FOR_ADDRESS_CONFIRMATION`
-* `WAITING_FOR_DATE`
-* `CHECKING_DELIVERY`
-* `WAITING_FOR_CONFIRMATION`
-* recovery states
-
----
-
-## D) `deliveryFlowService.mjs` (recommended if not already created)
-
-Create or expand a dedicated service to keep the delivery orchestration logic out of the controller.
-
-Suggested responsibilities:
-
-* start delivery flow
-* save parsed address into session
-* move between delivery states
-* call delivery check
-* build checkout summary
-* call order creation
-
----
-
-## E) `order.service.mjs`
-
-Connect final delivery-confirmed session data to `kapruka_create_order`.
-
-This file should:
-
-* build the create order payload
-* validate required fields
-* call Kapruka create order
-* return order ID + payment link
-
----
-
-# 4. State-by-State Integration Plan
-
-# State 1 — Start Delivery Flow
+# State 1 — Delivery Success → Ask Contact Name
 
 ## Trigger
 
-User selects a product or says:
-
-* “I want this cake”
-* “Buy this”
-* “Order this”
+Delivery address is confirmed
+AND delivery date is confirmed
+AND `kapruka_check_delivery` returned success
 
 ## Action
 
-Create or update a delivery session.
-
-Set:
+Move session to:
 
 ```js
-state = "WAITING_FOR_ADDRESS"
-selected_product = { product_id, product_name, ... }
+state = "WAITING_FOR_CONTACT_NAME"
 ```
 
 ## Agent message
 
-“Super 😊 Please send me the **full delivery address** for this order.
+Use Sri Lankan-style friendly tone:
 
-Example: **No 25, Temple Road, Wellawatte, Colombo 06**”
+### English Sri Lankan style
 
----
+“Good news 🎉 Delivery is available for this item.
 
-# State 2 — Address Input Handling
+Now I just need the **contact name** for the order 😊
+Please send the name of the person we should contact for delivery.”
 
-## When user sends an address
+### Sinhala mixed
 
-Call:
+“Hari hari 🎉 me item eka deliver karanna puluwan.
 
-```js
-const parsed = parseAddress(userMessage);
-```
+Dan mata **contact name eka** one order eka complete karanna 😊
+Delivery ekata contact karanna ona nama danna please.”
 
-## If parsed address is sufficient
+### Tamil mixed
 
-Save all parsed fields into session:
+“Super 🎉 indha item-ku delivery panna mudiyum.
 
-* raw_address
-* cleaned_address
-* normalized_address
-* city
-* postal_code
-* confidence
-* house_number
-* street
-* area
-
-Move to:
-
-```js
-state = "WAITING_FOR_ADDRESS_CONFIRMATION"
-```
-
-## Agent message
-
-“I found this delivery address 😊
-
-**{normalized_address}**
-
-Is this correct?
-
-**A.** Yes, use this address
-**B.** Edit address”
+Ippo order complete panna **contact name** venum 😊
+Delivery-ku contact panna vendiya name anuppunga.”
 
 ---
 
-## If parsed address is insufficient
+# State 2 — Contact Name Input
+
+## Input expected
+
+A normal human name.
+
+Examples:
+
+* Nimal Perera
+* A. Yogathas
+* Kiruthika
+* M. Sivanesan
+
+## Validation rules
+
+For V1 keep it simple:
+
+### Accept if:
+
+* trimmed length >= 2
+* not purely numeric
+* not obviously invalid like:
+
+  * `12345`
+  * `----`
+  * empty string
+
+### If valid
+
+Save:
+
+```js
+contact_name = cleanedName
+state = "WAITING_FOR_CONTACT_PHONE"
+```
+
+Then ask for phone number.
+
+---
+
+## If invalid
 
 Stay in:
 
 ```js
-state = "WAITING_FOR_ADDRESS"
+state = "WAITING_FOR_CONTACT_NAME"
 ```
 
 ## Agent message
 
-“Aiyoo 😅 I need a little more detail for the delivery address.
+“Aiyoo 😅 that doesn’t look like a valid contact name.
 
-Please send:
-
-* house/building number
-* road / street
-* area
-* city
-
-Example: **No 14, Hospital Road, Jaffna**”
+Please send the **name of the person receiving the delivery**.
+Example: **Nimal Perera**”
 
 ---
 
-# State 3 — Address Confirmation
+# State 3 — Ask Contact Phone Number
 
-## If user selects A / confirms
+## Agent message
 
-Move to:
+### English Sri Lankan style
+
+“Perfect 😊 Now send me the **contact phone number** for the delivery.
+
+Example: **0771234567**”
+
+### Sinhala mixed
+
+“Perfect 😊 dan **contact phone number eka** danna.
+
+Example: **0771234567**”
+
+### Tamil mixed
+
+“Seri 😊 ippo **contact phone number** anuppunga.
+
+Example: **0771234567**”
+
+---
+
+# State 4 — Contact Phone Input
+
+## Validation goal
+
+Accept valid Sri Lankan mobile numbers.
+
+### Accept these formats in V1
+
+* `0771234567`
+* `0712345678`
+* `+94771234567`
+* `94771234567`
+
+### Normalize into one internal format
+
+Recommended normalized format:
+
+```text
+0771234567
+```
+
+---
+
+# 7. Phone Validation Rules
+
+Create a helper:
 
 ```js
-state = "WAITING_FOR_DATE"
+normalizeSriLankanPhoneNumber(rawPhone)
 ```
 
-## Agent message
+## Rules
 
-“Perfect 😊 When would you like it delivered?”
+1. Remove spaces, hyphens, parentheses
+2. Convert:
+
+   * `+94771234567` → `0771234567`
+   * `94771234567` → `0771234567`
+3. Accept only Sri Lankan mobile patterns such as:
+
+```regex
+^0(70|71|72|74|75|76|77|78)\d{7}$
+```
+
+You can extend later if needed.
 
 ---
 
-## If user selects B / wants to edit
-
-Clear address-related fields if needed and move back to:
-
-```js
-state = "WAITING_FOR_ADDRESS"
-```
-
-## Agent message
-
-“No problem 👍 Please send the correct delivery address.”
-
----
-
-# State 4 — Delivery Date Collection
-
-## Accept user date input
-
-Examples:
-
-* today
-* tomorrow
-* Friday
-* June 30
-* next Sunday
-
-Normalize it into ISO date format.
+## If phone is valid
 
 Save:
 
 ```js
-delivery_date = normalizedDate
-state = "CHECKING_DELIVERY"
+contact_phone = normalizedPhone
+state = "WAITING_FOR_FINAL_ORDER_CONFIRMATION"
 ```
+
+Then build and send the order summary.
 
 ---
 
-# State 5 — Run Delivery Check
+## If phone is invalid
 
-Use the **confirmed city** from the parsed address.
-
-Call:
+Stay in:
 
 ```js
-kapruka_check_delivery({
-  city: session.city,
-  delivery_date: session.delivery_date,
-  product_id: session.selected_product.product_id
-})
+state = "WAITING_FOR_CONTACT_PHONE"
 ```
-
----
-
-# State 6 — Delivery Available Flow
-
-If delivery is available:
-
-Save:
-
-* `delivery_available = true`
-* `delivery_fee = returned fee`
 
 ## Agent message
 
-“✅ Good news! This item can be delivered.
+“Aiyoo 😅 that phone number doesn’t look right.
 
-📍 **{city}**
-📅 **{delivery_date_human}**
-🚚 **Delivery Fee: LKR {fee}**”
-
----
-
-## Perishable product rule
-
-If selected product category is:
-
-* cake
-* flowers
-* combo
-
-Show:
-
-“⚠️ This is a perishable item. Please make sure someone is available to receive it on the delivery date.”
+Please send a valid Sri Lankan mobile number like:
+**0771234567**”
 
 ---
 
-## Next action
+# 8. Build Final Order Summary
 
-Move to:
+After contact name + phone are valid, generate the final order summary.
 
-```js
-state = "WAITING_FOR_CONFIRMATION"
-```
+## Summary must include
 
-Then show the checkout confirmation summary.
-
----
-
-# State 7 — Checkout Confirmation
-
-## Build checkout summary using confirmed delivery data
-
-### Required fields to show
+### Product details
 
 * product name
-* full confirmed address
-* city
+* quantity (default 1 if single-item flow)
+
+### Delivery details
+
+* full confirmed normalized address
+* delivery city
 * delivery date
 * delivery fee
-* perishable warning if applicable
 
-## Agent message example
+### Customer contact details
 
-“🎉 Everything is ready!
-
-**Product:** Chocolate Cake
-**Deliver To:** No 25, Temple Road, Wellawatte, Colombo 06
-**Delivery Date:** June 30
-**Delivery Fee:** LKR 350
-
-Would you like me to place the order?
-
-**A.** Yes, place order
-**B.** Cancel”
+* contact name
+* phone number
 
 ---
 
-# State 8 — Final User Confirmation
+# 9. Final Order Summary Message Format
 
-## If user selects A
+## English Sri Lankan style
+
+“🎉 Everything is ready machan / 😊
+
+Here’s your order summary — please check it once before I place the order 👇
+
+**Product:** {product_name}
+**Delivery Address:** {normalized_address}
+**Delivery City:** {city}
+**Delivery Date:** {delivery_date_human}
+**Delivery Fee:** LKR {delivery_fee}
+**Contact Name:** {contact_name}
+**Phone Number:** {contact_phone}
+
+If everything looks good, just reply with **Yes** or **Y** and I’ll place the order for you.
+
+If you don’t want to continue, reply **No**.”
+
+---
+
+## Sinhala mixed style
+
+“🎉 Hari hari, okkoma ready 😊
+
+Me order summary eka poddak check karala balanna 👇
+
+**Product:** {product_name}
+**Delivery Address:** {normalized_address}
+**Delivery City:** {city}
+**Delivery Date:** {delivery_date_human}
+**Delivery Fee:** LKR {delivery_fee}
+**Contact Name:** {contact_name}
+**Phone Number:** {contact_phone}
+
+Okkoma hari nam **Yes** hari **Y** hari reply karanna — mama order eka place karannam.
+
+Continue karanna epa nam **No** kiyanna.”
+
+---
+
+## Tamil mixed style
+
+“🎉 Super, ellam ready 😊
+
+Order summary oru thadava check pannunga 👇
+
+**Product:** {product_name}
+**Delivery Address:** {normalized_address}
+**Delivery City:** {city}
+**Delivery Date:** {delivery_date_human}
+**Delivery Fee:** LKR {delivery_fee}
+**Contact Name:** {contact_name}
+**Phone Number:** {contact_phone}
+
+Ellam correct-na **Yes** illa **Y** nu reply pannunga — naan order place pannuren.
+
+Continue panna vendaam-na **No** nu sollunga.”
+
+---
+
+# 10. Final Confirmation Input Rules
+
+When state = `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+
+## Accept as confirmation
+
+* `yes`
+* `y`
+* `Yes`
+* `Y`
+* `yes machan`
+* `hari`
+* `ow`
+
+For V1, I recommend handling at least:
+
+* yes
+* y
+* no
+
+You can add Sinhala/Tamil local confirmations later.
+
+---
+
+## If user confirms with Yes / Y
 
 Move to:
 
@@ -482,23 +542,96 @@ Move to:
 state = "CREATING_ORDER"
 ```
 
-Call `kapruka_create_order`.
-
-## If user selects B
-
-Move to:
-
-```js
-state = "CANCELLED"
-```
-
-Send cancel flow message.
+Then call `kapruka_create_order`.
 
 ---
 
-# State 9 — Create Order
+## If user says No
 
-Build the order payload from the **confirmed delivery session**.
+Do **not** place the order.
+
+Move to a cancel / correction response.
+
+---
+
+# 11. “No” / Cancel Response Behavior
+
+If user replies **No**, Velora should respond politely and keep the conversation alive.
+
+## Suggested behavior
+
+For Phase 3, keep it simple:
+
+### Agent message — English Sri Lankan style
+
+“No worries 😊 I haven’t placed the order yet.
+
+If you want, I can help you with one of these:
+
+**A.** Change the delivery details
+**B.** Start over with another product”
+
+---
+
+### Sinhala mixed
+
+“Awulak ne 😊 mama thama order eka place kale ne.
+
+Oyata ona nam me deken ekak karamu:
+
+**A.** Delivery details wenas karamu
+**B.** Aluthin wena product ekak balamu”
+
+---
+
+### Tamil mixed
+
+“Parava illa 😊 naan innum order place pannala.
+
+Neenga venumna idhula onnu pannalaam:
+
+**A.** Delivery details maathalaam
+**B.** Pudusa vera product paakalaam”
+
+---
+
+# 12. Recommended No/Cancel Routing
+
+## If user chooses A after No
+
+Go back to the delivery flow at the appropriate point.
+
+### Minimum recommended behavior
+
+Restart from:
+
+```js
+state = "WAITING_FOR_ADDRESS"
+```
+
+if you want the simplest implementation.
+
+### Better behavior
+
+Ask what they want to change:
+
+* address
+* date
+* phone number
+
+That can be a later improvement.
+
+---
+
+## If user chooses B after No
+
+Clear the delivery session and return to product search / browsing flow.
+
+---
+
+# 13. Create Order Payload for This Phase
+
+When user confirms Yes / Y, build the order payload using the already confirmed session data.
 
 ## Required payload structure
 
@@ -510,27 +643,25 @@ Build the order payload from the **confirmed delivery session**.
       "quantity": 1
     }
   ],
-  "recipient_name": "Customer Name",
+  "recipient_name": "Nimal Perera",
   "delivery_address": "No 25, Temple Road, Wellawatte, Colombo 06",
   "delivery_city": "Colombo",
   "delivery_date": "2026-06-30",
-  "contact_phone": "07XXXXXXXX"
+  "contact_phone": "0771234567"
 }
 ```
 
-### Important mapping rule
+### Mapping rules
 
-Use:
-
-* `normalized_address` → `delivery_address`
-* `city` → `delivery_city`
-* `delivery_date` → `delivery_date`
-
-Do **not** rebuild the address from scratch during order creation. Use the already confirmed normalized address.
+* `recipient_name` ← `contact_name`
+* `delivery_address` ← `normalized_address`
+* `delivery_city` ← `city`
+* `delivery_date` ← `delivery_date`
+* `contact_phone` ← `contact_phone`
 
 ---
 
-# State 10 — Order Success Response
+# 14. Order Success Message
 
 If `kapruka_create_order` succeeds:
 
@@ -540,220 +671,236 @@ Save:
 * `payment_link`
 * `state = "PAYMENT_PENDING"`
 
-## Agent message
+## Agent message — English Sri Lankan style
 
-“🎉 Your order is ready!
+“🎉 Order eka ready!
 
 **Order ID:** {order_id}
+**Product:** {product_name}
 **Delivery To:** {normalized_address}
 **Delivery Date:** {delivery_date_human}
 
-Here’s your payment link:
+Here’s your payment link 👇
 {payment_link}”
 
 ---
 
-# State 11 — Order Error Handling
+# 15. Order Error Handling
 
-If create order fails:
+If order creation fails:
 
-Do not lose the delivery session.
+Do not destroy the delivery session.
 
 Keep:
 
-* confirmed address
-* city
+* address
 * date
+* contact name
+* contact phone
 * selected product
 
 ## Agent message
 
-“Sorry 😔 I couldn’t create the order right now.
+“Sorry 😔 I couldn’t place the order right now.
 
-Your delivery details are still saved.
-
-Would you like me to try again?”
-
-Possible options:
-
-* retry order creation
-* cancel
-* go back to delivery flow
+But don’t worry — your details are still saved.
+If you want, send **Yes** again and I’ll retry the order.”
 
 ---
 
-# 5. Frontend Work for This Phase
-
-## A) `ChatInterface.tsx`
-
-Render:
-
-* address confirmation messages
-* delivery success messages
-* checkout confirmation messages
-* order success messages
-
----
-
-## B) `DeliveryActionButtons.tsx`
-
-Use this component for:
-
-### Address confirmation
-
-* A = Yes, use this address
-* B = Edit address
-
-### Checkout confirmation
-
-* A = Yes, place order
-* B = Cancel
-
----
-
-## C) `AppContext.tsx`
-
-Store the latest delivery session snapshot from backend for UI rendering convenience only.
-
-Backend remains the source of truth.
-
----
-
-# 6. Message Types to Return from Backend
-
-To keep frontend rendering clean, backend should return structured message types.
-
-Recommended message types for this phase:
-
-* `delivery_address_request`
-* `delivery_address_confirmation`
-* `delivery_date_request`
-* `delivery_success`
-* `checkout_confirmation`
-* `order_success`
-* `delivery_error`
-
----
-
-# 7. Suggested Integration Functions
+# 16. Backend Functions to Add
 
 ## In `deliveryFlowService.mjs`
 
 ```js
-startDeliveryFlow(product, userContext)
-handleAddressInput(session, rawAddress)
-handleAddressConfirmation(session, userChoice)
-handleDateInput(session, rawDate)
-runDeliveryCheck(session)
-buildCheckoutConfirmation(session)
+handleContactNameInput(session, rawName)
+handleContactPhoneInput(session, rawPhone)
+normalizeSriLankanPhoneNumber(rawPhone)
+buildOrderSummary(session)
+handleFinalOrderConfirmation(session, userReply)
 confirmAndCreateOrder(session)
 ```
 
 ---
 
-# 8. Test Plan for Phase 2
+# 17. `chat.controller.mjs` Updates
+
+Add state handlers for:
+
+* `WAITING_FOR_CONTACT_NAME`
+* `WAITING_FOR_CONTACT_PHONE`
+* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+
+Flow logic:
+
+## After successful delivery check
+
+→ ask contact name
+
+## After valid name
+
+→ ask phone
+
+## After valid phone
+
+→ send order summary + ask for Yes/Y
+
+## If Yes
+
+→ create order
+
+## If No
+
+→ send change/restart options
+
+---
+
+# 18. Frontend Work for This Phase
+
+## `ChatInterface.tsx`
+
+Render:
+
+* contact name request message
+* phone request message
+* final order summary card/message
+* final confirmation prompt
+* order success message
+
+## Optional improvement
+
+Create an `OrderSummaryCard.tsx` component to render the final summary cleanly inside chat.
+
+---
+
+# 19. Test Plan for Phase 3
 
 ## Test 1 — Happy path
 
-1. select product
-2. enter messy address
-3. system normalizes it
-4. confirm address
-5. enter delivery date
-6. delivery available
-7. confirm order
-8. create order success
-9. payment link shown
+1. product selected
+2. address confirmed
+3. date confirmed
+4. delivery available
+5. enter valid contact name
+6. enter valid phone number
+7. summary shown
+8. user sends Yes
+9. order created successfully
 
 ---
 
-## Test 2 — Bad address then corrected address
+## Test 2 — Invalid contact name
 
-1. select product
-2. enter vague address
-3. system asks for more detail
-4. enter proper address
-5. continue normally
-
----
-
-## Test 3 — Address confirmation edit loop
-
-1. enter address
-2. system normalizes it
-3. user selects “Edit address”
-4. re-enter correct address
-5. continue flow
+1. delivery success
+2. user sends invalid name like `1234`
+3. system rejects and asks again
+4. user sends valid name
+5. flow continues
 
 ---
 
-## Test 4 — Order creation failure
+## Test 3 — Invalid phone number
 
-1. complete full delivery flow
-2. simulate `kapruka_create_order` failure
-3. ensure session is preserved
-4. retry works
+1. valid name entered
+2. user sends invalid phone
+3. system rejects and asks again
+4. user sends valid Sri Lankan mobile
+5. summary shown
 
 ---
 
-# 9. Implementation Order
+## Test 4 — User says No at summary stage
+
+1. summary shown
+2. user replies No
+3. order is not created
+4. change/restart options shown
+
+---
+
+## Test 5 — Order creation failure
+
+1. full summary confirmed with Yes
+2. create order fails
+3. session remains intact
+4. retry is possible
+
+---
+
+# 20. Implementation Order
 
 ## Milestone 1
 
-Connect `addressService.parseAddress()` into the delivery chat flow.
+Add new session fields:
+
+* `contact_name`
+* `contact_phone`
+* `order_summary_text`
+
+Add new states:
+
+* `WAITING_FOR_CONTACT_NAME`
+* `WAITING_FOR_CONTACT_PHONE`
+* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+
+---
 
 ## Milestone 2
 
-Implement:
+Implement contact name collection + validation.
 
-* `WAITING_FOR_ADDRESS`
-* `WAITING_FOR_ADDRESS_CONFIRMATION`
-* `WAITING_FOR_DATE`
+---
 
 ## Milestone 3
 
-Run `kapruka_check_delivery` using parsed city + delivery date.
+Implement phone number normalization + validation.
+
+---
 
 ## Milestone 4
 
-Implement delivery success response + perishable warning.
+Build final order summary generator.
+
+---
 
 ## Milestone 5
 
-Implement checkout confirmation summary.
+Implement Yes / Y / No final confirmation logic.
+
+---
 
 ## Milestone 6
 
-Connect `kapruka_create_order`.
+Connect `kapruka_create_order` using the confirmed session data.
+
+---
 
 ## Milestone 7
 
-Implement order success / order failure handling.
+Implement order success / failure responses.
 
 ---
 
-# 10. Definition of Done
+# 21. Definition of Done
 
-Phase 2 is complete only if:
+Phase 3 is complete only if:
 
-* the agent asks for the full delivery address
-* `addressService` cleans and parses the address
-* the agent shows the corrected address for confirmation
-* the user can confirm or edit the address
-* the agent collects delivery date after address confirmation
-* `kapruka_check_delivery` runs using the extracted city
-* delivery fee is shown if available
-* perishable warning appears when needed
-* checkout confirmation is shown using the confirmed address
-* final order confirmation triggers `kapruka_create_order`
-* order ID + payment link are shown on success
-* order creation failure does not destroy the delivery session
+* after delivery availability success, Velora asks for contact name
+* valid contact name is stored in session
+* Velora asks for contact phone number
+* Sri Lankan mobile number validation works
+* Velora shows a full order summary with all client details
+* Velora explicitly asks the user to reply **Yes / Y** to confirm
+* order is created only after Yes / Y
+* if user says No, order is not created and Velora offers next actions
+* order success returns order ID + payment link
+* order creation failure does not destroy the session
 
 ---
 
-# Final Goal of Phase 2
+# Final Goal of Phase 3
 
-By the end of this phase, Velora should support a full conversational delivery flow like this:
+By the end of this phase, Velora should support this complete conversational order flow:
 
 **User:** I want this cake
 **Velora:** Please send the delivery address
@@ -762,8 +909,12 @@ By the end of this phase, Velora should support a full conversational delivery f
 **User:** Yes
 **Velora:** When would you like it delivered?
 **User:** Tomorrow
-**Velora:** Good news! This can be delivered. Delivery fee is LKR 350. Would you like me to place the order?
+**Velora:** Good news! Delivery is available. What’s the contact name for this order?
+**User:** Nimal Perera
+**Velora:** Great 😊 Now send the contact phone number.
+**User:** 0771234567
+**Velora:** Here’s your order summary. If everything looks good, reply Yes or Y to place the order.
 **User:** Yes
 **Velora:** Your order is ready. Here’s your payment link.
 
-That will be the first complete **address-to-order conversational delivery experience** for Velora.
+That will complete the first full **address → delivery check → customer details → manual order confirmation → order creation** journey for Velora.

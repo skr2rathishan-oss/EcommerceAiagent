@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const API_BASE = "http://localhost:5000/api/delivery/concierge";
+const API_BASE = "/api/delivery/concierge";
 
 export interface Address {
   _id?: string;

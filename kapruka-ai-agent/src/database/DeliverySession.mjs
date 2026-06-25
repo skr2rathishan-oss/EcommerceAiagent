@@ -20,7 +20,11 @@ const deliverySessionSchema = new mongoose.Schema({
       "CREATING_ORDER",
       "PAYMENT_PENDING",
       "COMPLETED",
-      "CANCELLED"
+      "CANCELLED",
+      "WAITING_FOR_CONTACT_NAME",
+      "WAITING_FOR_CONTACT_PHONE",
+      "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
+      "WAITING_FOR_CANCEL_CHOICE"
     ],
     default: "IDLE"
   },
@@ -93,6 +97,18 @@ const deliverySessionSchema = new mongoose.Schema({
     default: null
   },
   payment_link: {
+    type: String,
+    default: null
+  },
+  contact_name: {
+    type: String,
+    default: null
+  },
+  contact_phone: {
+    type: String,
+    default: null
+  },
+  order_summary_text: {
     type: String,
     default: null
   },

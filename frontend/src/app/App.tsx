@@ -250,6 +250,7 @@ function MainApp() {
     pendingConfirmProduct,
     pendingConfirmVariants,
     isTyping, setIsTyping,
+    shoppingContext,
     setShoppingContext,
     pendingAddressChoice, setPendingAddressChoice,
     isEnteringCustomDetails, setIsEnteringCustomDetails,
@@ -349,6 +350,13 @@ function MainApp() {
       startConversationalCheckout(true);
     }
   }, [checkoutOpen]);
+
+  useEffect(() => {
+    if (pendingAddressChoice && pendingConfirmProduct) {
+      setPendingAddressChoice(false);
+      startConversationalCheckout(false, pendingConfirmProduct);
+    }
+  }, [pendingAddressChoice, pendingConfirmProduct]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -794,7 +802,9 @@ function MainApp() {
                     onPlaceInlineOrder={handlePlaceInlineOrder}
                     isTyping={isTyping}
                     onViewDetails={(id) => {
-                      const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
+                      const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id) || shoppingContext.lastSearchResults.find(p => p.id === id);
+                      setSelectedIds({});
+                      setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
                       handleRequestProductDetails(id, found?.name);
                     }}
                     onContinueShopping={() => textareaRef.current?.focus()}
@@ -1108,7 +1118,9 @@ function MainApp() {
           onBuyNow={handleConfirmOrder}
           onWishlist={handleWishlist}
           onViewDetails={(id) => {
-            const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
+            const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id) || shoppingContext.lastSearchResults.find(p => p.id === id);
+            setSelectedIds({});
+            setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
             handleRequestProductDetails(id, found?.name);
           }}
         />

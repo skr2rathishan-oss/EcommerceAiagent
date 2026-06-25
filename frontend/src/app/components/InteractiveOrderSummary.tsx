@@ -195,7 +195,11 @@ export function InteractiveOrderSummary({
           {/* Product Row */}
           <div style={{ display: "flex", gap: 10 }}>
             <div style={{ width: 44, height: 44, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#f5f0ff,#ede4ff)" }}>
-              <img src={product.images[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {product.images?.[0] ? (
+                <img src={product.images[0]} alt={product.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ) : (
+                <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🛍️</div>
+              )}
             </div>
             <div style={{ minWidth: 0 }}>
               <h5 style={{ color: "#1a1025", fontSize: 12, fontWeight: 755, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{product.name}</h5>

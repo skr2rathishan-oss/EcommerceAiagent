@@ -20,6 +20,8 @@ export const useProductActions = () => {
     setPendingAddressChoice,
     handleAddToCart,
     handleWishlist,
+    activeDetailsProduct,
+    setActiveDetailsProduct,
   } = useApp();
 
   const { trackView } = useRecentlyViewed();
@@ -27,6 +29,16 @@ export const useProductActions = () => {
   /** Called when a product card is clicked */
   const handleProductSelect = async (product: Product) => {
     setShoppingContext(prev => ({ ...prev, selectedProduct: product }));
+
+    // Dismiss details of another product if open
+    if (activeDetailsProduct && activeDetailsProduct.id !== product.id) {
+      setActiveDetailsProduct(null);
+      setMessages(prev => prev.map(m =>
+        m.type === "product_details" && m.productDetails?.product.id === activeDetailsProduct.id
+          ? { ...m, isDetailsClosed: true }
+          : m
+      ));
+    }
 
     setPendingProductActions({
       product,
@@ -69,21 +81,22 @@ export const useProductActions = () => {
       const data = await fetchProductDetails(productId) as {
         type: string; content: string; product: Product;
       };
-      if (data?.type === "product_details" && data.content) {
+      if (data?.type === "product_details") {
         const productObj = data.product || { id: productId, name: productName || "Product", price: 0 } as Product;
         trackView(productObj);
         setMessages(prev => [...prev, {
           role: "ai",
           text: `Here are the full details for **${productName || productObj.name || "the product"}**:`,
           type: "product_details",
-          productDetails: { content: data.content, product: productObj },
+          productDetails: { content: data.content || "", product: productObj },
         }]);
       } else {
         setMessages(prev => [...prev, {
           role: "ai",
-          text: `**${productName || "Product"}**\n\nDetails not formatable.`,
+          text: `⚠️ I couldn't load details for **${productName || "this product"}** right now. Please try again.`,
         }]);
       }
+
     } catch (err) {
       console.error("Failed to load details:", err);
       setMessages(prev => [...prev, {

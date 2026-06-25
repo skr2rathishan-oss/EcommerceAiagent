@@ -18,9 +18,10 @@ const CHAT_URL = "http://127.0.0.1:5000/api/chat";
 
 // ─── Helper: send a message and collect the SSE "complete" payload ─────────────
 
-async function sendMessage(sessionId, message, intent = null) {
+async function sendMessage(sessionId, message, intent = null, parameters = null) {
   const body = { message };
   if (intent) body.intent = intent;
+  if (parameters) body.parameters = parameters;
 
   const response = await fetch(CHAT_URL, {
     method: "POST",
@@ -286,6 +287,92 @@ async function scenario5_cancelFlow() {
   );
 }
 
+// ─── Scenario 6: Full Phase 3 Checkout Flow (Name, Phone, Summary, Confirm) ───
+
+async function scenario6_fullPhase3Checkout() {
+  console.log("\n═══ SCENARIO 6: Full Phase 3 Checkout Flow ═══");
+  const session = uid();
+
+  // Step 1: Trigger check delivery with a real product ID
+  console.log("  User → \"Check delivery\" (with product ID)");
+  let r = await sendMessage(session, "Check delivery", "check_delivery", { productId: "EF_PC_ELEC0V701POD00603" });
+  let t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 120)}..."`);
+  assert("Step 1: prompts for address", t.toLowerCase().includes("address"), `got: "${t}"`);
+
+  // Step 2: Provide valid address in Colombo 01
+  console.log("  User → \"No 25 Temple Road Colombo 01\"");
+  r = await sendMessage(session, "No 25 Temple Road Colombo 01");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 120)}..."`);
+  assert(
+    "Step 2: returns normalized address",
+    t.toLowerCase().includes("no 25, temple road, colombo 01"),
+    `got: "${t}"`
+  );
+
+  // Step 3: Confirm address
+  console.log("  User → \"A\"");
+  r = await sendMessage(session, "A");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 120)}..."`);
+  assert(
+    "Step 3: transitions to date prompt",
+    t.toLowerCase().includes("delivered") || t.toLowerCase().includes("when") || t.toLowerCase().includes("date"),
+    `got: "${t}"`
+  );
+
+  // Step 4: Provide date (Colombo 01 + EF_PC_ELEC0V701POD00603 should be available)
+  console.log("  User → \"tomorrow\"");
+  r = await sendMessage(session, "tomorrow");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 140)}..."`);
+  assert(
+    "Step 4: transitions to contact name prompt",
+    t.toLowerCase().includes("contact name") || t.toLowerCase().includes("nama") || t.toLowerCase().includes("name of the person"),
+    `got: "${t}"`
+  );
+
+  // Step 5: Provide contact name
+  console.log("  User → \"Rathishan\"");
+  r = await sendMessage(session, "Rathishan");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 140)}..."`);
+  assert(
+    "Step 5: transitions to contact phone prompt",
+    t.toLowerCase().includes("phone") || t.toLowerCase().includes("number") || t.toLowerCase().includes("mobile"),
+    `got: "${t}"`
+  );
+
+  // Step 6: Provide contact phone
+  console.log("  User → \"0771234567\"");
+  r = await sendMessage(session, "0771234567");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 140)}..."`);
+  assert(
+    "Step 6: displays order summary and prompts for final confirmation",
+    t.toLowerCase().includes("summary") || t.toLowerCase().includes("yes") || t.toLowerCase().includes("hari"),
+    `got: "${t}"`
+  );
+
+  // Step 7: Confirm order with "Yes"
+  console.log("  User → \"Yes\"");
+  r = await sendMessage(session, "Yes");
+  t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 140)}..."`);
+  const isPlacedOrFailedGracefully =
+    t.toLowerCase().includes("order is ready") ||
+    t.toLowerCase().includes("order id") ||
+    t.toLowerCase().includes("payment") ||
+    t.toLowerCase().includes("sorry") ||
+    t.toLowerCase().includes("couldn’t create the order");
+  assert(
+    "Step 7: places order or fails gracefully on API error",
+    isPlacedOrFailedGracefully,
+    `got: "${t}"`
+  );
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────────────
 
 async function runAll() {
@@ -299,6 +386,7 @@ async function runAll() {
     await scenario3_editAddress();
     await scenario4_failureAndRecovery();
     await scenario5_cancelFlow();
+    await scenario6_fullPhase3Checkout();
   } catch (err) {
     console.error("\n💥 Unexpected test error:", err.message, err.stack);
     process.exit(1);
