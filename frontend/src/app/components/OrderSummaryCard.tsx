@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { User, Phone, Mail, MapPin, Package, CheckCircle } from "lucide-react";
-import type { DeliveryInfo } from "./CheckoutPanel";
+import type { DeliveryInfo } from "./InteractiveOrderSummary";
 import type { Product } from "./products";
 
 interface CartItem {

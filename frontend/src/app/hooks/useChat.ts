@@ -43,7 +43,7 @@ export const useChat = () => {
     setValue("");
 
     // ── Address input flow ─────────────────────────────────────────────────
-    if (waitingForAddressInput && !textOverride) {
+    if (waitingForAddressInput) {
       await handleAddressInput(trimmed);
       return;
     }

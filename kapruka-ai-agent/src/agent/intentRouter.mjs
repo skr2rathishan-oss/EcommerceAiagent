@@ -345,31 +345,63 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 const nextDay = new Date();
                 nextDay.setDate(nextDay.getDate() + 2);
                 date = nextDay.toISOString().split("T")[0];
-            } else if (!date) {
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                date = tomorrow.toISOString().split("T")[0];
             }
 
             if (!city) {
+                updateMemory(sessionId, { waitingFor: "delivery_city" });
                 return {
                     type: "text",
                     text: "Which city would you like to deliver to?"
                 };
             }
 
+            if (!date) {
+                updateMemory(sessionId, { 
+                    waitingFor: "delivery_date",
+                    deliveryCity: city,
+                    deliveryProductId: productId
+                });
+                return {
+                    type: "text",
+                    text: "Please select a delivery date:\n\nA. Tomorrow\nB. Next Day\nC. Custom Date"
+                };
+            }
+
+            updateMemory(sessionId, { waitingFor: null });
+
             try {
                 const res = await checkDelivery(city, date, productId);
 
                 if (res.available) {
                     logger.delivery(`Delivery Available to ${city} on ${date}`);
+
+                    if (productId) {
+                        const productDetails = await getProductDetails(productId).catch(() => null);
+                        if (productDetails) {
+                            updateMemory(sessionId, {
+                                waitingFor: "order_confirmation",
+                                buyNowProduct: productDetails,
+                                deliveryInfo: {
+                                    fullName: "Guest User",
+                                    phone: "0771234567",
+                                    email: "guest@example.com",
+                                    address: res.city || city
+                                }
+                            });
+                        } else {
+                            updateMemory(sessionId, { waitingFor: "order_confirmation" });
+                        }
+                    } else {
+                        updateMemory(sessionId, { waitingFor: "order_confirmation" });
+                    }
+
                     return {
                         type: "delivery_result",
                         available: true,
                         city: res.city || city,
                         deliveryDate: res.deliveryDate || date,
                         deliveryCharge: res.deliveryCharge || 0,
-                        text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.`
+                        text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.\n\nSend "y" or "yes" to place the order.`
                     };
                 } else {
                     logger.delivery(`Delivery Check Failed for ${city} on ${date} (Unavailable)`);
@@ -431,10 +463,14 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             logger.delivery(`Recovery Flow Started: Alternative Date check`);
 
             const dates = findAlternativeDates();
+            const city = parameters.city;
+            const productId = parameters.productId;
 
             return {
                 type: "alternative_date",
                 dates: dates,
+                city: city,
+                productId: productId,
                 text: "📅 Choose Another Delivery Date\n\nPlease choose Tomorrow, Next Day, or a custom date from the panel below to check delivery again."
             };
         }

@@ -10,7 +10,7 @@ import {
 import { routeIntent } from "../agent/intentRouter.mjs";
 import { getRecentHistory, addMessage } from "../services/memory/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
-import { getShoppingContext, updateMemory } from "../agent/memoryManager.mjs";
+import { getShoppingContext, updateMemory, getMemory } from "../agent/memoryManager.mjs";
 import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
@@ -100,6 +100,50 @@ export const chat = async (req, res) => {
       mergeToProfile(sessionId, extracted).catch(() => { });
     }
 
+    // ── Step 3.5: State Interception (Pending Input) ──────────────────────────
+    const memory = getMemory(sessionId);
+    if (memory.waitingFor === "delivery_city" && !req.body.intent) {
+      const lowerMsg = message.toLowerCase().trim();
+      if (lowerMsg === "cancel" || lowerMsg === "stop" || lowerMsg === "nevermind") {
+        updateMemory(sessionId, { waitingFor: null });
+      } else {
+        req.body.intent = "check_delivery";
+        req.body.parameters = { city: message };
+        updateMemory(sessionId, { waitingFor: null });
+      }
+    } else if (memory.waitingFor === "delivery_date" && !req.body.intent) {
+      const lowerMsg = message.toLowerCase().trim();
+      if (lowerMsg === "cancel" || lowerMsg === "stop" || lowerMsg === "nevermind") {
+        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+      } else if (lowerMsg === "a" || lowerMsg === "tomorrow") {
+        req.body.intent = "check_delivery";
+        req.body.parameters = { city: memory.deliveryCity, deliveryDate: "tomorrow", productId: memory.deliveryProductId };
+        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+      } else if (lowerMsg === "b" || lowerMsg === "next day") {
+        req.body.intent = "check_delivery";
+        req.body.parameters = { city: memory.deliveryCity, deliveryDate: "next day", productId: memory.deliveryProductId };
+        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+      } else if (lowerMsg === "c" || lowerMsg === "custom date") {
+        req.body.intent = "recovery_alternative_date";
+        req.body.parameters = { city: memory.deliveryCity, productId: memory.deliveryProductId };
+        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+      } else {
+        req.body.intent = "check_delivery";
+        req.body.parameters = { city: memory.deliveryCity, deliveryDate: message, productId: memory.deliveryProductId };
+        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+      }
+    } else if (memory.waitingFor === "order_confirmation" && !req.body.intent) {
+      const lowerMsg = message.toLowerCase().trim();
+      if (lowerMsg === "y" || lowerMsg === "yes" || lowerMsg === "yes, place the order" || lowerMsg === "yes, place the order.") {
+        req.body.intent = "create_order";
+        updateMemory(sessionId, { waitingFor: null });
+      } else if (lowerMsg === "n" || lowerMsg === "no" || lowerMsg === "cancel" || lowerMsg === "stop") {
+        updateMemory(sessionId, { waitingFor: null, buyNowProduct: null, deliveryInfo: null });
+      } else {
+        updateMemory(sessionId, { waitingFor: null });
+      }
+    }
+
     // ── Step 4: Direct intent from frontend (fast path) ───────────────────────
     if (req.body.intent) {
       logStepDone("Intent (direct)", req.body.intent);
@@ -183,7 +227,7 @@ export const chat = async (req, res) => {
       const ctxRaw = await extractContext(message);
       const cleanCtx = ctxRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
       extractedContext = JSON.parse(cleanCtx);
-      
+
       // Merge deterministic local pattern-based context
       try {
         const localCtx = localExtractContext(message);

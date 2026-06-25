@@ -21,6 +21,8 @@ export const useSearch = () => {
     setNearbyCitiesSuggested,
     setActiveSmartPanel,
     saveOrderToHistory,
+    setCheckoutOpen,
+    setPhase,
   } = useApp();
 
   const { cartItems } = useCart();
@@ -93,13 +95,22 @@ export const useSearch = () => {
             } else if (data.type === "order_tracking_error") {
               setMessages(prev => [...prev, { role: "ai", type: "order_tracking_error", text: `❌ ${data.message || "Unable to retrieve order status"}`, orderNumber: data.orderNumber }]);
               return;
+            } else if (data.type === "checkout_init") {
+              setPhase("bottom");
+              setCheckoutOpen(true);
+              return;
             } else if (data.type === "product_details") {
               setMessages(prev => [...prev, { role: "ai", text: `Here are the details for **${data.product?.name || "the product"}**:`, type: "product_details", productDetails: { content: data.content, product: data.product } }]);
               return;
             } else if (data.type === "delivery_result") {
-              setMessages(prev => [...prev, { role: "ai", text: data.text }]);
+              setMessages(prev => [...prev, {
+                role: "ai",
+                text: data.text,
+                type: data.available ? "checkout_confirmation" : undefined
+              }]);
               if (data.available) {
-                setLastCheckedDelivery(null);
+                // Ensure we have lastCheckedDelivery for the confirmation card
+                setLastCheckedDelivery(prev => prev || { city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
               } else {
                 setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
                 if (data.alternativeCities) setNearbyCitiesSuggested(data.alternativeCities);
@@ -112,6 +123,9 @@ export const useSearch = () => {
               setActiveSmartPanel("nearby_address");
               return;
             } else if (data.type === "alternative_date") {
+              if (data.city) {
+                setLastCheckedDelivery(prev => prev ? { ...prev, city: data.city, productId: data.productId || prev.productId } : { city: data.city, deliveryDate: "", productId: data.productId || "" });
+              }
               setMessages(prev => [...prev, { role: "ai", text: data.text }]);
               setActiveSmartPanel("alternative_date");
               return;

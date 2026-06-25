@@ -1,4 +1,6 @@
 import { checkDelivery } from "../services/commerce/delivery.service.mjs";
+import { updateMemory } from "../agent/memoryManager.mjs";
+import { getProductDetails } from "../services/integration/mcp.service.mjs";
 import logger from "../utils/logger.mjs";
 
 export const checkDeliveryAvailability = async (req, res) => {
@@ -28,6 +30,29 @@ export const checkDeliveryAvailability = async (req, res) => {
       deliveryDate.trim(),
       productId && typeof productId === "string" ? productId.trim() : null
     );
+
+    if (result.available) {
+      const sessionId = req.headers["x-session-id"] || "default";
+      if (productId) {
+        const productDetails = await getProductDetails(productId).catch(() => null);
+        if (productDetails) {
+          updateMemory(sessionId, {
+            waitingFor: "order_confirmation",
+            buyNowProduct: productDetails,
+            deliveryInfo: {
+              fullName: "Guest User",
+              phone: "0771234567",
+              email: "guest@example.com",
+              address: result.city || city.trim()
+            }
+          });
+        } else {
+          updateMemory(sessionId, { waitingFor: "order_confirmation" });
+        }
+      } else {
+        updateMemory(sessionId, { waitingFor: "order_confirmation" });
+      }
+    }
 
     logger.info("[FINAL RESPONSE] checkDeliveryAvailability Success", { success: result.success });
     return res.json(result);

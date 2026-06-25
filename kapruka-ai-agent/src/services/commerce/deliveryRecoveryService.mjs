@@ -59,6 +59,13 @@ export const handleDeliveryFailure = async (city, date, productId) => {
     } catch {}
   }
 
+  // Find Alternative Dates
+  const altDates = findAlternativeDates();
+
+  // Find Alternative Products
+  const altProducts = await findAlternativeProducts(productId);
+
+
   // Step 2: Use Llama model to draft a solution-oriented natural message
   let textResponse = "";
   try {
@@ -113,6 +120,8 @@ Your response MUST be the text message only.`;
     deliveryDate: date,
     productId,
     alternativeCities: altCities,
+    alternativeDates: altDates,
+    alternativeProducts: altProducts,
     text: textResponse
   };
 };

@@ -11,6 +11,8 @@ import { OrderTrackingCard } from "./OrderTrackingCard";
 import { AgentActivityBar } from "./AgentActivityBar";
 import { type Message, useApp } from "../contexts/AppContext";
 import { GuidedWorkflowPanel } from "./GuidedWorkflowPanel";
+import { AddressDetectionButtons } from "./smart-panels/AddressDetectionButtons";
+import { CheckoutConfirmationCard } from "./smart-panels/CheckoutConfirmationCard";
 import { playVoice } from "../services/voiceServices";
 
 interface MessageAreaProps {
@@ -166,94 +168,94 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
             }
             return (
               <motion.div key={i} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: "easeOut" }}>
-              <div className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                <div
-                  style={{
-                    maxWidth: "82%",
-                    padding: "11px 16px",
-                    borderRadius: msg.role === "user" ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
-                    background: msg.role === "user" ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(255,255,255,0.88)",
-                    color: msg.role === "user" ? "#fff" : "#1a1025",
-                    fontSize: 14,
-                    lineHeight: 1.65,
-                    fontFamily: "'Nunito',sans-serif",
-                    boxShadow: msg.role === "user" ? "0 4px 14px rgba(64,41,112,0.28)" : "0 2px 10px rgba(64,41,112,0.08)",
-                    backdropFilter: msg.role === "ai" ? "blur(8px)" : undefined,
-                    border: msg.role === "ai" ? "1px solid rgba(64,41,112,0.1)" : "none",
-                  }}
-                >
-                  {msg.role === "ai" && !(msg.products && msg.products.length > 0) ? (
-                    <AIMessageRenderer text={msg.text} />
-                  ) : (
-                    msg.text
-                  )}
-                </div>
-                {msg.role === "ai" && (
-                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
-                    <button
-                      onClick={() => {
-                        const state = voiceStates[i] || "idle";
-                        if (state === "playing" || state === "generating") {
-                          handleStop(i);
-                        } else {
-                          handleListen(i, msg.text);
-                        }
-                      }}
-                      title={
-                        voiceStates[i] === "generating"
-                          ? "Generating voice"
-                          : voiceStates[i] === "playing"
-                          ? "Pause audio"
-                          : voiceStates[i] === "error"
-                          ? "Error - Retry"
-                          : "Listen to message"
-                      }
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#7c4dba",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        width: "28px",
-                        height: "28px",
-                        borderRadius: "50%",
-                        backgroundColor: "rgba(124, 77, 186, 0.08)",
-                        transition: "all 0.2s ease",
-                        flexShrink: 0,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "rgba(124, 77, 186, 0.15)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "rgba(124, 77, 186, 0.08)";
-                      }}
-                    >
-                      {voiceStates[i] === "generating" && (
-                        <span className="voice-spinner" style={{ fontSize: "13px" }}>⏳</span>
-                      )}
-                      {voiceStates[i] === "playing" && (
-                        <span style={{ fontSize: "13px" }}>⏸️</span>
-                      )}
-                      {(voiceStates[i] === "idle" || !voiceStates[i]) && (
-                        <span style={{ fontSize: "13px" }}>🔊</span>
-                      )}
-                      {voiceStates[i] === "error" && (
-                        <span style={{ fontSize: "13px" }}>⚠️</span>
-                      )}
-                    </button>
-                    {voiceErrors[i] && (
-                      <span style={{ fontSize: "11px", color: "#d93838", fontFamily: "'Nunito',sans-serif" }}>
-                        {voiceErrors[i]}
-                      </span>
+                <div className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                  <div
+                    style={{
+                      maxWidth: "82%",
+                      padding: "11px 16px",
+                      borderRadius: msg.role === "user" ? "18px 18px 6px 18px" : "18px 18px 18px 6px",
+                      background: msg.role === "user" ? "linear-gradient(135deg,#7c4dba,#402970)" : "rgba(255,255,255,0.88)",
+                      color: msg.role === "user" ? "#fff" : "#1a1025",
+                      fontSize: 14,
+                      lineHeight: 1.65,
+                      fontFamily: "'Nunito',sans-serif",
+                      boxShadow: msg.role === "user" ? "0 4px 14px rgba(64,41,112,0.28)" : "0 2px 10px rgba(64,41,112,0.08)",
+                      backdropFilter: msg.role === "ai" ? "blur(8px)" : undefined,
+                      border: msg.role === "ai" ? "1px solid rgba(64,41,112,0.1)" : "none",
+                    }}
+                  >
+                    {msg.role === "ai" && !(msg.products && msg.products.length > 0) ? (
+                      <AIMessageRenderer text={msg.text} />
+                    ) : (
+                      msg.text
                     )}
                   </div>
-                )}
-              </div>
+                  {msg.role === "ai" && (
+                    <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        onClick={() => {
+                          const state = voiceStates[i] || "idle";
+                          if (state === "playing" || state === "generating") {
+                            handleStop(i);
+                          } else {
+                            handleListen(i, msg.text);
+                          }
+                        }}
+                        title={
+                          voiceStates[i] === "generating"
+                            ? "Generating voice"
+                            : voiceStates[i] === "playing"
+                              ? "Pause audio"
+                              : voiceStates[i] === "error"
+                                ? "Error - Retry"
+                                : "Listen to message"
+                        }
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#7c4dba",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "28px",
+                          height: "28px",
+                          borderRadius: "50%",
+                          backgroundColor: "rgba(124, 77, 186, 0.08)",
+                          transition: "all 0.2s ease",
+                          flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "rgba(124, 77, 186, 0.15)";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "rgba(124, 77, 186, 0.08)";
+                        }}
+                      >
+                        {voiceStates[i] === "generating" && (
+                          <span className="voice-spinner" style={{ fontSize: "13px" }}>⏳</span>
+                        )}
+                        {voiceStates[i] === "playing" && (
+                          <span style={{ fontSize: "13px" }}>⏸️</span>
+                        )}
+                        {(voiceStates[i] === "idle" || !voiceStates[i]) && (
+                          <span style={{ fontSize: "13px" }}>🔊</span>
+                        )}
+                        {voiceStates[i] === "error" && (
+                          <span style={{ fontSize: "13px" }}>⚠️</span>
+                        )}
+                      </button>
+                      {voiceErrors[i] && (
+                        <span style={{ fontSize: "11px", color: "#d93838", fontFamily: "'Nunito',sans-serif" }}>
+                          {voiceErrors[i]}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
 
-              {msg.role === "ai" && msg.products && msg.products.length > 0 && (
-                <motion.div
+                {msg.role === "ai" && msg.products && msg.products.length > 0 && (
+                  <motion.div
                     initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
                     style={{ marginTop: 12 }}
                   >
@@ -301,104 +303,129 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                       );
                     })()}
                   </motion.div>
-              )}
+                )}
 
-              {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && !msg.isDetailsClosed && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <ProductDetailsCard
-                    content={msg.productDetails.content}
-                    product={msg.productDetails.product}
-                    onAddToCart={onAddToCartFromDetails ?? onAddToCart}
-                    onBuyNow={onBuyNowFromDetails ?? onBuyNow}
-                    onWishlist={onWishlistFromDetails ?? onWishlist}
-                    onClose={() => {
-                      setMessages(prev => prev.map((m, idx) => 
+                {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && !msg.isDetailsClosed && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <ProductDetailsCard
+                      content={msg.productDetails.content}
+                      product={msg.productDetails.product}
+                      onAddToCart={onAddToCartFromDetails ?? onAddToCart}
+                      onBuyNow={onBuyNowFromDetails ?? onBuyNow}
+                      onWishlist={onWishlistFromDetails ?? onWishlist}
+                      onClose={() => {
+                        setMessages(prev => prev.map((m, idx) =>
+                          idx === i ? { ...m, isDetailsClosed: true } : m
+                        ));
+                        setActiveDetailsProduct(prev => prev?.id === msg.productDetails?.product.id ? null : prev);
+                      }}
+                    />
+                  </motion.div>
+                )}
+
+                {msg.role === "ai" && msg.orderSummary && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <InteractiveOrderSummary
+                      product={msg.orderSummary.product}
+                      variants={msg.orderSummary.variants}
+                      deliveryInfo={msg.orderSummary.deliveryInfo}
+                      sellerInfo={msg.orderSummary.sellerInfo}
+                      status={msg.orderSummary.status}
+                      onPlaceOrder={(updatedDelivery) => onPlaceInlineOrder(i, updatedDelivery)}
+                    />
+                  </motion.div>
+                )}
+
+                {msg.role === "ai" && msg.type === "order_confirmation" && msg.order && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <OrderConfirmationCard
+                      order={msg.order}
+                      onContinueShopping={onContinueShopping}
+                      onTrackOrder={onTrackOrder}
+                    />
+                  </motion.div>
+                )}
+
+                {msg.role === "ai" && msg.type === "order_tracking" && msg.tracking && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <OrderTrackingCard
+                      orderNumber={msg.tracking.orderNumber}
+                      initialTracking={msg.tracking}
+                      onContinueShopping={onContinueShopping}
+                    />
+                  </motion.div>
+                )}
+
+                {msg.role === "ai" && msg.type === "order_tracking_error" && msg.orderNumber && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <OrderTrackingCard
+                      orderNumber={msg.orderNumber}
+                      onContinueShopping={onContinueShopping}
+                    />
+                  </motion.div>
+                )}
+                {msg.role === "ai" && msg.type === "guided_workflow" && msg.workflow && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: 0.1 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <GuidedWorkflowPanel
+                      messageIndex={i}
+                      workflow={msg.workflow}
+                    />
+                  </motion.div>
+                )}
+
+                {msg.role === "ai" && msg.type === "address_prompt" && !msg.isDetailsClosed && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                  >
+                    <AddressDetectionButtons messageIndex={i} onComplete={() => {
+                      setMessages(prev => prev.map((m, idx) =>
                         idx === i ? { ...m, isDetailsClosed: true } : m
                       ));
-                      setActiveDetailsProduct(prev => prev?.id === msg.productDetails?.product.id ? null : prev);
-                    }}
-                  />
-                </motion.div>
-              )}
+                    }} />
+                  </motion.div>
+                )}
 
-              {msg.role === "ai" && msg.orderSummary && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <InteractiveOrderSummary
-                    product={msg.orderSummary.product}
-                    variants={msg.orderSummary.variants}
-                    deliveryInfo={msg.orderSummary.deliveryInfo}
-                    sellerInfo={msg.orderSummary.sellerInfo}
-                    status={msg.orderSummary.status}
-                    onPlaceOrder={(updatedDelivery) => onPlaceInlineOrder(i, updatedDelivery)}
-                  />
-                </motion.div>
-              )}
+                {msg.role === "ai" && msg.type === "checkout_confirmation" && !msg.isDetailsClosed && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                  >
+                    <CheckoutConfirmationCard messageIndex={i} onComplete={() => {
+                      setMessages(prev => prev.map((m, idx) =>
+                        idx === i ? { ...m, isDetailsClosed: true } : m
+                      ));
+                    }} />
+                  </motion.div>
+                )}
 
-              {msg.role === "ai" && msg.type === "order_confirmation" && msg.order && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <OrderConfirmationCard
-                    order={msg.order}
-                    onContinueShopping={onContinueShopping}
-                    onTrackOrder={onTrackOrder}
-                  />
-                </motion.div>
-              )}
-
-              {msg.role === "ai" && msg.type === "order_tracking" && msg.tracking && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <OrderTrackingCard
-                    orderNumber={msg.tracking.orderNumber}
-                    initialTracking={msg.tracking}
-                    onContinueShopping={onContinueShopping}
-                  />
-                </motion.div>
-              )}
-
-              {msg.role === "ai" && msg.type === "order_tracking_error" && msg.orderNumber && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <OrderTrackingCard
-                    orderNumber={msg.orderNumber}
-                    onContinueShopping={onContinueShopping}
-                  />
-                </motion.div>
-              )}
-              {msg.role === "ai" && msg.type === "guided_workflow" && msg.workflow && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35, delay: 0.1 }}
-                  style={{ marginTop: 12 }}
-                >
-                  <GuidedWorkflowPanel
-                    messageIndex={i}
-                    workflow={msg.workflow}
-                  />
-                </motion.div>
-              )}
-            </motion.div>
+              </motion.div>
             );
           })}
           {isTyping && activity && (

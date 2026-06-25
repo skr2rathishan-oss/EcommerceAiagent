@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "motion/react";
 import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
-import { CheckoutPanel } from "./components/CheckoutPanel";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
 import { AppProvider, useApp, type PanelId } from "./contexts/AppContext";
 import { ComparisonProvider } from "./contexts/ComparisonContext";
@@ -11,6 +10,7 @@ import { useChat } from "./hooks/useChat";
 import { useCheckout } from "./hooks/useCheckout";
 import { useCart } from "./contexts/CartContext";
 import { useWishlist } from "./contexts/WishlistContext";
+import { useConcierge } from "./hooks/useConcierge";
 import { Sidebar } from "./components/Sidebar";
 import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
@@ -185,7 +185,7 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
         >
           {prod.name}
         </span>
-        
+
         {/* Rating and Reviews */}
         <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 0.5 }}>
           <span style={{ color: "#fbbf24", fontSize: 9, lineHeight: 1 }}>★</span>
@@ -193,13 +193,13 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             {mockRating.rating} {!isMobile && `(${mockRating.reviews})`}
           </span>
         </div>
-        
+
         {/* Bottom Row */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto", paddingTop: 1 }}>
           <span style={{ color: "#7c4dba", fontSize: isMobile ? 9.5 : 12, fontWeight: 800, fontFamily: "'Nunito', sans-serif" }}>
             {formatUIPrice(prod.price, prod.currency)}
           </span>
-          
+
           {!isMobile && (
             <motion.button
               whileHover={{ scale: 1.15 }}
@@ -269,7 +269,11 @@ function MainApp() {
     voiceDashboardOpen,
     setVoiceDashboardOpen,
     activeDetailsProduct,
-    setActiveDetailsProduct
+    setActiveDetailsProduct,
+    setLastCheckedDelivery,
+    setPendingConfirmProduct,
+    setNearbyCitiesSuggested,
+    setIsCartCheckout
   } = useApp();
 
   const {
@@ -291,22 +295,60 @@ function MainApp() {
   } = useCheckout();
 
   const isMobile = useIsMobile();
+  const { fetchAddresses, checkDelivery } = useConcierge(getSessionId());
+
+  const startConversationalCheckout = async (cartCheckout: boolean, p?: Product) => {
+    setActiveDetailsProduct(null);
+
+    setMessages(prev => [...prev, { role: "user", text: cartCheckout ? "I want to checkout my cart." : `I confirmed the order for ${p?.name}.` }]);
+    setIsTyping(true);
+    setIsCartCheckout(cartCheckout);
+
+    try {
+      const addresses = await fetchAddresses();
+      const defaultAddr = addresses.find(a => a.isDefault) || (addresses.length > 0 ? addresses[0] : null);
+
+      const targetProductId = cartCheckout ? "cart" : p?.id || "";
+      const confirmProduct: Product = cartCheckout
+        ? { id: "cart", name: "Cart Items", price: 0, currency: "Rs.", stock: 1, category: "cart", images: [], description: "", shortDesc: "", brand: "", rating: 0, reviewCount: 0, specs: [], variants: [], delivery: "" }
+        : p!;
+
+      if (!defaultAddr) {
+        setIsTyping(false);
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: `To proceed with your order, could you please provide your delivery city and address?`,
+        }]);
+        setPendingConfirmProduct(confirmProduct);
+        setLastCheckedDelivery({ city: "", deliveryDate: new Date().toISOString().split("T")[0], productId: targetProductId });
+        return;
+      }
+
+      setIsTyping(false);
+      setPendingConfirmProduct(confirmProduct);
+      setLastCheckedDelivery({ city: defaultAddr.city, deliveryDate: new Date().toISOString().split("T")[0], productId: targetProductId });
+
+      setMessages(prev => [...prev, {
+        role: "ai",
+        text: `I noticed you have a saved address in **${defaultAddr.city}**. Would you like to use this address or deliver somewhere else?`,
+        type: "address_prompt"
+      }]);
+    } catch (err) {
+      setIsTyping(false);
+      setMessages(prev => [...prev, { role: "ai", text: `An error occurred while verifying delivery. Please try again.` }]);
+    }
+  };
 
   const handleConfirmOrder = (p: Product, variants?: Record<string, string>) => {
-    const buyNowCommerceState = {
-      buyNowProduct: {
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        currency: p.currency || "Rs.",
-        brand: p.brand,
-        images: p.images,
-        image: p.images?.[0]
-      },
-      buyNowVariants: variants,
-    };
-    handleSend(`I confirmed the order for ${p.name}.`, buyNowCommerceState);
+    startConversationalCheckout(false, p);
   };
+
+  useEffect(() => {
+    if (checkoutOpen) {
+      setCheckoutOpen(false);
+      startConversationalCheckout(true);
+    }
+  }, [checkoutOpen]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -480,7 +522,7 @@ function MainApp() {
             onCheckout={() => {
               setActiveScreen("chat");
               setPhase("bottom");
-              setActiveSmartPanel("checkout");
+              setCheckoutOpen(true);
             }}
           />
         ) : activeScreen === "wishlist" ? (
@@ -492,18 +534,18 @@ function MainApp() {
             {/* Centered phase */}
             <AnimatePresence>
               {phase === "centered" && (
-            <motion.div
-              key="centered"
-              className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
-              style={{
-                scrollbarWidth: "none",
-                msOverflowStyle: "none",
-              }}
-            >
-              <style>{`
+                <motion.div
+                  key="centered"
+                  className="flex-1 w-full overflow-y-auto flex flex-col items-center justify-start px-4 pt-4 pb-16 custom-scrollbar no-scrollbar"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0, y: -24, transition: { duration: 0.3, ease: "easeIn" } }}
+                  style={{
+                    scrollbarWidth: "none",
+                    msOverflowStyle: "none",
+                  }}
+                >
+                  <style>{`
                 .custom-scrollbar::-webkit-scrollbar {
                   display: none;
                 }
@@ -512,556 +554,556 @@ function MainApp() {
                 }
               `}</style>
 
-              {/* Hero Banner Card */}
-              <motion.div
-                className="hero-banner relative w-full max-w-7xl rounded-3xl border p-6 py-10 md:py-16 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[280px]"
-                style={{
-                  borderColor: "var(--banner-border)",
-                  boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
-                }}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
-              >
-                {/* Content Wrapper */}
-                <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
-                  <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
-                      style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
-                    <span className="hidden md:inline">Discover Smart Shopping</span>
-                    <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
-                      <span className="inline md:hidden">Shop with</span>
-                      <span className="hidden md:inline">with</span>
-                      Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
-                    </span>
-                  </h1>
-                  
-                  <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
-                    <span className="hidden md:inline">
-                      Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
-                    </span>
-                    <span className="inline md:hidden">
-                      Your AI shopping assistant. Ask, compare, and track orders in one place.
-                    </span>
-                  </p>
-
-                  <div className="w-full">
-                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                      onKeyDown={handleKeyDown} canSend={canSend}
-                      textareaRef={textareaRef} fileInputRef={fileInputRef}
-                      isTyping={isTyping} onStop={handleStop} variant="centered" onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
-                  </div>
-
-                  {/* Quick Actions (Pill Buttons) */}
-                  <div className="w-full mt-5 flex flex-nowrap overflow-x-auto no-scrollbar gap-2.5 justify-center select-none pb-1"
-                       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
-                    {[
-                      { title: "Find Products", mobileTitle: "Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
-                      { title: "Find Gift", mobileTitle: "Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
-                      { title: "Track My Order", mobileTitle: "Track", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
-                    ].map((act, idx) => {
-                      const Icon = act.icon;
-                      return (
-                        <motion.button
-                          key={idx}
-                          whileHover={{
-                            y: -1.5,
-                            backgroundColor: "var(--card-hover-bg, rgba(255, 255, 255, 0.95))",
-                            borderColor: "var(--card-hover-border, rgba(124, 77, 186, 0.35))",
-                            boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
-                          }}
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => handleStartWorkflow(act.type)}
-                          className="cursor-pointer border transition-all duration-150 inline-flex items-center gap-1.5"
-                          style={{
-                            padding: "8px 16px",
-                            background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
-                            backdropFilter: "blur(8px)",
-                            borderColor: "var(--card-border, rgba(64, 41, 112, 0.12))",
-                            borderRadius: 9999,
-                            color: "var(--text-primary, #1a1025)",
-                            fontSize: 12.5,
-                            fontWeight: 700,
-                            fontFamily: "'Nunito', sans-serif"
-                          }}
-                        >
-                          <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
-                          <span className="hidden md:inline">{act.title}</span>
-                          <span className="inline md:hidden">{act.mobileTitle}</span>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Product Recommendations Section */}
-              <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
-                {/* Section Header */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
-                    <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
-                      Top Recommendations
-                    </span>
-                  </div>
-                  <button
-                    type="button"
+                  {/* Hero Banner Card */}
+                  <motion.div
+                    className="hero-banner relative w-full max-w-7xl rounded-3xl border p-6 py-10 md:py-16 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[280px]"
                     style={{
-                      border: "none",
-                      background: "transparent",
-                      color: "#7c4dba",
-                      fontSize: "13px",
-                      fontWeight: 800,
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      fontFamily: "'Nunito', sans-serif",
+                      borderColor: "var(--banner-border)",
+                      boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
                     }}
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
                   >
-                    View all <ChevronRight size={14} strokeWidth={2.5} />
-                  </button>
-                </div>
+                    {/* Content Wrapper */}
+                    <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
+                      <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
+                        style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
+                        <span className="hidden md:inline">Discover Smart Shopping</span>
+                        <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
+                          <span className="inline md:hidden">Shop with</span>
+                          <span className="hidden md:inline">with</span>
+                          Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
+                        </span>
+                      </h1>
 
-                {/* Recommendations Carousel Row with Arrow Buttons */}
-                <div className="relative w-full group">
-                  {/* Left Scroll Button */}
-                  <AnimatePresence>
-                    {canScrollLeft && (
-                      <motion.button
-                        key="left-scroll-btn"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        type="button"
-                        onClick={scrollLeft}
-                        className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9999,
-                          background: "var(--card-bg, #ffffff)",
-                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
-                          color: "#7c4dba",
-                        }}
-                      >
-                        <ChevronLeft size={20} strokeWidth={2.5} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
+                      <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
+                        <span className="hidden md:inline">
+                          Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
+                        </span>
+                        <span className="inline md:hidden">
+                          Your AI shopping assistant. Ask, compare, and track orders in one place.
+                        </span>
+                      </p>
 
-                  {/* Right Scroll Button */}
-                  <AnimatePresence>
-                    {canScrollRight && (
-                      <motion.button
-                        key="right-scroll-btn"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        type="button"
-                        onClick={scrollRight}
-                        className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
-                        style={{
-                          width: 40,
-                          height: 40,
-                          borderRadius: 9999,
-                          background: "var(--card-bg, #ffffff)",
-                          border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
-                          boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
-                          color: "#7c4dba",
-                        }}
-                      >
-                        <ChevronRight size={20} strokeWidth={2.5} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Card Row or Grid */}
-                  <div
-                    ref={scrollContainerRef}
-                    onScroll={handleScrollEvent}
-                    className="no-scrollbar grid grid-cols-4 gap-2 md:flex md:gap-5 md:overflow-x-auto"
-                    style={{
-                      padding: "8px 4px 16px",
-                      scrollbarWidth: "none",
-                      msOverflowStyle: "none",
-                      WebkitOverflowScrolling: "touch",
-                    }}
-                  >
-                    {loadingRecs ? (
-                      Array.from({ length: 5 }).map((_, i) => (
-                        <div
-                          key={i}
-                          className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
-                          style={{
-                            borderRadius: 14,
-                            background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
-                            border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
-                            boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
-                            position: "relative",
-                            overflow: "hidden"
-                          }}
-                        >
-                          <div
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
-                              animation: "pulse 1.5s infinite"
-                            }}
-                          />
-                        </div>
-                      ))
-                    ) : recommendations.length === 0 ? (
-                      <div style={{ width: "100%", padding: "40px 0", textAlign: "center", color: "var(--text-secondary, #7c6a9e)", fontSize: 13, fontWeight: 600 }}>
-                        No recommendations available at the moment.
-                      </div>
-                    ) : (
-                      recommendations.map((prod) => (
-                        <RecommendationCard
-                          key={prod.id}
-                          prod={prod}
-                          onClick={() => {
-                            handleRequestProductDetails(prod.id, prod.name);
-                          }}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Bottom phase */}
-        {phase === "bottom" && (
-          <div className="flex-1 min-w-0 min-h-0 px-4 pb-6 md:pb-3 pt-0 flex flex-col overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-              <MessageArea
-                messages={messages}
-                selectedIds={selectedIds}
-                setSelectedIds={setSelectedIds}
-                onAddToCart={handleAddToCart}
-                onBuyNow={handleConfirmOrder}
-                onWishlist={handleWishlist}
-                onPlaceInlineOrder={handlePlaceInlineOrder}
-                isTyping={isTyping}
-                onViewDetails={(id) => {
-                  const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
-                  handleRequestProductDetails(id, found?.name);
-                }}
-                onContinueShopping={() => textareaRef.current?.focus()}
-                onSelectProduct={handleProductSelect}
-                activity={activity}
-                onRetry={handleRetry}
-                activityExpanded={activityExpanded}
-                onExpandedChange={setActivityExpanded}
-              />
-            </div>
-
-            <motion.div
-              className="w-full pt-3 flex justify-center flex-none"
-              initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
-            >
-              <div className="w-full" style={{ maxWidth: 720 }}>
-                <AnimatePresence>
-                  {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
-                  {activeSmartPanel && (
-                    <SmartInputPanel key="smart-input-panel" />
-                  )}
-
-                  {/* ── Product Actions Popup ─────────────────────────────────────────── */}
-                  {pendingProductActions && !pendingConfirmProduct && (
-                    <motion.div
-                      id="product-actions-popup"
-                      key="product-actions-popup"
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.97)",
-                        backdropFilter: "blur(14px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.22)",
-                        borderRadius: 18,
-                        padding: "13px 16px",
-                        marginBottom: 12,
-                        boxShadow: "0 8px 28px rgba(64, 41, 112, 0.15)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 11 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 700, margin: 0, lineHeight: 1.45 }}>
-                            Great choice! 😊 That looks like a promising option. What would you like to do next?
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setPendingProductActions(null);
-                            setSelectedIds({});
-                            setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
-                          }}
-                          style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-                        >
-                          <X size={11} strokeWidth={2.5} />
-                        </button>
+                      <div className="w-full">
+                        <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                          onKeyDown={handleKeyDown} canSend={canSend}
+                          textareaRef={textareaRef} fileInputRef={fileInputRef}
+                          isTyping={isTyping} onStop={handleStop} variant="centered" onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
                       </div>
 
-                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {pendingProductActions.actions.map((action) => (
+                      {/* Quick Actions (Pill Buttons) */}
+                      <div className="w-full mt-5 flex flex-nowrap overflow-x-auto no-scrollbar gap-2.5 justify-center select-none pb-1"
+                        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+                        {[
+                          { title: "Find Products", mobileTitle: "Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
+                          { title: "Find Gift", mobileTitle: "Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                          { title: "Track My Order", mobileTitle: "Track", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
+                        ].map((act, idx) => {
+                          const Icon = act.icon;
+                          return (
+                            <motion.button
+                              key={idx}
+                              whileHover={{
+                                y: -1.5,
+                                backgroundColor: "var(--card-hover-bg, rgba(255, 255, 255, 0.95))",
+                                borderColor: "var(--card-hover-border, rgba(124, 77, 186, 0.35))",
+                                boxShadow: "0 4px 10px rgba(64, 41, 112, 0.05)"
+                              }}
+                              whileTap={{ scale: 0.97 }}
+                              onClick={() => handleStartWorkflow(act.type)}
+                              className="cursor-pointer border transition-all duration-150 inline-flex items-center gap-1.5"
+                              style={{
+                                padding: "8px 16px",
+                                background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
+                                backdropFilter: "blur(8px)",
+                                borderColor: "var(--card-border, rgba(64, 41, 112, 0.12))",
+                                borderRadius: 9999,
+                                color: "var(--text-primary, #1a1025)",
+                                fontSize: 12.5,
+                                fontWeight: 700,
+                                fontFamily: "'Nunito', sans-serif"
+                              }}
+                            >
+                              <Icon size={14} color={act.color} fill={act.fill} strokeWidth={2.5} />
+                              <span className="hidden md:inline">{act.title}</span>
+                              <span className="inline md:hidden">{act.mobileTitle}</span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </motion.div>
+
+                  {/* Product Recommendations Section */}
+                  <div className="w-full max-w-7xl select-none" style={{ marginTop: 0 }}>
+                    {/* Section Header */}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, padding: "0 4px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Sparkles size={16} color="#7c4dba" fill="#7c4dba" />
+                        <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.01em", fontFamily: "'Nunito', sans-serif" }}>
+                          Top Recommendations
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: "#7c4dba",
+                          fontSize: "13px",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          fontFamily: "'Nunito', sans-serif",
+                        }}
+                      >
+                        View all <ChevronRight size={14} strokeWidth={2.5} />
+                      </button>
+                    </div>
+
+                    {/* Recommendations Carousel Row with Arrow Buttons */}
+                    <div className="relative w-full group">
+                      {/* Left Scroll Button */}
+                      <AnimatePresence>
+                        {canScrollLeft && (
                           <motion.button
-                            key={action.id}
+                            key="left-scroll-btn"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
                             type="button"
-                            whileTap={{ scale: 0.94 }}
-                            onClick={() => handleProductAction(action.id, pendingProductActions.product)}
+                            onClick={scrollLeft}
+                            className="absolute left-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
                             style={{
-                              flex: 1,
+                              width: 40,
+                              height: 40,
+                              borderRadius: 9999,
+                              background: "var(--card-bg, #ffffff)",
+                              border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                              boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                              color: "#7c4dba",
+                            }}
+                          >
+                            <ChevronLeft size={20} strokeWidth={2.5} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Right Scroll Button */}
+                      <AnimatePresence>
+                        {canScrollRight && (
+                          <motion.button
+                            key="right-scroll-btn"
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            type="button"
+                            onClick={scrollRight}
+                            className="absolute right-[-20px] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center cursor-pointer"
+                            style={{
+                              width: 40,
+                              height: 40,
+                              borderRadius: 9999,
+                              background: "var(--card-bg, #ffffff)",
+                              border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
+                              boxShadow: "0 6px 20px rgba(64, 41, 112, 0.12)",
+                              color: "#7c4dba",
+                            }}
+                          >
+                            <ChevronRight size={20} strokeWidth={2.5} />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* Card Row or Grid */}
+                      <div
+                        ref={scrollContainerRef}
+                        onScroll={handleScrollEvent}
+                        className="no-scrollbar grid grid-cols-4 gap-2 md:flex md:gap-5 md:overflow-x-auto"
+                        style={{
+                          padding: "8px 4px 16px",
+                          scrollbarWidth: "none",
+                          msOverflowStyle: "none",
+                          WebkitOverflowScrolling: "touch",
+                        }}
+                      >
+                        {loadingRecs ? (
+                          Array.from({ length: 5 }).map((_, i) => (
+                            <div
+                              key={i}
+                              className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
+                              style={{
+                                borderRadius: 14,
+                                background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
+                                border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
+                                boxShadow: "0 4px 12px rgba(64, 41, 112, 0.03)",
+                                position: "relative",
+                                overflow: "hidden"
+                              }}
+                            >
+                              <div
+                                style={{
+                                  position: "absolute",
+                                  inset: 0,
+                                  background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)",
+                                  animation: "pulse 1.5s infinite"
+                                }}
+                              />
+                            </div>
+                          ))
+                        ) : recommendations.length === 0 ? (
+                          <div style={{ width: "100%", padding: "40px 0", textAlign: "center", color: "var(--text-secondary, #7c6a9e)", fontSize: 13, fontWeight: 600 }}>
+                            No recommendations available at the moment.
+                          </div>
+                        ) : (
+                          recommendations.map((prod) => (
+                            <RecommendationCard
+                              key={prod.id}
+                              prod={prod}
+                              onClick={() => {
+                                handleRequestProductDetails(prod.id, prod.name);
+                              }}
+                            />
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Bottom phase */}
+            {phase === "bottom" && (
+              <div className="flex-1 min-w-0 min-h-0 px-4 pb-6 md:pb-3 pt-0 flex flex-col overflow-hidden">
+                <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+                  <MessageArea
+                    messages={messages}
+                    selectedIds={selectedIds}
+                    setSelectedIds={setSelectedIds}
+                    onAddToCart={handleAddToCart}
+                    onBuyNow={handleConfirmOrder}
+                    onWishlist={handleWishlist}
+                    onPlaceInlineOrder={handlePlaceInlineOrder}
+                    isTyping={isTyping}
+                    onViewDetails={(id) => {
+                      const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id);
+                      handleRequestProductDetails(id, found?.name);
+                    }}
+                    onContinueShopping={() => textareaRef.current?.focus()}
+                    onSelectProduct={handleProductSelect}
+                    activity={activity}
+                    onRetry={handleRetry}
+                    activityExpanded={activityExpanded}
+                    onExpandedChange={setActivityExpanded}
+                  />
+                </div>
+
+                <motion.div
+                  className="w-full pt-3 flex justify-center flex-none"
+                  initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0, transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] } }}
+                >
+                  <div className="w-full" style={{ maxWidth: 720 }}>
+                    <AnimatePresence>
+                      {/* ── Smart Contextual Input Panels ─────────────────────────────────── */}
+                      {activeSmartPanel && (
+                        <SmartInputPanel key="smart-input-panel" />
+                      )}
+
+                      {/* ── Product Actions Popup ─────────────────────────────────────────── */}
+                      {pendingProductActions && !pendingConfirmProduct && (
+                        <motion.div
+                          id="product-actions-popup"
+                          key="product-actions-popup"
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.97)",
+                            backdropFilter: "blur(14px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.22)",
+                            borderRadius: 18,
+                            padding: "13px 16px",
+                            marginBottom: 12,
+                            boxShadow: "0 8px 28px rgba(64, 41, 112, 0.15)",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 11 }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 700, margin: 0, lineHeight: 1.45 }}>
+                                Great choice! 😊 That looks like a promising option. What would you like to do next?
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPendingProductActions(null);
+                                setSelectedIds({});
+                                setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
+                              }}
+                              style={{ width: 26, height: 26, borderRadius: 7, border: "none", cursor: "pointer", background: "rgba(64,41,112,0.07)", color: "#9e8dc0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                            >
+                              <X size={11} strokeWidth={2.5} />
+                            </button>
+                          </div>
+
+                          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                            {pendingProductActions.actions.map((action) => (
+                              <motion.button
+                                key={action.id}
+                                type="button"
+                                whileTap={{ scale: 0.94 }}
+                                onClick={() => handleProductAction(action.id, pendingProductActions.product)}
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 4,
+                                  padding: "7px 6px",
+                                  borderRadius: 9,
+                                  border: "1.5px solid rgba(64,41,112,0.13)",
+                                  background: "rgba(64,41,112,0.03)",
+                                  color: "#402970",
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  fontFamily: "'Nunito', sans-serif",
+                                  transition: "background 0.15s, border-color 0.15s",
+                                  whiteSpace: "nowrap",
+                                  minWidth: 0,
+                                }}
+                                onMouseEnter={e => {
+                                  e.currentTarget.style.background = "rgba(124,77,186,0.10)";
+                                  e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
+                                }}
+                                onMouseLeave={e => {
+                                  e.currentTarget.style.background = "rgba(64,41,112,0.03)";
+                                  e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
+                                }}
+                              >
+                                <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
+                              </motion.button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+
+
+
+                      {activeDetailsProduct && !pendingConfirmProduct && (
+                        <motion.div
+                          id="details-actions-popup"
+                          key="details-actions-popup"
+                          initial={{ opacity: 0, height: 0, y: 10 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: 10 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          style={{
+                            background: "rgba(255, 255, 255, 0.98)",
+                            backdropFilter: "blur(16px)",
+                            border: "1.5px solid rgba(124, 77, 186, 0.25)",
+                            borderRadius: 16,
+                            padding: "10px 14px",
+                            marginBottom: 10,
+                            boxShadow: "0 8px 24px rgba(64, 41, 112, 0.16)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            width: "100%",
+                          }}
+                        >
+                          {/* Product Mini Info */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+                            <div style={{
+                              width: 38,
+                              height: 38,
+                              borderRadius: 8,
+                              overflow: "hidden",
+                              background: "#fff",
+                              border: "1px solid rgba(64,41,112,0.08)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              gap: 4,
-                              padding: "7px 6px",
-                              borderRadius: 9,
-                              border: "1.5px solid rgba(64,41,112,0.13)",
-                              background: "rgba(64,41,112,0.03)",
-                              color: "#402970",
-                              fontSize: 10,
-                              fontWeight: 700,
-                              cursor: "pointer",
-                              fontFamily: "'Nunito', sans-serif",
-                              transition: "background 0.15s, border-color 0.15s",
-                              whiteSpace: "nowrap",
-                              minWidth: 0,
-                            }}
-                            onMouseEnter={e => {
-                              e.currentTarget.style.background = "rgba(124,77,186,0.10)";
-                              e.currentTarget.style.borderColor = "rgba(124,77,186,0.35)";
-                            }}
-                            onMouseLeave={e => {
-                              e.currentTarget.style.background = "rgba(64,41,112,0.03)";
-                              e.currentTarget.style.borderColor = "rgba(64,41,112,0.13)";
-                            }}
-                          >
-                            <span style={{ fontSize: 13, lineHeight: 1 }}>{action.emoji}</span>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{action.label}</span>
-                          </motion.button>
-                        ))}
-                      </div>
-                    </motion.div>
-                  )}
+                              flexShrink: 0
+                            }}>
+                              {activeDetailsProduct.images?.[0] ? (
+                                <img src={activeDetailsProduct.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ) : (
+                                <Package size={18} color="#7c4dba" />
+                              )}
+                            </div>
+                            <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
+                              <h4 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'Nunito', sans-serif" }}>
+                                {activeDetailsProduct.name}
+                              </h4>
+                              <span style={{ color: "#7c4dba", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
+                                {formatUIPrice(activeDetailsProduct.price || 0, activeDetailsProduct.currency)}
+                              </span>
+                            </div>
+                          </div>
 
+                          {/* CTA Buttons in Popup */}
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {showBuyConfirm ? (
+                              <>
+                                <motion.button
+                                  type="button"
+                                  whileTap={{ scale: 0.96 }}
+                                  onClick={() => {
+                                    setShowBuyConfirm(false);
+                                    handleConfirmOrder(activeDetailsProduct);
+                                  }}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    padding: "6px 14px", borderRadius: 8, border: "none",
+                                    background: "linear-gradient(135deg, #10b981, #059669)",
+                                    color: "#fff",
+                                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                    fontFamily: "'Nunito', sans-serif",
+                                    boxShadow: "0 2px 6px rgba(16,185,129,0.2)",
+                                  }}
+                                  title="Confirm Order"
+                                >
+                                  Confirm
+                                </motion.button>
 
+                                <motion.button
+                                  type="button"
+                                  whileTap={{ scale: 0.96 }}
+                                  onClick={() => setShowBuyConfirm(false)}
+                                  style={{
+                                    display: "flex", alignItems: "center", gap: 4,
+                                    padding: "6px 14px", borderRadius: 8,
+                                    border: "1.5px solid rgba(64,41,112,0.2)",
+                                    background: "transparent",
+                                    color: "#402970",
+                                    fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                    fontFamily: "'Nunito', sans-serif",
+                                  }}
+                                  title="Cancel"
+                                >
+                                  Cancel
+                                </motion.button>
+                              </>
+                            ) : (
+                              <>
+                                <motion.button
+                                  type="button"
+                                  whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
+                                  onClick={() => { if (activeDetailsProduct.stock > 0) setShowBuyConfirm(true); }}
+                                  disabled={activeDetailsProduct.stock === 0}
+                                  style={{
+                                    display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
+                                    padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8, border: "none",
+                                    background: activeDetailsProduct.stock > 0
+                                      ? "linear-gradient(135deg,#7c4dba,#402970)"
+                                      : "rgba(64,41,112,0.12)",
+                                    color: activeDetailsProduct.stock > 0 ? "#fff" : "#b8aed0",
+                                    fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
+                                    fontFamily: "'Nunito', sans-serif",
+                                    boxShadow: activeDetailsProduct.stock > 0 ? "0 2px 6px rgba(124,77,186,0.15)" : "none",
+                                  }}
+                                  title="Buy Now"
+                                >
+                                  <Zap size={11} strokeWidth={2.5} />
+                                  {!isMobile && "Buy Now"}
+                                </motion.button>
 
-                  {activeDetailsProduct && !pendingConfirmProduct && (
-                    <motion.div
-                      id="details-actions-popup"
-                      key="details-actions-popup"
-                      initial={{ opacity: 0, height: 0, y: 10 }}
-                      animate={{ opacity: 1, height: "auto", y: 0 }}
-                      exit={{ opacity: 0, height: 0, y: 10 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                      style={{
-                        background: "rgba(255, 255, 255, 0.98)",
-                        backdropFilter: "blur(16px)",
-                        border: "1.5px solid rgba(124, 77, 186, 0.25)",
-                        borderRadius: 16,
-                        padding: "10px 14px",
-                        marginBottom: 10,
-                        boxShadow: "0 8px 24px rgba(64, 41, 112, 0.16)",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        width: "100%",
-                      }}
-                    >
-                      {/* Product Mini Info */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          width: 38,
-                          height: 38,
-                          borderRadius: 8,
-                          overflow: "hidden",
-                          background: "#fff",
-                          border: "1px solid rgba(64,41,112,0.08)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          flexShrink: 0
-                        }}>
-                          {activeDetailsProduct.images?.[0] ? (
-                            <img src={activeDetailsProduct.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                          ) : (
-                            <Package size={18} color="#7c4dba" />
-                          )}
-                        </div>
-                        <div style={{ minWidth: 0, display: "flex", flexDirection: "column" }}>
-                          <h4 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontFamily: "'Nunito', sans-serif" }}>
-                            {activeDetailsProduct.name}
-                          </h4>
-                          <span style={{ color: "#7c4dba", fontSize: 11, fontWeight: 700, fontFamily: "'Nunito', sans-serif" }}>
-                            {formatUIPrice(activeDetailsProduct.price || 0, activeDetailsProduct.currency)}
-                          </span>
-                        </div>
-                      </div>
+                                <motion.button
+                                  type="button"
+                                  whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
+                                  onClick={() => { if (activeDetailsProduct.stock > 0) handleAddToCart(activeDetailsProduct); }}
+                                  disabled={activeDetailsProduct.stock === 0}
+                                  style={{
+                                    display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
+                                    padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8,
+                                    border: `1.5px solid ${activeDetailsProduct.stock > 0 ? "rgba(64,41,112,0.2)" : "rgba(64,41,112,0.08)"}`,
+                                    background: "transparent",
+                                    color: activeDetailsProduct.stock > 0 ? "#402970" : "#b8aed0",
+                                    fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
+                                    fontFamily: "'Nunito', sans-serif",
+                                  }}
+                                  title="Add to Cart"
+                                >
+                                  <ShoppingCart size={11} strokeWidth={2.5} />
+                                  {!isMobile && "Add Cart"}
+                                </motion.button>
 
-                      {/* CTA Buttons in Popup */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        {showBuyConfirm ? (
-                          <>
-                            <motion.button
+                                <motion.button
+                                  type="button"
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleWishlist(activeDetailsProduct)}
+                                  style={{
+                                    width: 28, height: 28, borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.12)",
+                                    background: "transparent", cursor: "pointer",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                  }}
+                                  title="Add to Wishlist"
+                                >
+                                  <Heart size={12} strokeWidth={2} color="#9e8dc0" />
+                                </motion.button>
+                              </>
+                            )}
+
+                            <div style={{ width: "1px", height: 20, background: "rgba(64,41,112,0.12)", margin: "0 2px" }} />
+
+                            <button
                               type="button"
-                              whileTap={{ scale: 0.96 }}
                               onClick={() => {
-                                setShowBuyConfirm(false);
-                                handleConfirmOrder(activeDetailsProduct);
+                                if (activeDetailsProduct) {
+                                  setMessages(prev => prev.map(m =>
+                                    m.type === "product_details" && m.productDetails?.product.id === activeDetailsProduct.id
+                                      ? { ...m, isDetailsClosed: true }
+                                      : m
+                                  ));
+                                }
+                                setActiveDetailsProduct(null);
                               }}
                               style={{
-                                display: "flex", alignItems: "center", gap: 4,
-                                padding: "6px 14px", borderRadius: 8, border: "none",
-                                background: "linear-gradient(135deg, #10b981, #059669)",
-                                color: "#fff",
-                                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                                fontFamily: "'Nunito', sans-serif",
-                                boxShadow: "0 2px 6px rgba(16,185,129,0.2)",
-                              }}
-                              title="Confirm Order"
-                            >
-                              Confirm
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.96 }}
-                              onClick={() => setShowBuyConfirm(false)}
-                              style={{
-                                display: "flex", alignItems: "center", gap: 4,
-                                padding: "6px 14px", borderRadius: 8,
-                                border: "1.5px solid rgba(64,41,112,0.2)",
-                                background: "transparent",
-                                color: "#402970",
-                                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                                fontFamily: "'Nunito', sans-serif",
-                              }}
-                              title="Cancel"
-                            >
-                              Cancel
-                            </motion.button>
-                          </>
-                        ) : (
-                          <>
-                            <motion.button
-                              type="button"
-                              whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
-                              onClick={() => { if (activeDetailsProduct.stock > 0) setShowBuyConfirm(true); }}
-                              disabled={activeDetailsProduct.stock === 0}
-                              style={{
-                                display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
-                                padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8, border: "none",
-                                background: activeDetailsProduct.stock > 0
-                                  ? "linear-gradient(135deg,#7c4dba,#402970)"
-                                  : "rgba(64,41,112,0.12)",
-                                color: activeDetailsProduct.stock > 0 ? "#fff" : "#b8aed0",
-                                fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
-                                fontFamily: "'Nunito', sans-serif",
-                                boxShadow: activeDetailsProduct.stock > 0 ? "0 2px 6px rgba(124,77,186,0.15)" : "none",
-                              }}
-                              title="Buy Now"
-                            >
-                              <Zap size={11} strokeWidth={2.5} />
-                              {!isMobile && "Buy Now"}
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              whileTap={activeDetailsProduct.stock > 0 ? { scale: 0.96 } : {}}
-                              onClick={() => { if (activeDetailsProduct.stock > 0) handleAddToCart(activeDetailsProduct); }}
-                              disabled={activeDetailsProduct.stock === 0}
-                              style={{
-                                display: "flex", alignItems: "center", justifySelf: "center", gap: isMobile ? 0 : 4,
-                                padding: isMobile ? "6px 8px" : "6px 12px", borderRadius: 8,
-                                border: `1.5px solid ${activeDetailsProduct.stock > 0 ? "rgba(64,41,112,0.2)" : "rgba(64,41,112,0.08)"}`,
-                                background: "transparent",
-                                color: activeDetailsProduct.stock > 0 ? "#402970" : "#b8aed0",
-                                fontSize: 11, fontWeight: 700, cursor: activeDetailsProduct.stock > 0 ? "pointer" : "not-allowed",
-                                fontFamily: "'Nunito', sans-serif",
-                              }}
-                              title="Add to Cart"
-                            >
-                              <ShoppingCart size={11} strokeWidth={2.5} />
-                              {!isMobile && "Add Cart"}
-                            </motion.button>
-
-                            <motion.button
-                              type="button"
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleWishlist(activeDetailsProduct)}
-                              style={{
-                                width: 28, height: 28, borderRadius: 8, border: "1.5px solid rgba(64,41,112,0.12)",
-                                background: "transparent", cursor: "pointer",
+                                width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer",
+                                background: "rgba(64,41,112,0.06)", color: "#7c4dba",
                                 display: "flex", alignItems: "center", justifyContent: "center",
                               }}
-                              title="Add to Wishlist"
+                              title="Dismiss actions"
                             >
-                              <Heart size={12} strokeWidth={2} color="#9e8dc0" />
-                            </motion.button>
-                          </>
-                        )}
+                              <X size={12} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
 
-                        <div style={{ width: "1px", height: 20, background: "rgba(64,41,112,0.12)", margin: "0 2px" }} />
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (activeDetailsProduct) {
-                              setMessages(prev => prev.map(m => 
-                                m.type === "product_details" && m.productDetails?.product.id === activeDetailsProduct.id
-                                  ? { ...m, isDetailsClosed: true }
-                                  : m
-                              ));
-                            }
-                            setActiveDetailsProduct(null);
-                          }}
-                          style={{
-                            width: 24, height: 24, borderRadius: 6, border: "none", cursor: "pointer",
-                            background: "rgba(64,41,112,0.06)", color: "#7c4dba",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}
-                          title="Dismiss actions"
-                        >
-                          <X size={12} strokeWidth={2.5} />
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  </AnimatePresence>
-                <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
-                  onKeyDown={handleKeyDown} canSend={canSend}
-                  textareaRef={textareaRef} fileInputRef={fileInputRef}
-                  isTyping={isTyping} onStop={handleStop} onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
-                <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
-                  Enter to send · Shift + Enter for new line
-                </p>
+                    </AnimatePresence>
+                    <ChatInputBox value={value} onChange={setValue} onSend={handleSend}
+                      onKeyDown={handleKeyDown} canSend={canSend}
+                      textareaRef={textareaRef} fileInputRef={fileInputRef}
+                      isTyping={isTyping} onStop={handleStop} onOpenVoiceChat={() => setVoiceDashboardOpen(true)} />
+                    <p className="text-center mt-2 select-none" style={{ color: "#b8aed0", fontSize: 11.5 }}>
+                      Enter to send · Shift + Enter for new line
+                    </p>
+                  </div>
+                </motion.div>
               </div>
-            </motion.div>
-          </div>
-        )}
+            )}
           </>
         )}
-        
+
         {/* Voice Dashboard Overlay (Inside main content area) */}
-        <VoiceDashboard 
-          isOpen={voiceDashboardOpen} 
-          onClose={() => setVoiceDashboardOpen(false)} 
-          messages={messages} 
-          onSendMessage={(text) => handleSend(text)} 
+        <VoiceDashboard
+          isOpen={voiceDashboardOpen}
+          onClose={() => setVoiceDashboardOpen(false)}
+          messages={messages}
+          onSendMessage={(text) => handleSend(text)}
           onAddToCart={handleAddToCart}
           onBuyNow={handleConfirmOrder}
           onWishlist={handleWishlist}
@@ -1081,16 +1123,7 @@ function MainApp() {
 
 
 
-      {/* Checkout overlay modal */}
-      <AnimatePresence>
-        {checkoutOpen && (
-          <CheckoutPanel
-            cartItems={cartItems}
-            onClose={() => setCheckoutOpen(false)}
-            onCheckoutComplete={handleCartCheckoutComplete}
-          />
-        )}
-      </AnimatePresence>
+      {/* Checkout overlay modal removed to favor conversational checkout */}
     </div>
   );
 }

@@ -128,6 +128,10 @@ Examples:
 
 "Can this arrive on Friday?"
 
+"Yes, use my default address."
+
+"Deliver somewhere else."
+
 ---
 
 ## ORDER CREATION DETECTION
@@ -147,6 +151,8 @@ Examples:
 "Checkout"
 
 "Order this for me"
+
+"Yes, place the order."
 
 ---
 
@@ -210,6 +216,13 @@ For search_products:
 "recipient": "",
 "occasion": "",
 "filters": {}
+}
+
+For check_delivery:
+
+{
+"city": "",
+"deliveryDate": ""
 }
 
 ---

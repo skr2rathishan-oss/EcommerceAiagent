@@ -44,7 +44,7 @@ export const AlternativeDatePanel: React.FC = () => {
         console.log("[DELIVERY] Delivery Available");
         setMessages(prev => [...prev, {
           role: "ai",
-          text: `✅ Success! Delivery is available on **${dateStr}** for **${res.city}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge}\n- **Status**: Route cleared for delivery.`
+          text: `✅ Success! Delivery is available on **${dateStr}** for **${res.city}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge}\n- **Status**: Route cleared for delivery.\n\nSend "y" or "yes" to place the order.`
         }]);
       } else {
         console.log("[DELIVERY] Check Failed");
@@ -78,7 +78,7 @@ export const AlternativeDatePanel: React.FC = () => {
   };
 
   const quickBtnStyle: React.CSSProperties = {
-    padding: "10px 14px",
+    padding: "6px 10px",
     borderRadius: 12,
     border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.22))",
     background: "rgba(124, 77, 186, 0.05)",
@@ -103,7 +103,7 @@ export const AlternativeDatePanel: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-3 font-sans text-xs">
+    <div className="flex flex-col gap-2 font-sans text-[11px]">
       <div className="flex flex-col gap-2">
         <button type="button" onClick={() => handleDateSelect(getTomorrowStr(), "Tomorrow")} style={quickBtnStyle} onMouseEnter={onHoverIn} onMouseLeave={onHoverOut}>
           <div>Tomorrow</div>
@@ -115,15 +115,15 @@ export const AlternativeDatePanel: React.FC = () => {
           <div style={{ fontSize: 10, color: "var(--text-secondary, #7c6a9e)" }}>{getNextDayStr()}</div>
         </button>
 
-        <div style={{ borderTop: "1px solid rgba(64,41,112,0.06)", paddingTop: 10, marginTop: 4 }}>
-          <label style={{ fontWeight: 600, color: "var(--text-secondary, #7c6a9e)", display: "block", marginBottom: 6 }}>
+        <div style={{ borderTop: "1px solid rgba(64,41,112,0.06)", paddingTop: 8, marginTop: 2 }}>
+          <label style={{ fontWeight: 600, color: "var(--text-secondary, #7c6a9e)", display: "block", marginBottom: 4 }}>
             Choose Custom Date:
           </label>
           <div className="flex gap-2">
             <input type="date" value={customDate} onChange={e => setCustomDate(e.target.value)} min={new Date().toISOString().split("T")[0]}
-              style={{ flex: 1.5, padding: "8px 12px", borderRadius: 10, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", cursor: "pointer" }} />
+              style={{ flex: 1.5, padding: "6px 10px", borderRadius: 8, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", cursor: "pointer", fontSize: "11px" }} />
             <button type="button" onClick={() => { if (customDate) { handleDateSelect(customDate, "Custom Date"); } else { setError("Please select a date first."); } }}
-              style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
+              style={{ flex: 1, padding: "6px 10px", borderRadius: 8, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "11px" }}>
               Select
             </button>
           </div>
@@ -133,9 +133,9 @@ export const AlternativeDatePanel: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <button type="button" onClick={() => setActiveSmartPanel("delivery_recovery")}
-          style={{ flex: 1, padding: "8px", borderRadius: 10, border: "1.5px solid rgba(64, 41, 112, 0.15)", background: "transparent", color: "#7c6a9e", fontWeight: 700, cursor: "pointer" }}>
+          style={{ flex: 1, padding: "6px", borderRadius: 8, border: "1.5px solid rgba(64, 41, 112, 0.15)", background: "transparent", color: "#7c6a9e", fontWeight: 700, cursor: "pointer", fontSize: "11px" }}>
           Cancel
         </button>
       </div>

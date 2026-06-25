@@ -12,6 +12,21 @@ export type Phase = "centered" | "bottom";
 export type PanelId = "Recent Conversations" | "Settings" | "Help & Support" | "Profile" | null;
 export type RightPanelId = null;
 
+export interface DeliverySession {
+  sessionId: string;
+  selected_products: any[];
+  city: string | null;
+  delivery_date: string | null;
+  delivery_available: boolean | null;
+  delivery_fee: number | null;
+  alternative_dates: string[];
+  nearest_cities: string[];
+  alternative_products: any[];
+  order_status: string;
+  payment_link: string | null;
+  session_version: number;
+}
+
 export interface AnchorPos {
   x: number;
   y: number;
@@ -30,7 +45,7 @@ export interface GuidedWorkflowState {
 export interface Message {
   role: "user" | "ai";
   text: string;
-  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error" | "product_details" | "guided_workflow";
+  type?: "text" | "order_confirmation" | "order_tracking" | "order_tracking_error" | "product_details" | "guided_workflow" | "address_form" | "address_prompt" | "checkout_confirmation";
   products?: Product[];
   orderSummary?: {
     product: Product;
@@ -138,12 +153,15 @@ export interface AppContextType {
   setVoiceDashboardOpen: React.Dispatch<React.SetStateAction<boolean>>;
   activeDetailsProduct: Product | null;
   setActiveDetailsProduct: React.Dispatch<React.SetStateAction<Product | null>>;
+  deliverySession: DeliverySession | null;
+  setDeliverySession: React.Dispatch<React.SetStateAction<DeliverySession | null>>;
 
-  // Shared Action Handlers
   handleAddToCart: (p: Product) => void;
   handleWishlist: (p: Product) => void;
   saveOrderToHistory: (order: OrderConfirmationDetails) => void;
   resetPendingPurchaseState: () => void;
+  isCartCheckout: boolean;
+  setIsCartCheckout: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -162,6 +180,8 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string } | null>(null);
   const [voiceDashboardOpen, setVoiceDashboardOpen] = useState(false);
   const [activeDetailsProduct, setActiveDetailsProduct] = useState<Product | null>(null);
+  const [deliverySession, setDeliverySession] = useState<DeliverySession | null>(null);
+  const [isCartCheckout, setIsCartCheckout] = useState(false);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -243,8 +263,8 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
     setNewStreet1("");
     setNewStreet2("");
     setNewCity("");
-    setAddressError("");
     setCheckingAddress(false);
+    setIsCartCheckout(false);
   };
 
   return (
@@ -257,9 +277,9 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         rightPanel, setRightPanel,
         value, setValue,
         messages, setMessages,
-        cartItems, setCartItems: () => {}, // NO-OP since managed by CartContext
-        wishlistItems: wishlistItemsProducts, setWishlistItems: () => {}, // NO-OP since managed by WishlistContext
-        savedItems: [], setSavedItems: () => {},
+        cartItems, setCartItems: () => { }, // NO-OP since managed by CartContext
+        wishlistItems: wishlistItemsProducts, setWishlistItems: () => { }, // NO-OP since managed by WishlistContext
+        savedItems: [], setSavedItems: () => { },
         orderedItems, setOrderedItems,
         shoppingContext, setShoppingContext,
         selectedIds, setSelectedIds,
@@ -290,11 +310,15 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         setVoiceDashboardOpen,
         activeDetailsProduct,
         setActiveDetailsProduct,
+        deliverySession,
+        setDeliverySession,
 
         handleAddToCart,
         handleWishlist,
         saveOrderToHistory,
-        resetPendingPurchaseState
+        resetPendingPurchaseState,
+        isCartCheckout,
+        setIsCartCheckout
       }}
     >
       {children}

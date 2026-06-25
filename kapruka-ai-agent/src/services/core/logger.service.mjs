@@ -29,6 +29,17 @@ const getTimestamp = () => {
 // Log mask helper for security (hides sensitive fields)
 const maskSecrets = (obj) => {
   if (!obj || typeof obj !== "object") return obj;
+
+  // Fix: Handle Error objects so they don't stringify to {}
+  if (obj instanceof Error) {
+    return {
+      message: obj.message,
+      name: obj.name,
+      stack: obj.stack,
+      ...maskSecrets(Object.assign({}, obj))
+    };
+  }
+
   const copy = { ...obj };
   const sensitiveKeys = ["api_key", "apikey", "password", "token", "jwt", "secret", "authorization", "key"];
   

@@ -13,6 +13,16 @@ export const createOrder = async (sessionId, { cart, recipient, delivery, sender
     giftMessage
   });
 
+  if (!delivery?.city) {
+    throw new Error("Missing Delivery City");
+  }
+  if (!delivery?.date) {
+    throw new Error("Missing Delivery Date");
+  }
+  if (!cart || cart.length === 0) {
+    throw new Error("Cart is empty");
+  }
+
   const mcpStart = Date.now();
 
   const result = await client.callTool({

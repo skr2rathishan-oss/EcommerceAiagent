@@ -3,6 +3,7 @@
 
 import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
+import DeliverySession from "../database/DeliverySession.mjs";
 import logger from "../utils/logger.mjs";
 
 function mergeArrays(existing = [], incoming = []) {
@@ -77,5 +78,54 @@ export async function getMemorySummaryText(sessionId) {
     return doc?.currentSummary || "";
   } catch (err) {
     return "";
+  }
+}
+
+/**
+ * Get or create a DeliverySession.
+ * @param {string} sessionId 
+ */
+export async function getDeliverySession(sessionId) {
+  try {
+    let session = await DeliverySession.findOne({ sessionId }).lean();
+    if (!session) {
+      session = await DeliverySession.create({ sessionId });
+    }
+    return session;
+  } catch (err) {
+    logger.error(`[MemoryStore] getDeliverySession failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Update DeliverySession with optimistic concurrency control via session_version.
+ * @param {string} sessionId 
+ * @param {Object} updates 
+ * @param {number} currentVersion 
+ */
+export async function updateDeliverySession(sessionId, updates, currentVersion) {
+  try {
+    const updatePayload = {
+      $set: updates,
+      $inc: { session_version: 1 }
+    };
+    
+    // Only update if the version matches
+    const updated = await DeliverySession.findOneAndUpdate(
+      { sessionId, session_version: currentVersion },
+      updatePayload,
+      { new: true }
+    );
+    
+    if (!updated) {
+      logger.warn(`[MemoryStore] updateDeliverySession failed for ${sessionId} due to version mismatch or not found. Provided version: ${currentVersion}`);
+      return null; // Indicates concurrency conflict
+    }
+    
+    return updated;
+  } catch (err) {
+    logger.error(`[MemoryStore] updateDeliverySession failed: ${err.message}`);
+    return null;
   }
 }
