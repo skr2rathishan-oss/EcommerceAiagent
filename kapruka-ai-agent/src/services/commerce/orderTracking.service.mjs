@@ -2,6 +2,28 @@ import { getMcpClient } from "../integration/mcp.client.mjs";
 import logger from "../../utils/logger.mjs";
 
 export const trackOrder = async (orderNumber) => {
+  if (orderNumber.startsWith("VIMP") || orderNumber.startsWith("KAP-")) {
+    logger.info(`[ORDER TRACKING] Tracking simulated order number: ${orderNumber}`);
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 2);
+    return {
+      orderNumber: orderNumber,
+      status: "Preparing Order",
+      recipient: {
+        name: "Guest User",
+        city: "Jaffna"
+      },
+      deliveryDate: tomorrow.toISOString().split("T")[0],
+      progress: [
+        { step: "Order Received", completed: true },
+        { step: "Confirmed", completed: true },
+        { step: "Preparing Order", completed: true },
+        { step: "Out For Delivery", completed: false },
+        { step: "Delivered", completed: false }
+      ]
+    };
+  }
+
   const client = await getMcpClient();
 
   logger.info(`[ORDER TRACKING] Tracking order number: ${orderNumber}`, {

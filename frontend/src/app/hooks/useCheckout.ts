@@ -144,7 +144,7 @@ export const useCheckout = () => {
         {
           role: "ai",
           type: "order_confirmation",
-          text: "✅ Order Successfully Placed",
+          text: `✅ Order Successfully Placed\n\n- **Reference Number**: ${orderDetails.referenceNumber}\n- **Order Number**: ${orderDetails.orderNumber}`,
           order: orderDetails
         }
       ]);
@@ -177,7 +177,7 @@ export const useCheckout = () => {
       {
         role: "ai",
         type: "order_confirmation",
-        text: "✅ Order Successfully Placed",
+        text: `✅ Order Successfully Placed\n\n- **Reference Number**: ${orderDetails.referenceNumber}\n- **Order Number**: ${orderDetails.orderNumber}`,
         order: orderDetails
       }
     ]);

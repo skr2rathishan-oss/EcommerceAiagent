@@ -15,12 +15,20 @@ import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
 import { memoryExtractor } from "../memory/memoryExtractor.mjs";
-import { mergeToProfile } from "../memory/memoryStore.mjs";
+import { mergeToProfile, getDeliverySession } from "../memory/memoryStore.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
 import { getContext } from "../services/core/logger.service.mjs";
 import { cacheService } from "../cache/cacheService.mjs";
 import { extractContext as localExtractContext } from "../ai/context/contextExtractor.mjs";
 import { localDetectLanguage, detectLanguageFromHistory } from "../utils/language.utils.mjs";
+import {
+  handleAddressInput,
+  handleAddressConfirmation,
+  handleDateInput,
+  handleRecoveryChoice,
+  handleCancelOptions,
+  handleCheckoutConfirmation
+} from "../services/commerce/deliveryFlowService.mjs";
 import {
   buildInitialLogs,
   extractText,
@@ -41,9 +49,9 @@ import {
   logError,
 } from "../utils/velora.console.mjs";
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────
 // CHAT CONTROLLER  — with live step-by-step terminal logging
-// ─────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────────
 export const chat = async (req, res) => {
   const requestStart = Date.now();
   const context = getContext();
@@ -70,15 +78,19 @@ export const chat = async (req, res) => {
         const total = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
         cartSummary = `Current Cart:\n${itemsText}\n\nTotal:\nRs.${total}`;
       }
-      updateMemory(sessionId, {
+
+      const memoryUpdates = {
         cart: cart || [],
         wishlist: wishlist || [],
         savedProducts: saved || [],
-        cartSummary,
-        buyNowProduct: buyNowProduct || null,
-        buyNowVariants: buyNowVariants || null,
-        deliveryInfo: deliveryInfo || null
-      });
+        cartSummary
+      };
+
+      if (buyNowProduct !== undefined) memoryUpdates.buyNowProduct = buyNowProduct;
+      if (buyNowVariants !== undefined) memoryUpdates.buyNowVariants = buyNowVariants;
+      if (deliveryInfo !== undefined) memoryUpdates.deliveryInfo = deliveryInfo;
+
+      updateMemory(sessionId, memoryUpdates);
     }
 
     // ── Step 1: Log incoming message ───────────────────────────────────────────
@@ -100,49 +112,74 @@ export const chat = async (req, res) => {
       mergeToProfile(sessionId, extracted).catch(() => { });
     }
 
-    // ── Step 3.5: State Interception (Pending Input) ──────────────────────────
+    // ── Step 3.5: Delivery Session State Interception (MongoDB-backed) ─────────
+    const currentLang = localDetectLanguage(message);
+    const lowerMsg = message.toLowerCase().trim();
     const memory = getMemory(sessionId);
-    if (memory.waitingFor === "delivery_city" && !req.body.intent) {
-      const lowerMsg = message.toLowerCase().trim();
-      if (lowerMsg === "cancel" || lowerMsg === "stop" || lowerMsg === "nevermind") {
-        updateMemory(sessionId, { waitingFor: null });
-      } else {
-        req.body.intent = "check_delivery";
-        req.body.parameters = { city: message };
-        updateMemory(sessionId, { waitingFor: null });
+
+    // Load the MongoDB-backed delivery session for this user
+    const deliverySession = await getDeliverySession(sessionId).catch(() => null);
+    const deliveryState = deliverySession?.state;
+    const activeDeliveryStates = [
+      "WAITING_FOR_ADDRESS",
+      "WAITING_FOR_ADDRESS_CONFIRMATION",
+      "WAITING_FOR_DATE",
+      "CHECKING_DELIVERY",
+      "WAITING_FOR_RECOVERY_CHOICE",
+      "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
+      "WAITING_FOR_CONFIRMATION"
+    ];
+
+    if (deliverySession && activeDeliveryStates.includes(deliveryState)) {
+      logStepDone("Interception", `DeliverySession state: ${deliveryState}`);
+      setSSEHeaders(res);
+
+      let serviceResult = null;
+
+      if (deliveryState === "WAITING_FOR_ADDRESS") {
+        serviceResult = await handleAddressInput(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION") {
+        serviceResult = await handleAddressConfirmation(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_DATE") {
+        serviceResult = await handleDateInput(deliverySession, message, currentLang);
+      } else if (deliveryState === "WAITING_FOR_RECOVERY_CHOICE") {
+        serviceResult = await handleRecoveryChoice(deliverySession, message, currentLang);
+        if (serviceResult?.type === "similar_products") {
+          const searchResult = await routeIntent("search_products", { query: "gift" }, sessionId, null, currentLang);
+          const prefix = serviceResult.text;
+          if (Array.isArray(searchResult)) {
+            serviceResult = { type: "product_grid", text: prefix, products: searchResult };
+          } else if (searchResult && typeof searchResult === "object") {
+            serviceResult = { ...searchResult, text: prefix + "\n\n" + (searchResult.text || "") };
+          }
+        }
+      } else if (deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION") {
+        serviceResult = await handleCancelOptions(deliverySession, message, currentLang);
+        if (serviceResult?.type === "similar_products") {
+          const searchResult = await routeIntent("search_products", { query: "gift" }, sessionId, null, currentLang);
+          const prefix = serviceResult.text;
+          if (Array.isArray(searchResult)) {
+            serviceResult = { type: "product_grid", text: prefix, products: searchResult };
+          } else if (searchResult && typeof searchResult === "object") {
+            serviceResult = { ...searchResult, text: prefix + "\n\n" + (searchResult.text || "") };
+          }
+        }
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
+        serviceResult = await handleCheckoutConfirmation(deliverySession, message, currentLang);
       }
-    } else if (memory.waitingFor === "delivery_date" && !req.body.intent) {
-      const lowerMsg = message.toLowerCase().trim();
-      if (lowerMsg === "cancel" || lowerMsg === "stop" || lowerMsg === "nevermind") {
-        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
-      } else if (lowerMsg === "a" || lowerMsg === "tomorrow") {
-        req.body.intent = "check_delivery";
-        req.body.parameters = { city: memory.deliveryCity, deliveryDate: "tomorrow", productId: memory.deliveryProductId };
-        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
-      } else if (lowerMsg === "b" || lowerMsg === "next day") {
-        req.body.intent = "check_delivery";
-        req.body.parameters = { city: memory.deliveryCity, deliveryDate: "next day", productId: memory.deliveryProductId };
-        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
-      } else if (lowerMsg === "c" || lowerMsg === "custom date") {
-        req.body.intent = "recovery_alternative_date";
-        req.body.parameters = { city: memory.deliveryCity, productId: memory.deliveryProductId };
-        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
-      } else {
-        req.body.intent = "check_delivery";
-        req.body.parameters = { city: memory.deliveryCity, deliveryDate: message, productId: memory.deliveryProductId };
-        updateMemory(sessionId, { waitingFor: null, deliveryCity: null, deliveryProductId: null });
+
+      if (serviceResult === null) {
+        const staleMsg = "Sorry, there was a brief conflict. Please try again.";
+        saveMessage(sessionId, "assistant", staleMsg).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: staleMsg });
       }
-    } else if (memory.waitingFor === "order_confirmation" && !req.body.intent) {
-      const lowerMsg = message.toLowerCase().trim();
-      if (lowerMsg === "y" || lowerMsg === "yes" || lowerMsg === "yes, place the order" || lowerMsg === "yes, place the order.") {
-        req.body.intent = "create_order";
-        updateMemory(sessionId, { waitingFor: null });
-      } else if (lowerMsg === "n" || lowerMsg === "no" || lowerMsg === "cancel" || lowerMsg === "stop") {
-        updateMemory(sessionId, { waitingFor: null, buyNowProduct: null, deliveryInfo: null });
-      } else {
-        updateMemory(sessionId, { waitingFor: null });
-      }
+
+      const resultText = serviceResult?.text || "";
+      if (resultText) saveMessage(sessionId, "assistant", resultText).catch(() => {});
+      return sendCompleteAndEnd(res, serviceResult);
     }
+
+
 
     // ── Step 4: Direct intent from frontend (fast path) ───────────────────────
     if (req.body.intent) {
@@ -317,7 +354,6 @@ export const chat = async (req, res) => {
     let intentType = parsedIntent.intent;
     if (intentType === "general_chat") intentType = getMessageIntent(message, intentType);
     else if (intentType === "search_products" || intentType === "get_product_details") intentType = "product_search";
-    else if (intentType === "check_delivery") intentType = "delivery_queries";
 
     // ── Step 6: Memory load ───────────────────────────────────────────────────
     logStepStart("Memory retrieval");

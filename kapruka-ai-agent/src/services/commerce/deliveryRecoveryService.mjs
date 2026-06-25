@@ -1,117 +1,219 @@
-import { suggestAlternativeLocations } from "../integration/googleMapsService.mjs";
-import { getDeliveryModel, callGeminiSingleTurn, withTimeout } from "../ai/modelRouter.mjs";
-import { getProductDetails, searchProducts } from "../integration/mcp.service.mjs";
-import logger from "../../utils/logger.mjs";
+import { findNearbyCities } from "./delivery.service.mjs";
 
-export const findAlternativeLocations = async (city) => {
-  return await suggestAlternativeLocations(city);
+export const getDeliveryAddressPrompt = (lang) => {
+  if (lang === "si") {
+    return "Delivery check karanna oyage full address eka ewanna puluwanda? (gewal ankayath ekkama) 😊";
+  } else if (lang === "ta") {
+    return "டெலிவரி விபரங்களைச் சரிபார்க்க, உங்கள் முழு முகவரியையும் அனுப்ப முடியுமா? 😊";
+  }
+  return "To check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
 };
 
-export const findAlternativeDates = () => {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const nextDay = new Date();
-  nextDay.setDate(nextDay.getDate() + 2);
+export const getDeliveryAddressVagueMessage = (lang) => {
+  if (lang === "si") {
+    return `Aiyoo 😅 delivery address eka thawa poddak pahadiliwa ewanna puluwanda?
+
+Karunakarala ewanna:
+* house/building number eka
+* road / street eka
+* area eka
+* city eka
+
+Udaharana: **No 14, Hospital Road, Jaffna**`;
+  } else if (lang === "ta") {
+    return `Aiyoo 😅 முகவரியை இன்னும் கொஞ்சம் விபரமாக அனுப்ப முடியுமா?
+
+தயவுசெய்து அனுப்பவும்:
+* வீட்டு இலக்கம்
+* வீதி பெயர்
+* பகுதி / வட்டாரம்
+* நகரம்
+
+உதாரணம்: **No 14, Hospital Road, Jaffna**`;
+  }
+  return `Aiyoo 😅 I need a little more detail for the delivery address.
+
+Please send:
+* house/building number
+* road / street
+* area
+* city
+
+Example: **No 14, Hospital Road, Jaffna**`;
+};
+
+export const getDeliveryAddressConfirmationMessage = (address, lang) => {
+  if (lang === "si") {
+    return `Mama me delivery address eka hoyagaththa 😊
+**${address}**
+
+**A.** Ow, me address ekama thama
+**B.** Address eka edit karanna`;
+  } else if (lang === "ta") {
+    return `நான் இந்த முகவரியைக் கண்டுபிடித்துள்ளேன் 😊
+**${address}**
+
+**A.** ஆம், இந்த முகவரியைப் பயன்படுத்தவும்
+**B.** முகவரியைத் திருத்தவும்`;
+  }
+  return `I found this delivery address 😊
+**${address}**
+
+**A.** Yes, use this address
+**B.** Edit address`;
+};
+
+export const getDeliveryDatePrompt = (lang) => {
+  if (lang === "si") {
+    return "Hari 👍 delivery karanna oni dawasa ewanna puluwanda? (tomorrow, next day hari custom date ekak) 😊";
+  } else if (lang === "ta") {
+    return "சரி 👍 டெலிவரி செய்ய வேண்டிய திகதியை அனுப்ப முடியுமா? (tomorrow, next day அல்லது ஒரு குறிப்பிட்ட திகதி) 😊";
+  }
+  return "Got it 👍 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+};
+
+export const getDeliveryDateCancelMessage = (lang) => {
+  if (lang === "si") {
+    return "Awulak ne, mama delivery check eka cancel kara. 🤝";
+  } else if (lang === "ta") {
+    return "பிரச்சினை இல்லை, நான் டெலிவரி சரிபார்ப்பை ரத்து செய்துள்ளேன். 🤝";
+  }
+  return "No problem, I've cancelled the delivery check. 🤝";
+};
+
+export const getDeliverySuccessMessage = (city, date, charge, lang) => {
+  if (lang === "si") {
+    return `Niyamai! 🎉 **${city}** walata **${date}** dawasata delivery available (Delivery Charge: Rs. ${charge}).
+
+Oyata me order eka place karanna onida? 😊`;
+  } else if (lang === "ta") {
+    return `அருமை! 🎉 **${city}** முகவரிக்கு **${date}** திகதியில் டெலிவரி செய்ய முடியும் (டெலிவரி கட்டணம்: ரூ. ${charge}).
+
+ஆர்டரை உறுதிப்படுத்த விரும்புகிறீர்களா? 😊`;
+  }
+  return `Great news! 🎉 Delivery is available to **${city}** on **${date}** (Delivery Charge: Rs. ${charge}).
+
+Would you like to place the order now? 😊`;
+};
+
+export const getDeliverySelectedCityPrefix = (selectedCity, lang) => {
+  if (lang === "si") {
+    return `Hari hari 👍 **${selectedCity}** walata delivery eka check karannam.`;
+  } else if (lang === "ta") {
+    return `Seri 👍 **${selectedCity}** ku delivery check pannuren.`;
+  }
+  return `Got it 👍 I’ll check delivery for **${selectedCity}** instead.`;
+};
+
+export const getDeliverySimilarProductsPrefix = (city, date, lang) => {
+  if (lang === "si") {
+    return `Hari 😄 oya select karapu city/date ekata deliver karanna puluwan similar products pennannam.`;
+  } else if (lang === "ta") {
+    return `Super 😄 unga city/date ku deliver panna mudiyum similar items kaamikkiren.`;
+  }
+  return `Sure 😊 I’ll show you similar items that can actually be delivered to **${city}** on **${date}**.`;
+};
+
+export const getDeliveryCancelRecoveryMessage = (lang) => {
+  if (lang === "si") {
+    return `Sorry ah 😔 me location/date ekata me delivery eka complete karaganna bari una.
+
+Habai mama oyata thawath help karanna puluwan 👇
+
+**A.** Oya kalin search karapu de walata similar products pennanna
+**B.** Aluthin search ekak patan ganna
+
+**A** hari **B** hari ekak danna — mama continue karannam 😊`;
+  } else if (lang === "ta") {
+    return `Sorry pa 😔 indha location/date ku delivery complete panna mudiyala.
+
+Aana naan unga help pannalaam 👇
+
+**A.** Neenga munnadi search pannina maari similar products kaamikkava?
+**B.** Pudusa oru search start pannava?
+
+**A** illa **B** nu sollunga — naan continue pannuren 😊`;
+  }
+  return `Sorry about the inconvenience 😔
+Looks like I couldn’t complete this delivery for that location/date right now.
+
+But I can still help you with one of these 👇
+
+**A.** Show products similar to what you searched before
+**B.** Start a fresh search for a new product
+
+Reply with **A** or **B** and I’ll handle it for you 😊`;
+};
+
+export const getDeliveryCancelA_Prefix = (lang) => {
+  if (lang === "si") {
+    return `Hari 😄 oya kalin hoyapu de walata similar options tikak pennannam.`;
+  } else if (lang === "ta") {
+    return `Seri 😄 neenga munnadi paatha products maari innum sila options kaamikkiren.`;
+  }
+  return `No problem 😊 I’ll show you similar options based on what you searched earlier.`;
+};
+
+export const getDeliveryCancelB_Prefix = (lang) => {
+  if (lang === "si") {
+    return `Hari hari 👍 aluthin balamu.
+
+Oya mokakda hoyanne? 👀`;
+  } else if (lang === "ta") {
+    return `Okay 👍 pudusa start pannalaam.
+
+Ippo enna product theduveenga? 👀`;
+  }
+  return `Sure 👍 let’s start fresh.
+
+What would you like to look for now? 👀`;
+};
+
+export const handleDeliveryFailure = async (city, date, productId, lang = "en") => {
+  const altCities = await findNearbyCities(city);
   
-  return [
-    { label: "Tomorrow", date: tomorrow.toISOString().split("T")[0] },
-    { label: "Next Day", date: nextDay.toISOString().split("T")[0] }
-  ];
-};
+  const nearest_city_1 = altCities[0] || "Colombo";
+  const nearest_city_2 = altCities[1] || "Kandy";
+  const nearest_city_3 = altCities[2] || "Jaffna";
 
-export const findAlternativeProducts = async (productId) => {
-  let query = "gift";
-  if (productId) {
-    try {
-      const details = await getProductDetails(productId);
-      if (details) {
-        query = details.category || details.name.split(" ")[0] || "gift";
-      }
-    } catch (err) {
-      logger.error(`[DELIVERY RECOVERY] Failed to load product details: ${err.message}`);
-    }
-  }
-
-  try {
-    const products = await searchProducts(query);
-    return products.filter(p => p.id !== productId).slice(0, 4);
-  } catch (err) {
-    logger.error(`[DELIVERY RECOVERY] Search failed: ${err.message}`);
-    return [];
-  }
-};
-
-export const handleDeliveryFailure = async (city, date, productId) => {
-  logger.info("[DELIVERY] Recovery Flow Started");
-  console.log("[DELIVERY] Recovery Flow Started");
-
-  // Step 1: Find alternative geolocated cities supported by Kapruka
-  const altCities = await findAlternativeLocations(city);
-  logger.info("[DELIVERY] Alternative Locations Suggested", { altCities });
-  console.log("[DELIVERY] Alternative Locations Suggested");
-
-  // Get product name if possible
-  let productName = "this item";
-  if (productId) {
-    try {
-      const details = await getProductDetails(productId);
-      if (details) productName = details.name;
-    } catch {}
-  }
-
-  // Find Alternative Dates
-  const altDates = findAlternativeDates();
-
-  // Find Alternative Products
-  const altProducts = await findAlternativeProducts(productId);
-
-
-  // Step 2: Use Llama model to draft a solution-oriented natural message
   let textResponse = "";
-  try {
-    const { client: activeClient, model, provider } = getDeliveryModel();
-    const systemPrompt = "You are Velora's premium AI shopping concierge.";
-    const userPrompt = `You are Velora's premium AI shopping concierge.
-We failed to deliver "${productName}" to "${city}" on ${date}.
-We found these nearby deliverable cities supported by Kapruka:
-${altCities.map(c => `- ${c}`).join("\n")}
 
-Write a friendly, conversational, and solution-oriented recovery message.
-Rules:
-- Never say "Delivery unavailable" or sound dry.
-- State clearly that we couldn't deliver it on that date to that specific city.
-- Suggest checking the nearby deliverable cities.
-- Remind the user that they can try nearby location, choose another date, or find similar products.
-- Keep the tone warm, welcoming, and helpful.
-- Keep the message under 3 sentences. Do not write a long paragraph.
+  if (lang === "si") {
+    textResponse = `Aiyoo 😔 **${city}** walata **${date}** dawasata me item eka deliver karanna bari wenawa.
 
-Your response MUST be the text message only.`;
+Habai awulak ne — mama oyata options tikak hoyala thiyenawa 👇
 
-    if (provider === "gemini") {
-      textResponse = await callGeminiSingleTurn(activeClient, model, systemPrompt, userPrompt, {
-        temperature: 0.7,
-        maxOutputTokens: 1000
-      });
-    } else {
-      const completion = await withTimeout(
-        activeClient.chat.completions.create({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000
-        }),
-        undefined,
-        "Delivery recovery"
-      );
-      textResponse = completion.choices[0].message.content.trim();
-    }
-  } catch (err) {
-    logger.error(`[DELIVERY RECOVERY] Generation failed: ${err.message}`);
-    // Fallback friendly message
-    textResponse = `Unfortunately, this item can't be delivered to ${city} on your selected date. I can help find another delivery location, another date, or a similar product that can be delivered. Which option would you like to try?`;
+**A.** **${nearest_city_1}** walata deliver karanna
+**B.** **${nearest_city_2}** walata deliver karanna
+**C.** **${nearest_city_3}** walata deliver karanna
+**D.** Oya select karapu city/date ekata deliver karanna puluwan similar products pennanna
+**E.** Me order eka cancel karanna
+
+**A, B, C, D, E** walin ekak reply karanna 😊`;
+  } else if (lang === "ta") {
+    textResponse = `Aiyoo 😔 **${city}** ku **${date}** ku indha item delivery panna mudiyala.
+
+Aana worry pannadhe — unga kaaga konjam options ready pannirukken 👇
+
+**A.** **${nearest_city_1}** ku deliver pannalaam
+**B.** **${nearest_city_2}** ku deliver pannalaam
+**C.** **${nearest_city_3}** ku deliver pannalaam
+**D.** Neenga select pannina city/date ku deliver panna koodiya similar products kaaminga
+**E.** Indha order cancel pannunga
+
+Please **A, B, C, D, illa E** nu reply pannunga 😊`;
+  } else {
+    textResponse = `Aiyoo 😔 looks like this item can’t be delivered to **${city}** on **${date}**.
+
+But no worries — I found a few options for you 👇
+
+**A.** Deliver to **${nearest_city_1}**
+**B.** Deliver to **${nearest_city_2}**
+**C.** Deliver to **${nearest_city_3}**
+**D.** Show similar products that can be delivered to your selected location/date
+**E.** Cancel this order
+
+Just reply with **A, B, C, D, or E** 😊`;
   }
 
   return {
@@ -119,9 +221,7 @@ Your response MUST be the text message only.`;
     city,
     deliveryDate: date,
     productId,
-    alternativeCities: altCities,
-    alternativeDates: altDates,
-    alternativeProducts: altProducts,
+    nearestCities: [nearest_city_1, nearest_city_2, nearest_city_3],
     text: textResponse
   };
 };

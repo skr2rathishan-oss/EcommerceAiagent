@@ -21,12 +21,13 @@ export const CheckoutForm: React.FC = () => {
 
   const inputStyle: React.CSSProperties = {
     width: "100%",
-    padding: "8px 12px",
-    borderRadius: 10,
+    padding: "5px 8px",
+    borderRadius: 8,
     border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))",
     background: "var(--input-background, #fff)",
     color: "var(--text-primary, #1a1025)",
     outline: "none",
+    fontSize: 9.5,
     boxSizing: "border-box"
   };
 
@@ -65,7 +66,12 @@ export const CheckoutForm: React.FC = () => {
       orderDate: formatDate(now),
       estimatedDelivery: formatDate(parsedDeliveryDate),
       paymentStatus: "Paid",
-      recipient: deliveryInfo,
+      recipient: {
+        name: deliveryInfo.fullName,
+        phone: deliveryInfo.phone,
+        email: deliveryInfo.email,
+        address: deliveryInfo.address
+      },
       items: cartItems.map(item => ({
         id: item.productId,
         name: item.name,
@@ -106,7 +112,7 @@ export const CheckoutForm: React.FC = () => {
       {
         role: "ai",
         type: "order_confirmation",
-        text: `✅ Order Successfully Placed. ${giftMessage.trim() ? `\n\n**Gift Message**: "${giftMessage.trim()}"` : ""}`,
+        text: `✅ Order Successfully Placed\n\n- **Reference Number**: ${orderDetails.referenceNumber}\n- **Order Number**: ${orderDetails.orderNumber}${giftMessage.trim() ? `\n\n**Gift Message**: "${giftMessage.trim()}"` : ""}`,
         order: orderDetails
       }
     ]);
@@ -117,25 +123,25 @@ export const CheckoutForm: React.FC = () => {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 font-sans text-xs">
       <div>
-        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300">Shipping Address *</label>
+        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300" style={{ fontSize: "9px" }}>Shipping Address *</label>
         <textarea placeholder="e.g. No 15, Temple Road, Colombo 03" value={address} onChange={e => setAddress(e.target.value)} rows={2}
           style={{ ...inputStyle, resize: "none", lineHeight: 1.4 }} />
       </div>
 
       <div className="flex gap-3">
         <div style={{ flex: 1 }}>
-          <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300">Phone Number *</label>
+          <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300" style={{ fontSize: "9px" }}>Phone Number *</label>
           <input type="text" placeholder="e.g. +94 77 123 4567" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle} />
         </div>
         <div style={{ flex: 1 }}>
-          <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300">Delivery Date *</label>
+          <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300" style={{ fontSize: "9px" }}>Delivery Date *</label>
           <input type="date" value={deliveryDate} onChange={e => setDeliveryDate(e.target.value)} min={new Date().toISOString().split("T")[0]}
             style={{ ...inputStyle, cursor: "pointer" }} />
         </div>
       </div>
 
       <div>
-        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300">Gift Message (Optional)</label>
+        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300" style={{ fontSize: "9px" }}>Gift Message (Optional)</label>
         <input type="text" placeholder="e.g. Happy Birthday Mom! Love you." value={giftMessage} onChange={e => setGiftMessage(e.target.value)} style={inputStyle} />
       </div>
 
@@ -150,7 +156,7 @@ export const CheckoutForm: React.FC = () => {
         <span style={{ color: "#7c4dba", fontSize: 16 }}>Rs. {cartTotal.toLocaleString()}</span>
       </div>
 
-      <button type="submit" style={{ padding: "10px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #3fc78e, #2a9e6a)", color: "#fff", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 12px rgba(42, 158, 106, 0.25)" }}>
+      <button type="submit" style={{ alignSelf: "center", width: "fit-content", padding: "6px 14px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #3fc78e, #2a9e6a)", color: "#fff", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 12px rgba(42, 158, 106, 0.25)", fontSize: 11 }}>
         <span>Place Order</span> <ArrowRight size={14} />
       </button>
     </form>

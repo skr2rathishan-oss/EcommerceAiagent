@@ -4,9 +4,12 @@ import { getShoppingContext, updateShoppingContext, getMemory, updateMemory } fr
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
 import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
-import { checkDelivery, listDeliveryCities, findNearbyCities } from "../services/commerce/delivery.service.mjs";
-import { handleDeliveryFailure, findAlternativeLocations, findAlternativeDates, findAlternativeProducts } from "../services/commerce/deliveryRecoveryService.mjs";
 import { trackOrder } from "../services/commerce/orderTracking.service.mjs";
+import { checkDelivery } from "../services/commerce/delivery.service.mjs";
+import { parseAddress } from "../services/commerce/addressService.mjs";
+import { handleDeliveryFailure } from "../services/commerce/deliveryRecoveryService.mjs";
+import { startDeliveryFlow, handleAddressInput } from "../services/commerce/deliveryFlowService.mjs";
+import { getDeliverySession } from "../memory/memoryStore.mjs";
 import logger from "../utils/logger.mjs";
 
 // ── Fallback Query Mapping ───────────────────────────────────────────────────
@@ -16,15 +19,14 @@ export function getFallbackQuery(query, context = {}) {
     const situation = context.situation ? context.situation.toLowerCase() : "";
 
     // Sinhala/Tamil/English multilingual checks
-    const isHospitalSick = 
-        situation === "hospital" || 
-        situation === "sick" || 
-        lowerQuery.includes("hospital") || 
-        lowerQuery.includes("sick") || 
+    const isHospitalSick =
+        situation === "hospital" ||
+        situation === "sick" ||
+        lowerQuery.includes("hospital") ||
+        lowerQuery.includes("sick") ||
         lowerQuery.includes("unwell") ||
-        lowerQuery.includes("get well") || 
+        lowerQuery.includes("get well") ||
         lowerQuery.includes("comfort") ||
-        // Sinhala keywords for sick/hospital/comfort
         lowerQuery.includes("හොස්පිට්ල්") ||
         lowerQuery.includes("රෝහල") ||
         lowerQuery.includes("සනීප නැතුව") ||
@@ -33,7 +35,6 @@ export function getFallbackQuery(query, context = {}) {
         lowerQuery.includes("සුවවෙන්න") ||
         lowerQuery.includes("සුවය") ||
         lowerQuery.includes("අමාරු") ||
-        // Tamil keywords for sick/hospital/comfort
         lowerQuery.includes("ஹோஸ்பிட்டல்") ||
         lowerQuery.includes("ஆஸ்பத்திரி") ||
         lowerQuery.includes("உடம்பு சரியில்லை") ||
@@ -43,52 +44,41 @@ export function getFallbackQuery(query, context = {}) {
         lowerQuery.includes("நோயாளி");
 
     const isApologySupport =
-        situation === "apology" || 
-        situation === "apologetic" || 
-        lowerQuery.includes("apology") || 
-        lowerQuery.includes("sorry") || 
+        situation === "apology" ||
+        situation === "apologetic" ||
+        lowerQuery.includes("apology") ||
+        lowerQuery.includes("sorry") ||
         (lowerQuery.includes("support") && !lowerQuery.includes("supporter")) ||
-        // Sinhala keywords for apology/sorry
         lowerQuery.includes("සොරි") ||
         lowerQuery.includes("සමාවෙන්න") ||
         lowerQuery.includes("කණගාටුයි") ||
         lowerQuery.includes("සහාය") ||
-        // Tamil keywords for apology/sorry
         lowerQuery.includes("ஸாரி") ||
         lowerQuery.includes("மன்னிக்கவும்") ||
         lowerQuery.includes("வருந்துகிறேன்") ||
         lowerQuery.includes("ஆதரவு");
 
     const isForgotBirthday =
-        situation === "forgot_birthday" || 
+        situation === "forgot_birthday" ||
         lowerQuery.includes("forgot") ||
         lowerQuery.includes("birthday") ||
         lowerQuery.includes("cake") ||
-        // Sinhala keywords for birthday/forgot/cake
         lowerQuery.includes("උපන් දින") ||
         lowerQuery.includes("උපන්දින") ||
         lowerQuery.includes("බර්ත්ඩේ") ||
         lowerQuery.includes("අමතක") ||
         lowerQuery.includes("කේක්") ||
-        // Tamil keywords for birthday/forgot/cake
         lowerQuery.includes("பிறந்தநாள்") ||
         lowerQuery.includes("பிறந்த நாள்") ||
         lowerQuery.includes("மறந்து") ||
         lowerQuery.includes("கேக்");
 
-    if (isHospitalSick) {
-        return "fruits";
-    }
-    if (isApologySupport) {
-        return "flowers";
-    }
-    if (isForgotBirthday) {
-        return "cakes";
-    }
-    
-    // 2. Check general broad query mapping when no results are found
-    const isGift = 
-        lowerQuery === "gifts" || 
+    if (isHospitalSick) return "fruits";
+    if (isApologySupport) return "flowers";
+    if (isForgotBirthday) return "cakes";
+
+    const isGift =
+        lowerQuery === "gifts" ||
         lowerQuery === "gift" ||
         lowerQuery === "තෑග්ග" ||
         lowerQuery === "තෑගි" ||
@@ -124,7 +114,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             let searchQuery = parameters.query || parameters.q;
             const context = parameters.context || {};
 
-            // Proactively map vague or situational queries/contexts to high-relevance search terms
             const proactiveFallback = getFallbackQuery(searchQuery, context);
             if (proactiveFallback) {
                 logger.info(`[SEARCH PRODUCTS] Proactively mapping "${searchQuery}" to fallback: "${proactiveFallback}"`);
@@ -135,7 +124,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             try {
                 results = await searchProducts(searchQuery);
 
-                // Fallback mechanism: if search yielded 0 results, retry with mapped fallback keyword
                 if ((!results || results.length === 0) && searchQuery) {
                     const fallback = getFallbackQuery(searchQuery, context);
                     if (fallback && fallback !== searchQuery) {
@@ -152,13 +140,9 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
             onProgress?.("FILTERING", "active");
 
-            // Store results in shopping context for future filtering
-            // without needing a new MCP request
             updateShoppingContext(sessionId, { lastSearchResults: results });
-
             logger.info(`[SHOPPING CONTEXT] Stored ${results.length} products for session: ${sessionId}`);
 
-            // Apply universal filtering
             const filters = parameters.filters || {};
             const filteredResults = applyFilters(results, filters);
             logger.info(`[FILTERING] Applied filters: ${JSON.stringify(filters)} | Filtered count: ${filteredResults.length}`);
@@ -182,7 +166,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             if (filteredResults.length > 0) {
                 finalProducts = filteredResults;
             } else {
-                // No results matching filters: return suggestions
                 const suggestions = getSuggestions(results, filters);
                 logger.info(`[FILTERING] No matches. Suggestions count: ${suggestions.length}`);
                 finalProducts = suggestions;
@@ -203,9 +186,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         }
 
         // ── Product Selection ─────────────────────────────────────────────────
-        // Triggered when the user clicks on a product card in the chat.
-        // Saves the selected product to session memory and returns a
-        // conversational follow-up response — does NOT show raw product data.
         case INTENTS.SELECT_PRODUCT: {
             const product = parameters.product;
             if (!product) {
@@ -215,17 +195,12 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 } else if (lang === "si") {
                     failText = "මට එම නිෂ්පාදනය සොයාගත නොහැකි විය. කරුණාකර එය නැවත තේරීමට උත්සාහ කරන්න.";
                 }
-                return {
-                    type: "text",
-                    text: failText
-                };
+                return { type: "text", text: failText };
             }
 
-            // Save selected product to session shopping context
             updateShoppingContext(sessionId, { selectedProduct: product });
             logger.info(`[SHOPPING CONTEXT] Selected product: ${product.name} for session: ${sessionId}`);
 
-            // Track "view" interaction in the background asynchronously
             trackInteraction(sessionId, product.id, product.name, product.category, "view").catch(err => {
                 logger.error("[Background Tracking Error] Failed to track select_product:", err);
             });
@@ -269,11 +244,9 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         }
 
         // ── Get Product Details ───────────────────────────────────────────────
-        // Fetches full product details from MCP and formats them for display.
         case INTENTS.GET_PRODUCT_DETAILS: {
             let productId = parameters.productId || parameters.product_id;
 
-            // Check context fallback if productId is not explicitly passed
             const context = getShoppingContext(sessionId);
             if (!productId && context.selectedProduct) {
                 productId = context.selectedProduct.id;
@@ -286,29 +259,22 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 } else if (lang === "si") {
                     failText = "විස්තර ලබා ගැනීමට මට නිෂ්පාදන හැඳුනුම්පතක් (ID) අවශ්‍ය වේ. කරුණාකර පළමුව නිෂ්පාදනයක් තෝරන්න.";
                 }
-                return {
-                    type: "text",
-                    text: failText
-                };
+                return { type: "text", text: failText };
             }
 
             try {
                 const rawProduct = await getProductDetails(productId);
-                // Track "details" interaction in the background asynchronously
                 trackInteraction(sessionId, rawProduct.id, rawProduct.name, rawProduct.category, "details").catch(err => {
                     logger.error("[Background Tracking Error] Failed to track get_product_details:", err);
                 });
-
                 const formatted = formatProductDetails(rawProduct);
                 logger.info(`[PRODUCT DETAILS] Formatted details for product: ${productId}`);
                 return formatted;
             } catch (err) {
                 logger.error(`[PRODUCT DETAILS] Failed to fetch details: ${err.message}`);
 
-                // Fallback: use product from shopping context if MCP call fails
                 if (context.selectedProduct && context.selectedProduct.id === productId) {
                     logger.info("[PRODUCT DETAILS] Falling back to session context product");
-                    // Track "details" interaction for context product in the background
                     trackInteraction(sessionId, context.selectedProduct.id, context.selectedProduct.name, context.selectedProduct.category, "details").catch(err => {
                         logger.error("[Background Tracking Error] Failed to track get_product_details fallback:", err);
                     });
@@ -321,256 +287,11 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 } else if (lang === "si") {
                     errorText = "⚠️ කණගාටුයි, මේ මොහොතේ නිෂ්පාදන විස්තර ලබා ගැනීමට නොහැකි විය. කරුණාකර සුළු මොහොතකින් නැවත උත්සාහ කරන්න.";
                 }
-
-                return {
-                    type: "text",
-                    text: errorText
-                };
+                return { type: "text", text: errorText };
             }
         }
 
-        case INTENTS.CHECK_DELIVERY: {
-            onProgress?.("UNDERSTANDING", "active");
-
-            const context = getShoppingContext(sessionId);
-            const productId = parameters.productId || parameters.product_id || context.selectedProduct?.id;
-            const city = parameters.city;
-
-            let date = parameters.deliveryDate || parameters.delivery_date;
-            if (date === "tomorrow") {
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                date = tomorrow.toISOString().split("T")[0];
-            } else if (date === "next day" || date === "next_day") {
-                const nextDay = new Date();
-                nextDay.setDate(nextDay.getDate() + 2);
-                date = nextDay.toISOString().split("T")[0];
-            }
-
-            if (!city) {
-                updateMemory(sessionId, { waitingFor: "delivery_city" });
-                return {
-                    type: "text",
-                    text: "Which city would you like to deliver to?"
-                };
-            }
-
-            if (!date) {
-                updateMemory(sessionId, { 
-                    waitingFor: "delivery_date",
-                    deliveryCity: city,
-                    deliveryProductId: productId
-                });
-                return {
-                    type: "text",
-                    text: "Please select a delivery date:\n\nA. Tomorrow\nB. Next Day\nC. Custom Date"
-                };
-            }
-
-            updateMemory(sessionId, { waitingFor: null });
-
-            try {
-                const res = await checkDelivery(city, date, productId);
-
-                if (res.available) {
-                    logger.delivery(`Delivery Available to ${city} on ${date}`);
-
-                    if (productId) {
-                        const productDetails = await getProductDetails(productId).catch(() => null);
-                        if (productDetails) {
-                            updateMemory(sessionId, {
-                                waitingFor: "order_confirmation",
-                                buyNowProduct: productDetails,
-                                deliveryInfo: {
-                                    fullName: "Guest User",
-                                    phone: "0771234567",
-                                    email: "guest@example.com",
-                                    address: res.city || city
-                                }
-                            });
-                        } else {
-                            updateMemory(sessionId, { waitingFor: "order_confirmation" });
-                        }
-                    } else {
-                        updateMemory(sessionId, { waitingFor: "order_confirmation" });
-                    }
-
-                    return {
-                        type: "delivery_result",
-                        available: true,
-                        city: res.city || city,
-                        deliveryDate: res.deliveryDate || date,
-                        deliveryCharge: res.deliveryCharge || 0,
-                        text: `✅ Delivery is available for **${res.city || city}** on **${res.deliveryDate || date}**.\n\n- **Delivery Charge**: Rs. ${res.deliveryCharge || 0}\n- **Service Carrier**: Next-day dispatch qualified.\n\nSend "y" or "yes" to place the order.`
-                    };
-                } else {
-                    logger.delivery(`Delivery Check Failed for ${city} on ${date} (Unavailable)`);
-
-                    const recovery = await handleDeliveryFailure(city, date, productId);
-
-                    updateMemory(sessionId, {
-                        lastCheckedDelivery: {
-                            city: city,
-                            deliveryDate: date,
-                            productId: productId || ""
-                        }
-                    });
-
-                    return {
-                        type: "delivery_result",
-                        ...recovery
-                    };
-                }
-            } catch (err) {
-                logger.delivery(`Delivery Check Error for ${city} on ${date}: ${err.message}`);
-
-                const recovery = await handleDeliveryFailure(city, date, productId);
-
-                updateMemory(sessionId, {
-                    lastCheckedDelivery: {
-                        city: city,
-                        deliveryDate: date,
-                        productId: productId || ""
-                    }
-                });
-
-                return {
-                    type: "delivery_result",
-                    ...recovery
-                };
-            }
-        }
-
-        case INTENTS.RECOVERY_NEARBY_LOCATION: {
-            logger.delivery(`Recovery Flow Started: Nearby Location check`);
-
-            const memory = getMemory(sessionId);
-            const lastChecked = memory.lastCheckedDelivery || {};
-            const city = lastChecked.city || "Mullaitivu";
-
-            const nearby = await findAlternativeLocations(city);
-            logger.delivery(`Alternative Locations Suggested: ${nearby.join(", ")}`);
-
-            return {
-                type: "nearby_cities",
-                city: city,
-                cities: nearby,
-                text: `I couldn't deliver this item to **${city}** on your selected date.\n\nNearby delivery locations:\n${nearby.map(c => `📍 ${c}`).join("\n")}\n\nYou can select one from the panel below or choose another date or similar product.`
-            };
-        }
-
-        case INTENTS.RECOVERY_ALTERNATIVE_DATE: {
-            logger.delivery(`Recovery Flow Started: Alternative Date check`);
-
-            const dates = findAlternativeDates();
-            const city = parameters.city;
-            const productId = parameters.productId;
-
-            return {
-                type: "alternative_date",
-                dates: dates,
-                city: city,
-                productId: productId,
-                text: "📅 Choose Another Delivery Date\n\nPlease choose Tomorrow, Next Day, or a custom date from the panel below to check delivery again."
-            };
-        }
-
-        case INTENTS.RECOVERY_SIMILAR_PRODUCTS: {
-            logger.recommendation(`Recovery Flow Started: Suggesting similar deliverable products`);
-
-            const memory = getMemory(sessionId);
-            const lastChecked = memory.lastCheckedDelivery || {};
-            const productId = lastChecked.productId || (memory.shoppingContext?.selectedProduct?.id);
-
-            const products = await findAlternativeProducts(productId);
-            logger.recommendation(`Similar Products Found: ${products.length} alternatives`);
-
-            return {
-                type: "similar_products",
-                products: products,
-                text: `🎁 Find Similar Deliverable Products\n\nHere are some similar products that might be deliverable to your location:`
-            };
-        }
-
-        case INTENTS.CREATE_ORDER: {
-            logger.checkout(`CREATE_ORDER intent detected for session: ${sessionId}`);
-            const memory = getMemory(sessionId);
-
-            // If we have buyNowProduct and deliveryInfo, place a simulated Buy Now order
-            if (memory.buyNowProduct && memory.deliveryInfo) {
-                logger.checkout(`Buy Now order placement triggered for product ${memory.buyNowProduct.id} in session ${sessionId}`);
-
-                const now = new Date();
-                const formatDate = (date) => {
-                  const day = String(date.getDate()).padStart(2, "0");
-                  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                  return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
-                };
-
-                const deliveryDate = new Date();
-                deliveryDate.setDate(now.getDate() + 2);
-
-                const referenceNumber = `KAP-${now.getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-                const orderNumber = `VIMP${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
-
-                const orderDetails = {
-                  referenceNumber,
-                  orderNumber,
-                  orderDate: formatDate(now),
-                  estimatedDelivery: formatDate(deliveryDate),
-                  paymentStatus: "Paid",
-                  recipient: {
-                    name: memory.deliveryInfo.fullName,
-                    phone: memory.deliveryInfo.phone,
-                    email: memory.deliveryInfo.email || "customer@velora.ai",
-                    address: memory.deliveryInfo.address,
-                  },
-                  items: [
-                    {
-                      id: memory.buyNowProduct.id,
-                      name: memory.buyNowProduct.name,
-                      image: memory.buyNowProduct.images?.[0] || memory.buyNowProduct.image || "",
-                      qty: 1,
-                      price: memory.buyNowProduct.price,
-                      currency: memory.buyNowProduct.currency || "Rs.",
-                    }
-                  ],
-                  summary: {
-                    subtotal: memory.buyNowProduct.price,
-                    deliveryCharge: 0,
-                    discount: 0,
-                    total: memory.buyNowProduct.price,
-                  }
-                };
-
-                // Clear Buy Now details from session memory
-                updateMemory(sessionId, { buyNowProduct: null, buyNowVariants: null, deliveryInfo: null });
-
-                return {
-                    type: "order_confirmation",
-                    text: "✅ Order Successfully Placed",
-                    order: orderDetails
-                };
-            }
-
-            const cart = memory.cart || [];
-
-            if (cart.length === 0) {
-                logger.checkout(`Cart is empty for session: ${sessionId}. Aborting checkout.`);
-                return {
-                    type: "text",
-                    text: "Your cart is empty. Please add some products to your cart before checking out!"
-                };
-            }
-
-            logger.checkout(`Cart has ${cart.length} items. Initializing checkout panel trigger.`);
-            return {
-                type: "checkout_init",
-                text: "I have opened the checkout panel for you. Please confirm your delivery details in the checkout panel.",
-                cart: cart
-            };
-        }
-
+        // ── Track Order ───────────────────────────────────────────────────────
         case INTENTS.TRACK_ORDER: {
             const orderNumber = parameters.orderNumber || parameters.order_number;
             logger.tracking(`Tracking order number: ${orderNumber}`);
@@ -595,6 +316,32 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 };
             }
         }
+        case INTENTS.CHECK_DELIVERY: {
+            const context = getShoppingContext(sessionId);
+            const productId = parameters.productId || parameters.product_id || (context.selectedProduct ? context.selectedProduct.id : null);
+            
+            let product = null;
+            if (productId) {
+                try {
+                    product = await getProductDetails(productId);
+                } catch (e) {
+                    if (context.selectedProduct && context.selectedProduct.id === productId) {
+                        product = context.selectedProduct;
+                    }
+                }
+            } else if (context.selectedProduct) {
+                product = context.selectedProduct;
+            }
+
+            const address = parameters.address || parameters.city;
+            if (address) {
+                await startDeliveryFlow(sessionId, product, lang);
+                const session = await getDeliverySession(sessionId);
+                return await handleAddressInput(session, address, lang);
+            } else {
+                return await startDeliveryFlow(sessionId, product, lang);
+            }
+            }
 
         default:
             return {

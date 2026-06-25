@@ -65,7 +65,7 @@ export const TrackOrderForm: React.FC = () => {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 font-sans text-xs">
       <div>
-        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300">Order ID *</label>
+        <label className="block mb-1 font-bold text-gray-700 dark:text-gray-300" style={{ fontSize: "9px" }}>Order ID *</label>
         <input
           type="text"
           placeholder="e.g. VIMP34456CB2"
@@ -73,12 +73,13 @@ export const TrackOrderForm: React.FC = () => {
           onChange={e => setOrderId(e.target.value)}
           style={{
             width: "100%",
-            padding: "8px 12px",
-            borderRadius: 10,
+            padding: "5px 8px",
+            borderRadius: 8,
             border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))",
             background: "var(--input-background, #fff)",
             color: "var(--text-primary, #1a1025)",
             outline: "none",
+            fontSize: 9.5,
             boxSizing: "border-box"
           }}
         />
@@ -90,8 +91,8 @@ export const TrackOrderForm: React.FC = () => {
         </div>
       )}
 
-      <button type="submit" style={{ marginTop: 6, padding: "10px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 12px rgba(124, 77, 186, 0.25)" }}>
-        <span>Track Order</span> <ArrowRight size={14} />
+      <button type="submit" style={{ alignSelf: "center", width: "fit-content", marginTop: 6, padding: "6px 14px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, boxShadow: "0 4px 12px rgba(124, 77, 186, 0.25)", fontSize: 11 }}>
+        <span>Track Order</span> <ArrowRight size={13} />
       </button>
     </form>
   );

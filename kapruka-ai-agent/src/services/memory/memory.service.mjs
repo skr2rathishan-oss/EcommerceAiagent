@@ -87,10 +87,20 @@ export async function updateUserProfile(sessionId, profile) {
  * Helper to parse a JSON string from LLM response (robust parsing).
  */
 function extractJson(text) {
+  // Strip markdown code fences that some LLMs add despite being asked not to
+  let cleaned = text.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/, "")
+      .trim();
+  }
+
   try {
-    return JSON.parse(text);
+    return JSON.parse(cleaned);
   } catch (e) {
-    const match = text.match(/\{[\s\S]*\}/);
+    // Fallback: extract the first {...} block
+    const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
       try {
         return JSON.parse(match[0]);

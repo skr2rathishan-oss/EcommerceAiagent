@@ -1,521 +1,769 @@
-# Velora Delivery Intelligence System (Finalized Implementation Plan)
+# Velora Delivery System — Phase 2 Implementation Plan
+
+## Agent Integration + Order Confirmation Flow
 
 ## Objective
 
-Replace the traditional delivery form with a fully conversational delivery experience.
+Integrate the completed **Address Intelligence V1** into Velora’s live delivery agent flow so that:
 
-Velora should:
+1. the agent asks for a delivery address
+2. the address is cleaned and validated using `addressService.mjs`
+3. the user confirms the corrected address
+4. the agent collects the delivery date
+5. the agent runs `kapruka_check_delivery`
+6. if delivery is available, the agent shows a checkout confirmation summary
+7. after the user confirms, the agent calls `kapruka_create_order`
+8. the user receives the order ID + payment link
 
-* Collect delivery details naturally through chat
-* Validate delivery availability using Kapruka MCP
-* Recover intelligently when delivery is unavailable
-* Guide users to checkout
-* Maintain session state reliably
-* Never leave users at a dead end
-
----
-
-# Phase 1 - Delivery Session Management
-
-## Session Schema
-
-Single source of truth for all delivery operations.
-
-{
-session_id,
-
-selected_products: [],
-
-city,
-
-delivery_date,
-
-delivery_available,
-
-delivery_fee,
-
-alternative_dates: [],
-
-nearest_cities: [],
-
-alternative_products: [],
-
-order_status,
-
-payment_link,
-
-session_version,
-
-created_at,
-
-updated_at
-}
-
-No feature may maintain separate state.
+This phase connects the address module to the real conversational delivery journey.
 
 ---
 
-## Session States
+# Phase 2 Scope
 
-ACTIVE
+## In Scope
 
-WAITING_FOR_CITY
+* connect `addressService.mjs` to delivery chat flow
+* store confirmed address inside delivery session
+* collect delivery date after address confirmation
+* run `kapruka_check_delivery(city, delivery_date, product_id)`
+* handle delivery available / unavailable branches
+* show checkout confirmation message/card
+* handle final order confirmation from user
+* call `kapruka_create_order`
+* show order success + payment link
+* preserve delivery session state throughout the flow
 
-WAITING_FOR_DATE
+## Out of Scope for this phase
 
-WAITING_FOR_DELIVERY_CHECK
+Do not add these yet unless already partially built:
 
-WAITING_FOR_CONFIRMATION
-
-PAYMENT_PENDING
-
-COMPLETED
-
-EXPIRED
-
----
-
-## Session Expiration
-
-Soft TTL:
-24 Hours
-
-Hard TTL:
-7 Days
-
----
-
-## Resume Session Flow
-
-If user returns:
-
-"👋 Welcome back.
-
-I found an unfinished order.
-
-🎂 Chocolate Cake
-📍 Colombo
-📅 June 30
-
-Would you like to continue?"
+* Google address verification improvements
+* advanced nearest-city ranking improvements
+* gift messages
+* occasion intelligence
+* recipient intelligence
+* bundle builder
+* full voice-only checkout confirmation
 
 ---
 
-# Phase 2 - Default Address Detection
+# 1. Delivery Flow We Are Connecting Now
 
-When user selects a product:
+## Target conversational flow
 
-Example:
+User:
+“I want this cake”
 
-"🎂 Great choice!
+Velora:
+“Super 😊 Please send me the full delivery address for this order.”
 
-Should I deliver this to your default address in Colombo?
+User sends address
 
-✅ Use my address
-📍 Deliver somewhere else"
+↓
+Address Intelligence cleans + parses it
+↓
+Velora shows corrected address
+↓
+User confirms
+↓
+Velora asks for delivery date
+↓
+User gives date
+↓
+Velora runs delivery check
+↓
 
-If user confirms:
+## If delivery is available:
 
-Use default city.
+* show fee
+* show perishable warning if needed
+* show checkout confirmation
+* ask user to place the order
+* call `kapruka_create_order`
+* show payment link
 
-If user chooses another location:
+## If delivery is unavailable:
 
-Ask:
-
-"Which city would you like it delivered to?"
-
-Store city in session.
-
----
-
-# Phase 3 - Delivery Date Collection
-
-After city confirmation:
-
-Ask:
-
-"When would you like it delivered?"
-
-Support:
-
-* Today
-* Tomorrow
-* June 30
-* Friday
-* Next Sunday
-
-Convert all dates into ISO format.
-
-Store delivery_date in session.
+* go into recovery flow
+* alternative dates / nearby cities / alternative products / cancel flow
 
 ---
 
-# Phase 4 - Concurrency Protection
+# 2. Delivery Session Schema Update
 
-Problem:
+The delivery session must now store **address-specific fields** in addition to delivery fields.
 
-User may send multiple messages before MCP responds.
+## Required DeliverySession fields
 
-Example:
+```ts
+type DeliverySession = {
+  session_id: string;
+  session_version: number;
 
-"Deliver to Jaffna"
+  state:
+    | "IDLE"
+    | "WAITING_FOR_ADDRESS"
+    | "WAITING_FOR_ADDRESS_CONFIRMATION"
+    | "WAITING_FOR_DATE"
+    | "CHECKING_DELIVERY"
+    | "WAITING_FOR_RECOVERY_CHOICE"
+    | "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION"
+    | "WAITING_FOR_CONFIRMATION"
+    | "CREATING_ORDER"
+    | "PAYMENT_PENDING"
+    | "COMPLETED"
+    | "CANCELLED";
 
-Then:
+  selected_product: {
+    product_id: string;
+    product_name: string;
+    price?: number;
+    category?: string;
+  } | null;
 
-"Actually Kilinochchi"
+  raw_address: string | null;
+  cleaned_address: string | null;
+  normalized_address: string | null;
+  address_confidence: number | null;
+
+  house_number: string | null;
+  street: string | null;
+  area: string | null;
+  city: string | null;
+  postal_code: string | null;
+
+  delivery_date: string | null;
+  delivery_available: boolean | null;
+  delivery_fee: number | null;
+
+  alternative_dates: string[];
+  nearest_cities: string[];
+  alternative_products: Array<any>;
+
+  order_id: string | null;
+  payment_link: string | null;
+
+  created_at: string;
+  updated_at: string;
+};
+```
 
 ---
 
-Solution
+# 3. Backend Files to Update
 
-Use:
+## A) `backend/services/addressService.mjs`
 
-session_version
+Already completed in Phase 1.
 
-Every session update:
+Use it as the address parser/cleaner.
 
-session_version += 1
+### Function to call
 
-Rule:
+```js
+parseAddress(rawAddress)
+```
 
-Only latest version can modify session.
-
-Discard stale MCP responses automatically.
+This becomes the main entry point from the delivery agent.
 
 ---
 
-# Phase 5 - MCP Delivery Validation
+## B) `contextEngine.mjs`
+
+Update the delivery session state schema to store:
+
+* raw address
+* cleaned address
+* normalized address
+* confidence
+* extracted city
+* delivery date
+* delivery fee
+* order status
+
+Also ensure:
+
+* `session_version` increments on every delivery mutation
+* stale async responses are ignored
+
+---
+
+## C) `chat.controller.mjs`
+
+This becomes the main place that routes the conversational delivery flow state by state.
+
+It should now handle:
+
+* `WAITING_FOR_ADDRESS`
+* `WAITING_FOR_ADDRESS_CONFIRMATION`
+* `WAITING_FOR_DATE`
+* `CHECKING_DELIVERY`
+* `WAITING_FOR_CONFIRMATION`
+* recovery states
+
+---
+
+## D) `deliveryFlowService.mjs` (recommended if not already created)
+
+Create or expand a dedicated service to keep the delivery orchestration logic out of the controller.
+
+Suggested responsibilities:
+
+* start delivery flow
+* save parsed address into session
+* move between delivery states
+* call delivery check
+* build checkout summary
+* call order creation
+
+---
+
+## E) `order.service.mjs`
+
+Connect final delivery-confirmed session data to `kapruka_create_order`.
+
+This file should:
+
+* build the create order payload
+* validate required fields
+* call Kapruka create order
+* return order ID + payment link
+
+---
+
+# 4. State-by-State Integration Plan
+
+# State 1 — Start Delivery Flow
+
+## Trigger
+
+User selects a product or says:
+
+* “I want this cake”
+* “Buy this”
+* “Order this”
+
+## Action
+
+Create or update a delivery session.
+
+Set:
+
+```js
+state = "WAITING_FOR_ADDRESS"
+selected_product = { product_id, product_name, ... }
+```
+
+## Agent message
+
+“Super 😊 Please send me the **full delivery address** for this order.
+
+Example: **No 25, Temple Road, Wellawatte, Colombo 06**”
+
+---
+
+# State 2 — Address Input Handling
+
+## When user sends an address
 
 Call:
 
-kapruka_check_delivery
+```js
+const parsed = parseAddress(userMessage);
+```
 
-Parameters:
+## If parsed address is sufficient
 
-{
-city,
-delivery_date,
-product_id
-}
+Save all parsed fields into session:
 
-Store response in session.
+* raw_address
+* cleaned_address
+* normalized_address
+* city
+* postal_code
+* confidence
+* house_number
+* street
+* area
 
----
+Move to:
 
-# Phase 6 - Successful Delivery Flow
+```js
+state = "WAITING_FOR_ADDRESS_CONFIRMATION"
+```
 
-If available:
+## Agent message
 
-Show:
+“I found this delivery address 😊
 
-"✅ Good news!
+**{normalized_address}**
 
-This item can be delivered.
+Is this correct?
 
-📍 Colombo
-📅 June 30
-🚚 Delivery Fee: LKR 350"
-
-Update:
-
-delivery_available = true
-
-delivery_fee = returned_fee
-
----
-
-# Phase 7 - Perishable Product Handling
-
-Applicable:
-
-* Cakes
-* Flowers
-* Gift Combos
-
-Display:
-
-"⚠️ This is a perishable item.
-
-Please ensure someone is available to receive it on the selected delivery date."
+**A.** Yes, use this address
+**B.** Edit address”
 
 ---
 
-# Phase 8 - Alternative Date Recovery
+## If parsed address is insufficient
 
-If delivery is unavailable:
+Stay in:
 
-Never stop immediately.
+```js
+state = "WAITING_FOR_ADDRESS"
+```
 
-Check:
+## Agent message
 
-* Previous day
-* Next day
-* Additional nearby dates
+“Aiyoo 😅 I need a little more detail for the delivery address.
 
-Return maximum 3 alternatives.
+Please send:
 
-Example:
+* house/building number
+* road / street
+* area
+* city
 
-"😔 Sorry, this item isn't available on June 30.
-
-However, I found nearby available delivery dates:
-
-📅 June 29
-📅 July 1
-
-Would either of these work?"
-
-Store results in:
-
-alternative_dates
+Example: **No 14, Hospital Road, Jaffna**”
 
 ---
 
-# Phase 9 - Nearest City Recovery
+# State 3 — Address Confirmation
 
-If delivery still unavailable:
+## If user selects A / confirms
 
-Use:
+Move to:
 
-Google Geocoding API
+```js
+state = "WAITING_FOR_DATE"
+```
 
-Google Distance Matrix API
+## Agent message
 
-Process:
-
-1. Convert user city to coordinates
-2. Get supported delivery cities
-3. Calculate distances
-4. Sort ascending
-5. Return top 3 nearest cities
-
-Store in:
-
-nearest_cities
+“Perfect 😊 When would you like it delivered?”
 
 ---
 
-## Response Example
+## If user selects B / wants to edit
 
-"😔 Sorry, this item cannot be delivered to Pallai.
+Clear address-related fields if needed and move back to:
 
-However, I found nearby delivery locations:
+```js
+state = "WAITING_FOR_ADDRESS"
+```
 
-📍 Jaffna
-📍 Kilinochchi
-📍 Vavuniya
+## Agent message
 
-Would you like me to check one of these instead?"
-
----
-
-# Phase 10 - Google Maps Fallback
-
-If Google API fails:
-
-Use local supported city list.
-
-Example:
-
-[
-Colombo,
-Jaffna,
-Kandy,
-Galle,
-Kurunegala
-]
-
-Show:
-
-"😔 I couldn't calculate nearby locations right now.
-
-Here are some commonly supported delivery cities:
-
-📍 Colombo
-📍 Jaffna
-📍 Kandy"
-
-Never block the conversation.
+“No problem 👍 Please send the correct delivery address.”
 
 ---
 
-# Phase 11 - Alternative Product Recovery
+# State 4 — Delivery Date Collection
 
-If both city and date fail:
-
-Search for alternative products.
-
-Similarity Rules:
-
-Priority 1:
-Same Category
-
-Cake → Cake
-
-Flowers → Flowers
-
-Chocolate → Chocolate
-
-Priority 2:
-Price Range ±20%
-
-Priority 3:
-Popularity / Best Sellers
-
-Return:
-
-Maximum 3 products.
-
-Example:
-
-"😔 This cake isn't available for delivery.
-
-But don't worry 😊
-
-I found similar cakes that can be delivered:
-
-🎂 Chocolate Celebration Cake
-🎂 Black Forest Cake
-🎂 Red Velvet Cake"
-
-Store results in:
-
-alternative_products
-
----
-
-# Phase 12 - Checkout Confirmation
-
-Only after successful delivery validation.
-
-Display:
-
-"🎉 Everything is ready!
-
-🎂 Chocolate Cake
-
-📍 Colombo
-
-📅 June 30
-
-🚚 Delivery Fee: LKR 350
-
-Would you like me to place the order?"
-
-Explicit user confirmation required.
-
-Never auto-create orders.
-
----
-
-# Phase 13 - Order Creation Contract
-
-Call:
-
-create_order
-
-Required Payload:
-
-{
-items: [
-{
-product_id,
-quantity
-}
-],
-
-recipient_name,
-
-delivery_address,
-
-delivery_city,
-
-delivery_date,
-
-contact_phone
-}
-
----
-
-# Phase 14 - Order Creation Error Handling
-
-Handle:
-
-1. Missing Delivery City
-2. Missing Delivery Date
-3. Product Out Of Stock
-4. Payment Link Generation Failure
-5. Order Creation Failure
-
-Recovery Example:
-
-"😔 I couldn't create the order right now.
-
-Your delivery details have been saved.
-
-Would you like me to try again?"
-
-Never lose session state.
-
----
-
-# Phase 15 - Conversational Personality
-
-Delivery interactions must feel human.
+## Accept user date input
 
 Examples:
 
-"Aiyoo 😔 looks like this item isn't available for that city."
+* today
+* tomorrow
+* Friday
+* June 30
+* next Sunday
 
-"No worries 😊 let me find another option for you."
+Normalize it into ISO date format.
 
-"Good news 🎉 I found a nearby delivery location."
+Save:
 
-Rules:
-
-* Avoid robotic responses
-* Avoid technical error messages
-* Always provide a next step
-* Always offer a solution
+```js
+delivery_date = normalizedDate
+state = "CHECKING_DELIVERY"
+```
 
 ---
 
-# Final Delivery Flow
+# State 5 — Run Delivery Check
 
-Product Selected
-↓
-Default Address Detection
-↓
-Collect City
-↓
-Collect Delivery Date
-↓
-MCP Delivery Check
-↓
-Delivery Available?
+Use the **confirmed city** from the parsed address.
 
-YES
-↓
-Show Delivery Fee
-↓
-Perishable Warning
-↓
-Checkout Confirmation
-↓
-Create Order
-↓
-Payment Link
+Call:
 
-NO
-↓
-Alternative Dates
-↓
-Nearest Cities
-↓
-Alternative Products
-↓
-Continue Shopping
+```js
+kapruka_check_delivery({
+  city: session.city,
+  delivery_date: session.delivery_date,
+  product_id: session.selected_product.product_id
+})
+```
 
-Success Condition:
+---
 
-The user can complete the entire delivery journey through conversation without ever interacting with a traditional delivery form.
+# State 6 — Delivery Available Flow
+
+If delivery is available:
+
+Save:
+
+* `delivery_available = true`
+* `delivery_fee = returned fee`
+
+## Agent message
+
+“✅ Good news! This item can be delivered.
+
+📍 **{city}**
+📅 **{delivery_date_human}**
+🚚 **Delivery Fee: LKR {fee}**”
+
+---
+
+## Perishable product rule
+
+If selected product category is:
+
+* cake
+* flowers
+* combo
+
+Show:
+
+“⚠️ This is a perishable item. Please make sure someone is available to receive it on the delivery date.”
+
+---
+
+## Next action
+
+Move to:
+
+```js
+state = "WAITING_FOR_CONFIRMATION"
+```
+
+Then show the checkout confirmation summary.
+
+---
+
+# State 7 — Checkout Confirmation
+
+## Build checkout summary using confirmed delivery data
+
+### Required fields to show
+
+* product name
+* full confirmed address
+* city
+* delivery date
+* delivery fee
+* perishable warning if applicable
+
+## Agent message example
+
+“🎉 Everything is ready!
+
+**Product:** Chocolate Cake
+**Deliver To:** No 25, Temple Road, Wellawatte, Colombo 06
+**Delivery Date:** June 30
+**Delivery Fee:** LKR 350
+
+Would you like me to place the order?
+
+**A.** Yes, place order
+**B.** Cancel”
+
+---
+
+# State 8 — Final User Confirmation
+
+## If user selects A
+
+Move to:
+
+```js
+state = "CREATING_ORDER"
+```
+
+Call `kapruka_create_order`.
+
+## If user selects B
+
+Move to:
+
+```js
+state = "CANCELLED"
+```
+
+Send cancel flow message.
+
+---
+
+# State 9 — Create Order
+
+Build the order payload from the **confirmed delivery session**.
+
+## Required payload structure
+
+```json
+{
+  "items": [
+    {
+      "product_id": "CAKE123",
+      "quantity": 1
+    }
+  ],
+  "recipient_name": "Customer Name",
+  "delivery_address": "No 25, Temple Road, Wellawatte, Colombo 06",
+  "delivery_city": "Colombo",
+  "delivery_date": "2026-06-30",
+  "contact_phone": "07XXXXXXXX"
+}
+```
+
+### Important mapping rule
+
+Use:
+
+* `normalized_address` → `delivery_address`
+* `city` → `delivery_city`
+* `delivery_date` → `delivery_date`
+
+Do **not** rebuild the address from scratch during order creation. Use the already confirmed normalized address.
+
+---
+
+# State 10 — Order Success Response
+
+If `kapruka_create_order` succeeds:
+
+Save:
+
+* `order_id`
+* `payment_link`
+* `state = "PAYMENT_PENDING"`
+
+## Agent message
+
+“🎉 Your order is ready!
+
+**Order ID:** {order_id}
+**Delivery To:** {normalized_address}
+**Delivery Date:** {delivery_date_human}
+
+Here’s your payment link:
+{payment_link}”
+
+---
+
+# State 11 — Order Error Handling
+
+If create order fails:
+
+Do not lose the delivery session.
+
+Keep:
+
+* confirmed address
+* city
+* date
+* selected product
+
+## Agent message
+
+“Sorry 😔 I couldn’t create the order right now.
+
+Your delivery details are still saved.
+
+Would you like me to try again?”
+
+Possible options:
+
+* retry order creation
+* cancel
+* go back to delivery flow
+
+---
+
+# 5. Frontend Work for This Phase
+
+## A) `ChatInterface.tsx`
+
+Render:
+
+* address confirmation messages
+* delivery success messages
+* checkout confirmation messages
+* order success messages
+
+---
+
+## B) `DeliveryActionButtons.tsx`
+
+Use this component for:
+
+### Address confirmation
+
+* A = Yes, use this address
+* B = Edit address
+
+### Checkout confirmation
+
+* A = Yes, place order
+* B = Cancel
+
+---
+
+## C) `AppContext.tsx`
+
+Store the latest delivery session snapshot from backend for UI rendering convenience only.
+
+Backend remains the source of truth.
+
+---
+
+# 6. Message Types to Return from Backend
+
+To keep frontend rendering clean, backend should return structured message types.
+
+Recommended message types for this phase:
+
+* `delivery_address_request`
+* `delivery_address_confirmation`
+* `delivery_date_request`
+* `delivery_success`
+* `checkout_confirmation`
+* `order_success`
+* `delivery_error`
+
+---
+
+# 7. Suggested Integration Functions
+
+## In `deliveryFlowService.mjs`
+
+```js
+startDeliveryFlow(product, userContext)
+handleAddressInput(session, rawAddress)
+handleAddressConfirmation(session, userChoice)
+handleDateInput(session, rawDate)
+runDeliveryCheck(session)
+buildCheckoutConfirmation(session)
+confirmAndCreateOrder(session)
+```
+
+---
+
+# 8. Test Plan for Phase 2
+
+## Test 1 — Happy path
+
+1. select product
+2. enter messy address
+3. system normalizes it
+4. confirm address
+5. enter delivery date
+6. delivery available
+7. confirm order
+8. create order success
+9. payment link shown
+
+---
+
+## Test 2 — Bad address then corrected address
+
+1. select product
+2. enter vague address
+3. system asks for more detail
+4. enter proper address
+5. continue normally
+
+---
+
+## Test 3 — Address confirmation edit loop
+
+1. enter address
+2. system normalizes it
+3. user selects “Edit address”
+4. re-enter correct address
+5. continue flow
+
+---
+
+## Test 4 — Order creation failure
+
+1. complete full delivery flow
+2. simulate `kapruka_create_order` failure
+3. ensure session is preserved
+4. retry works
+
+---
+
+# 9. Implementation Order
+
+## Milestone 1
+
+Connect `addressService.parseAddress()` into the delivery chat flow.
+
+## Milestone 2
+
+Implement:
+
+* `WAITING_FOR_ADDRESS`
+* `WAITING_FOR_ADDRESS_CONFIRMATION`
+* `WAITING_FOR_DATE`
+
+## Milestone 3
+
+Run `kapruka_check_delivery` using parsed city + delivery date.
+
+## Milestone 4
+
+Implement delivery success response + perishable warning.
+
+## Milestone 5
+
+Implement checkout confirmation summary.
+
+## Milestone 6
+
+Connect `kapruka_create_order`.
+
+## Milestone 7
+
+Implement order success / order failure handling.
+
+---
+
+# 10. Definition of Done
+
+Phase 2 is complete only if:
+
+* the agent asks for the full delivery address
+* `addressService` cleans and parses the address
+* the agent shows the corrected address for confirmation
+* the user can confirm or edit the address
+* the agent collects delivery date after address confirmation
+* `kapruka_check_delivery` runs using the extracted city
+* delivery fee is shown if available
+* perishable warning appears when needed
+* checkout confirmation is shown using the confirmed address
+* final order confirmation triggers `kapruka_create_order`
+* order ID + payment link are shown on success
+* order creation failure does not destroy the delivery session
+
+---
+
+# Final Goal of Phase 2
+
+By the end of this phase, Velora should support a full conversational delivery flow like this:
+
+**User:** I want this cake
+**Velora:** Please send the delivery address
+**User:** no25 temple rd wellawatte col 6
+**Velora:** I found this address — No 25, Temple Road, Wellawatte, Colombo 06. Is this correct?
+**User:** Yes
+**Velora:** When would you like it delivered?
+**User:** Tomorrow
+**Velora:** Good news! This can be delivered. Delivery fee is LKR 350. Would you like me to place the order?
+**User:** Yes
+**Velora:** Your order is ready. Here’s your payment link.
+
+That will be the first complete **address-to-order conversational delivery experience** for Velora.

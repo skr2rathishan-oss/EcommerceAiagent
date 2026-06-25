@@ -318,7 +318,12 @@ export const extractContext = async (message) => {
 // ── Conversation summarisation (background task) ──────────────────────────────
 export const generateSummaryWithNemotron = async (messages) => {
   const { client: activeClient, model, provider } = getSummaryModel();
-  const formattedConvo = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
+
+  // Limit to the most recent 40 messages to keep the prompt size manageable.
+  // This prevents the input from being too large, which causes the LLM to truncate
+  // its own output mid-JSON ("Unterminated string" error).
+  const recentMessages = messages.slice(-40);
+  const formattedConvo = recentMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
 
   const systemContent = `You are a helpful AI that analyzes ecommerce chat logs and extracts user profile insights.
 Your output must be a single, valid JSON object containing user profile summary and preferences.
@@ -335,14 +340,14 @@ The JSON object must have this exact structure:
 }
 
 If any preference field cannot be determined, return an empty array or null for averageBudget.
-Ensure all JSON is correctly formatted.`;
+Ensure all JSON is correctly formatted and all strings are properly closed.`;
 
   const userContent = `Here is the conversation log to analyze:\n\n${formattedConvo}`;
 
   if (provider === "gemini") {
     return await callGeminiSingleTurn(activeClient, model, systemContent, userContent, {
       temperature:    0.1,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 2000,  // Increased from 1000 to prevent truncated JSON
     });
   }
 
@@ -350,7 +355,7 @@ Ensure all JSON is correctly formatted.`;
     activeClient.chat.completions.create({
       model,
       temperature: 0.1,
-      max_tokens:  1000,
+      max_tokens:  2000,  // Increased from 1000 to prevent truncated JSON
       messages: [
         { role: "system", content: systemContent },
         { role: "user",   content: userContent },

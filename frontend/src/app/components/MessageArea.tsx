@@ -11,7 +11,6 @@ import { OrderTrackingCard } from "./OrderTrackingCard";
 import { AgentActivityBar } from "./AgentActivityBar";
 import { type Message, useApp } from "../contexts/AppContext";
 import { GuidedWorkflowPanel } from "./GuidedWorkflowPanel";
-import { AddressDetectionButtons } from "./smart-panels/AddressDetectionButtons";
 import { CheckoutConfirmationCard } from "./smart-panels/CheckoutConfirmationCard";
 import { playVoice } from "../services/voiceServices";
 
@@ -400,19 +399,6 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                     />
                   </motion.div>
                 )}
-
-                {msg.role === "ai" && msg.type === "address_prompt" && !msg.isDetailsClosed && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
-                  >
-                    <AddressDetectionButtons messageIndex={i} onComplete={() => {
-                      setMessages(prev => prev.map((m, idx) =>
-                        idx === i ? { ...m, isDetailsClosed: true } : m
-                      ));
-                    }} />
-                  </motion.div>
-                )}
-
                 {msg.role === "ai" && msg.type === "checkout_confirmation" && !msg.isDetailsClosed && (
                   <motion.div
                     initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}

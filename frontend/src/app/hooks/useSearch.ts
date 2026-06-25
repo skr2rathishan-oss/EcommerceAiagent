@@ -23,6 +23,8 @@ export const useSearch = () => {
     saveOrderToHistory,
     setCheckoutOpen,
     setPhase,
+    pendingConfirmProduct,
+    pendingConfirmVariants,
   } = useApp();
 
   const { cartItems } = useCart();
@@ -38,6 +40,9 @@ export const useSearch = () => {
       error: false
     });
 
+    const lastOrderSummaryMsg = [...messages].reverse().find(m => m.orderSummary);
+    const activeDeliveryInfo = lastOrderSummaryMsg?.orderSummary?.deliveryInfo || null;
+
     const baseCommerceState = {
       cart: cartItems.map(i => ({
         productId: i.productId,
@@ -52,6 +57,16 @@ export const useSearch = () => {
         price: i.product.price,
       })),
       saved: [],
+      buyNowProduct: pendingConfirmProduct ? {
+        id: pendingConfirmProduct.id,
+        name: pendingConfirmProduct.name,
+        price: pendingConfirmProduct.price,
+        currency: pendingConfirmProduct.currency,
+        brand: pendingConfirmProduct.brand,
+        images: pendingConfirmProduct.images
+      } : null,
+      buyNowVariants: pendingConfirmVariants || null,
+      deliveryInfo: activeDeliveryInfo
     };
 
     const commerceState = customCommerceState
@@ -106,7 +121,8 @@ export const useSearch = () => {
               setMessages(prev => [...prev, {
                 role: "ai",
                 text: data.text,
-                type: data.available ? "checkout_confirmation" : undefined
+                type: (data.available && !data.orderSummary) ? "checkout_confirmation" : undefined,
+                orderSummary: data.orderSummary
               }]);
               if (data.available) {
                 // Ensure we have lastCheckedDelivery for the confirmation card
@@ -114,20 +130,17 @@ export const useSearch = () => {
               } else {
                 setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
                 if (data.alternativeCities) setNearbyCitiesSuggested(data.alternativeCities);
-                setActiveSmartPanel("delivery_recovery");
               }
               return;
             } else if (data.type === "nearby_cities") {
               setNearbyCitiesSuggested(data.cities || []);
               setMessages(prev => [...prev, { role: "ai", text: data.text }]);
-              setActiveSmartPanel("nearby_address");
               return;
             } else if (data.type === "alternative_date") {
               if (data.city) {
                 setLastCheckedDelivery(prev => prev ? { ...prev, city: data.city, productId: data.productId || prev.productId } : { city: data.city, deliveryDate: "", productId: data.productId || "" });
               }
               setMessages(prev => [...prev, { role: "ai", text: data.text }]);
-              setActiveSmartPanel("alternative_date");
               return;
             } else if (data.type === "similar_products") {
               setMessages(prev => [...prev, { role: "ai", text: data.text, products: (data.products || []).map(mapBackendProductToUI) }]);

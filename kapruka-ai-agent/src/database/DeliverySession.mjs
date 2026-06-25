@@ -6,11 +6,61 @@ const deliverySessionSchema = new mongoose.Schema({
     required: true,
     unique: true
   },
-  selected_products: {
-    type: [Object],
-    default: []
+  state: {
+    type: String,
+    enum: [
+      "IDLE",
+      "WAITING_FOR_ADDRESS",
+      "WAITING_FOR_ADDRESS_CONFIRMATION",
+      "WAITING_FOR_DATE",
+      "CHECKING_DELIVERY",
+      "WAITING_FOR_RECOVERY_CHOICE",
+      "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
+      "WAITING_FOR_CONFIRMATION",
+      "CREATING_ORDER",
+      "PAYMENT_PENDING",
+      "COMPLETED",
+      "CANCELLED"
+    ],
+    default: "IDLE"
+  },
+  selected_product: {
+    type: Object,
+    default: null
+  },
+  raw_address: {
+    type: String,
+    default: null
+  },
+  cleaned_address: {
+    type: String,
+    default: null
+  },
+  normalized_address: {
+    type: String,
+    default: null
+  },
+  address_confidence: {
+    type: Number,
+    default: null
+  },
+  house_number: {
+    type: String,
+    default: null
+  },
+  street: {
+    type: String,
+    default: null
+  },
+  area: {
+    type: String,
+    default: null
   },
   city: {
+    type: String,
+    default: null
+  },
+  postal_code: {
     type: String,
     default: null
   },
@@ -38,10 +88,9 @@ const deliverySessionSchema = new mongoose.Schema({
     type: [Object],
     default: []
   },
-  order_status: {
+  order_id: {
     type: String,
-    enum: ["ACTIVE", "WAITING_FOR_CITY", "WAITING_FOR_DATE", "WAITING_FOR_DELIVERY_CHECK", "WAITING_FOR_CONFIRMATION", "PAYMENT_PENDING", "COMPLETED", "EXPIRED"],
-    default: "ACTIVE"
+    default: null
   },
   payment_link: {
     type: String,
@@ -52,7 +101,7 @@ const deliverySessionSchema = new mongoose.Schema({
     default: 0
   }
 }, {
-  timestamps: true // Adds created_at and updated_at
+  timestamps: true // Adds createdAt and updatedAt
 });
 
 // Soft TTL: 24 Hours. Using index on updatedAt

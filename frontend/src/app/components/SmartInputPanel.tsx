@@ -17,9 +17,6 @@ export { SmartInputPanelShell as SmartInputPanel } from "./smart-panels/SmartInp
 
 // Named re-exports for any file that imports individual panels directly
 export { RecommendationForm } from "./smart-panels/RecommendationForm";
-export { DeliveryForm } from "./smart-panels/DeliveryForm";
 export { TrackOrderForm } from "./smart-panels/TrackOrderForm";
 export { CheckoutForm } from "./smart-panels/CheckoutForm";
-export { DeliveryRecoveryPanel } from "./smart-panels/DeliveryRecoveryPanel";
-export { NearbyAddressPanel } from "./smart-panels/NearbyAddressPanel";
-export { AlternativeDatePanel } from "./smart-panels/AlternativeDatePanel";
+

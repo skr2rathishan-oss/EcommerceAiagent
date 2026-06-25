@@ -12,7 +12,6 @@
 import React from "react";
 import { useApp } from "../contexts/AppContext";
 import { useProductActions } from "./useProductActions";
-import { useDeliveryCheck } from "./useDeliveryCheck";
 import { useSearch } from "./useSearch";
 import { trackQueryUsage } from "../components/SuggestedPrompts";
 
@@ -21,13 +20,11 @@ export const useChat = () => {
     phase, setPhase,
     value, setValue,
     setMessages,
-    waitingForAddressInput,
     setActiveSmartPanel,
     voiceDashboardOpen,
   } = useApp();
 
   const { handleProductSelect, handleProductAction, handleRequestProductDetails } = useProductActions();
-  const { handleAddressInput } = useDeliveryCheck();
   const { performSearch, handleRetry, handleStop } = useSearch();
 
   const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
@@ -42,12 +39,6 @@ export const useChat = () => {
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");
 
-    // ── Address input flow ─────────────────────────────────────────────────
-    if (waitingForAddressInput) {
-      await handleAddressInput(trimmed);
-      return;
-    }
-
     const lowerText = trimmed.toLowerCase();
 
     // ── Smart panel keyword shortcuts (Only if not in voice assistant mode) ──
@@ -58,12 +49,7 @@ export const useChat = () => {
         return;
       }
 
-      const delKeywords = ["check delivery", "can this be delivered", "delivery cost"];
-      if (delKeywords.some(kw => lowerText.includes(kw))) {
-        setActiveSmartPanel("delivery");
-        return;
-      }
-
+      // Allow delivery-related queries to go through to AI search directly rather than opening the panel
       if (lowerText.includes("track order")) {
         setActiveSmartPanel("track_order");
         return;

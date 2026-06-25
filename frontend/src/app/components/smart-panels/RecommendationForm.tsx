@@ -241,7 +241,7 @@ export const RecommendationForm: React.FC = () => {
       <AnimatePresence mode="wait">
         {step === 0 && (
           <motion.div key="step-recipient" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="flex flex-col gap-2.5">
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary, #1a1025)" }}>Who is this gift for?</label>
+            <label style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-primary, #1a1025)" }}>Who is this gift for?</label>
             <div className="flex flex-wrap gap-1.5">
               {recipients.map(r => (
                 <button key={r} type="button" onClick={() => { setRecipient(r); setStep(1); }} style={chipStyle(recipient === r)}>{r}</button>
@@ -252,7 +252,7 @@ export const RecommendationForm: React.FC = () => {
 
         {step === 1 && (
           <motion.div key="step-occasion" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="flex flex-col gap-2.5">
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary, #1a1025)" }}>What is the occasion?</label>
+            <label style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-primary, #1a1025)" }}>What is the occasion?</label>
             <div className="flex flex-wrap gap-1.5">
               {occasions.map(o => (
                 <button key={o} type="button" onClick={() => { setOccasion(o); setStep(2); }} style={chipStyle(occasion === o)}>{o}</button>
@@ -263,7 +263,7 @@ export const RecommendationForm: React.FC = () => {
 
         {step === 2 && (
           <motion.div key="step-budget" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="flex flex-col gap-2.5">
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary, #1a1025)" }}>What is your budget limit?</label>
+            <label style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-primary, #1a1025)" }}>What is your budget limit?</label>
             <div className="flex flex-wrap gap-1.5">
               {budgets.map(b => (
                 <button key={b} type="button" onClick={() => { setBudget(b); setStep(3); }} style={chipStyle(budget === b)}>{b}</button>
@@ -274,7 +274,7 @@ export const RecommendationForm: React.FC = () => {
 
         {step === 3 && (
           <motion.div key="step-interests" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="flex flex-col gap-2.5">
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary, #1a1025)" }}>What are their interests?</label>
+            <label style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-primary, #1a1025)" }}>What are their interests?</label>
             <div className="flex flex-wrap gap-1.5">
               {interests.map(i => (
                 <button key={i} type="button" onClick={() => { setInterest(i); if (i !== "Custom Text") { setStep(4); setError(""); } }} style={chipStyle(interest === i)}>{i}</button>
@@ -283,7 +283,7 @@ export const RecommendationForm: React.FC = () => {
             {interest === "Custom Text" && (
               <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 8 }}>
                 <input type="text" placeholder="Specify interest (e.g. Gardening, Gaming)..." value={customInterest} onChange={e => setCustomInterest(e.target.value)}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: 10, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", boxSizing: "border-box" }} />
+                  style={{ width: "100%", padding: "5px 8px", borderRadius: 8, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", fontSize: 9.5, boxSizing: "border-box" }} />
                 <button type="button" onClick={() => { if (customInterest.trim()) { setStep(4); setError(""); } else { setError("Please specify your custom interest."); } }}
                   style={{ alignSelf: "flex-end", padding: "6px 14px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 700, cursor: "pointer" }}>
                   Next →
@@ -295,19 +295,19 @@ export const RecommendationForm: React.FC = () => {
 
         {step === 4 && (
           <motion.div key="step-location" initial={{ opacity: 0, x: 15 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -15 }} transition={{ duration: 0.2 }} className="flex flex-col gap-2.5">
-            <label style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary, #1a1025)" }}>Where should we deliver? (Optional)</label>
+            <label style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-primary, #1a1025)" }}>Where should we deliver? (Optional)</label>
             <input type="text" placeholder="e.g. Colombo, Jaffna..." value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)}
-              style={{ width: "100%", padding: "8px 12px", borderRadius: 10, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", boxSizing: "border-box" }} />
-            <button type="submit" style={{ marginTop: 6, padding: "10px", borderRadius: 12, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, boxShadow: "0 4px 12px rgba(124, 77, 186, 0.25)" }}>
-              <span>Find Gifts</span> <ArrowRight size={14} />
+              style={{ width: "100%", padding: "5px 8px", borderRadius: 8, border: "1.5px solid var(--card-border, rgba(64, 41, 112, 0.15))", background: "var(--input-background, #fff)", color: "var(--text-primary, #1a1025)", outline: "none", fontSize: 9.5, boxSizing: "border-box" }} />
+            <button type="submit" style={{ alignSelf: "center", width: "fit-content", marginTop: 6, padding: "6px 14px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 5, boxShadow: "0 4px 12px rgba(124, 77, 186, 0.25)", fontSize: 11 }}>
+              <span>Find Gifts</span> <ArrowRight size={13} />
             </button>
           </motion.div>
         )}
       </AnimatePresence>
 
       {error && (
-        <div style={{ color: "#d4183d", fontWeight: 700, display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-          <AlertCircle size={14} /> {error}
+        <div style={{ color: "#d4183d", fontWeight: 700, display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: "8.5px" }}>
+          <AlertCircle size={10} /> {error}
         </div>
       )}
 
