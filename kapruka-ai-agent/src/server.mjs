@@ -81,32 +81,13 @@ try {
 }
 printHealthRow(cacheLabel, cacheStatus, cacheLatency, cacheStatus === "warn" ? "Falling back to memory" : "");
 
-// ── 3. NVIDIA NIM ──────────────────────────────────────────────────────────────
-let nimStatus = "fail", nimLatency = null;
-try {
-  const t0 = Date.now();
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 4000);
-  const r = await fetch("https://integrate.api.nvidia.com/v1/models", {
-    headers: { Authorization: `Bearer ${process.env.NVIDIA_API_KEY}` },
-    signal: ctrl.signal,
-  });
-  clearTimeout(timeout);
-  nimLatency = Date.now() - t0;
-  nimStatus = r.ok ? "ok" : "warn";
-} catch {
-  nimStatus = chosenMode === "development" ? "fail" : "warn";
-  if (chosenMode === "development") criticalFailures++;
-}
-printHealthRow("NVIDIA NIM API", nimStatus, nimLatency, nimStatus === "fail" ? "API unreachable" : "");
-
-// ── 4. Gemini / Vertex AI ──────────────────────────────────────────────────────
+// ── 3. Gemini / Vertex AI ──────────────────────────────────────────────────────
 let geminiStatus = "fail", geminiLatency = null;
 const gcpProject = process.env.GOOGLE_CLOUD_PROJECT;
 if (!gcpProject) {
-  geminiStatus = chosenMode === "production" ? "fail" : "skip";
-  if (chosenMode === "production") criticalFailures++;
-  printHealthRow("Gemini 2.5 Flash", geminiStatus, null, chosenMode === "production" ? "GOOGLE_CLOUD_PROJECT not set" : "Not required");
+  geminiStatus = "fail";
+  criticalFailures++;
+  printHealthRow("Gemini 2.5 Flash", geminiStatus, null, "GOOGLE_CLOUD_PROJECT not set");
 } else {
   try {
     const { getGeminiClient } = await import("./services/ai/modelRouter.mjs");
@@ -124,10 +105,10 @@ if (!gcpProject) {
     if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
       geminiStatus = "warn";
       geminiLatency = null;
-      printHealthRow("Gemini 2.5 Flash", "warn", null, "Quota limit hit (NVIDIA fallback active)");
+      printHealthRow("Gemini 2.5 Flash", "warn", null, "Quota limit hit");
     } else {
-      geminiStatus = chosenMode === "production" ? "fail" : "warn";
-      if (chosenMode === "production") criticalFailures++;
+      geminiStatus = "fail";
+      criticalFailures++;
       printHealthRow("Gemini 2.5 Flash", geminiStatus, null, msg.slice(0, 45));
     }
   }

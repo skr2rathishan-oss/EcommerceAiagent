@@ -7,13 +7,11 @@ import { validateApiKey, getCoordinates, findNearbyLocations } from "../integrat
 import { ElevenLabsClient } from "elevenlabs";
 import { GoogleGenAI }   from "@google/genai";
 import {
-  nvidiaClient,
-  nvidiaGeneralClient,
   getGeminiClient,
   getEnvironmentSummary,
   withTimeout,
 } from "../ai/modelRouter.mjs";
-import { NVIDIA_MODELS, GEMINI_MODELS, getActiveEnvironment } from "../../config/aiEnvironment.mjs";
+import { GEMINI_MODELS, getActiveEnvironment } from "../../config/aiEnvironment.mjs";
 import logger from "../../utils/logger.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,8 +29,6 @@ export const runStartupChecks = async () => {
     mongodb:     false,
     cache:       false,
     elevenlabs:  false,
-    llama:       false,
-    qwen:        false,
     gemini:      false,
     mcpSearch:   false,
     mcpDelivery: false,
@@ -118,33 +114,7 @@ export const runStartupChecks = async () => {
       }
     })(),
 
-    // 5. Llama (NVIDIA NIM)
-    (async () => {
-      try {
-        const response = await withTimeout(nvidiaClient.chat.completions.create({
-          model:    NVIDIA_MODELS.llama,
-          messages: [{ role: "user", content: "Ping" }],
-          max_tokens: 5,
-        }), 3000, "Llama check");
-        if (response) results.llama = true;
-      } catch (err) {
-        logger.error(`[STARTUP] Llama health check failed: ${err.message}`);
-      }
-    })(),
 
-    // 6. Qwen (NVIDIA NIM)
-    (async () => {
-      try {
-        const response = await withTimeout(nvidiaClient.chat.completions.create({
-          model:    NVIDIA_MODELS.qwen,
-          messages: [{ role: "user", content: "Ping" }],
-          max_tokens: 5,
-        }), 3000, "Qwen check");
-        if (response) results.qwen = true;
-      } catch (err) {
-        logger.error(`[STARTUP] Qwen health check failed: ${err.message}`);
-      }
-    })(),
 
     // 7. Gemini (Vertex AI)
     (async () => {
@@ -225,9 +195,7 @@ export const runStartupChecks = async () => {
   console.log(`  ${cacheLabel}${ok(results.cache)}`);
   console.log("\n[VOICE]");
   console.log(`  ElevenLabs           ${ok(results.elevenlabs)}`);
-  console.log("\n[LLM - NVIDIA NIM]");
-  console.log(`  Llama 3.1 8B         ${avail(results.llama)}`);
-  console.log(`  Qwen 3.5 122B        ${avail(results.qwen)}`);
+
   console.log("\n[LLM - GOOGLE VERTEX AI]");
   console.log(`  Gemini 2.5 Flash     ${avail(results.gemini)}`);
   console.log("\n[KAPRUKA MCP]");

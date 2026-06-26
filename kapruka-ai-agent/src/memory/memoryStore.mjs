@@ -4,6 +4,7 @@
 import UserProfile from "../database/UserProfile.mjs";
 import MemorySummary from "../database/MemorySummary.mjs";
 import DeliverySession from "../database/DeliverySession.mjs";
+import ConversationState from "../database/ConversationState.mjs";
 import logger from "../utils/logger.mjs";
 
 function mergeArrays(existing = [], incoming = []) {
@@ -121,6 +122,43 @@ export async function updateDeliverySession(sessionId, updates, currentVersion) 
     if (!updated) {
       logger.warn(`[MemoryStore] updateDeliverySession failed for ${sessionId} due to version mismatch or not found. Provided version: ${currentVersion}`);
       return null; // Indicates concurrency conflict
+    }
+
+    // Auto-propagate state to ConversationState
+    if (updates.state) {
+      const stageMap = {
+        WAITING_FOR_ADDRESS:              "delivery_address",
+        WAITING_FOR_ADDRESS_CONFIRMATION: "delivery_address",
+        WAITING_FOR_DATE:                 "delivery_date",
+        WAITING_FOR_CONTACT_NAME:         "contact_information",
+        WAITING_FOR_CONTACT_PHONE:        "contact_information",
+        WAITING_FOR_CONFIRMATION:         "order_summary",
+        WAITING_FOR_RECOVERY_CHOICE:      "interrupted",
+        WAITING_FOR_CANCEL_CHOICE:        "interrupted",
+        CREATING_ORDER:                   "payment",
+        PAYMENT_PENDING:                  "payment",
+        COMPLETED:                        "completed",
+        CANCELLED:                        "cancelled"
+      };
+      const step = stageMap[updates.state] || "delivery_address";
+      const flowStatus = (updates.state === "COMPLETED") ? "completed"
+                       : (updates.state === "CANCELLED") ? "cancelled"
+                       : "active";
+
+      await ConversationState.findOneAndUpdate(
+        { sessionId },
+        {
+          $set: {
+            activeFlow: {
+              type: "delivery",
+              status: flowStatus,
+              currentStep: step
+            },
+            active_delivery_session: (flowStatus === "active") ? sessionId : null
+          }
+        },
+        { upsert: true }
+      );
     }
     
     return updated;

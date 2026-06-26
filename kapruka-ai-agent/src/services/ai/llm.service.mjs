@@ -1,37 +1,22 @@
-import { SYSTEM_PROMPT }   from "../../agent/systemPrompt.mjs";
-import { INTENT_PROMPT }   from "../../agent/intentPrompt.mjs";
-import { CONTEXT_EXTRACTOR_PROMPT } from "../../agent/contextExtractorPrompt.mjs";
-import { fileURLToPath }   from "url";
+// src/services/ai/llm.service.mjs
+
+import { SYSTEM_PROMPT } from "../../agent/systemPrompt.mjs";
+import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import fs                  from "fs";
+import fs from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = dirname(__filename);
+const __dirname = dirname(__filename);
 
 import {
   getGeneralChatModel,
-  getIntentModel,
-  getContextExtractorModel,
   getSummaryModel,
   callGemini,
   callGeminiSingleTurn,
-  nvidiaClient,
-  nvidiaGeneralClient,
   withTimeout,
 } from "../ai/modelRouter.mjs";
 import { getContext } from "../core/logger.service.mjs";
-import logger         from "../../utils/logger.mjs";
-
-// Legacy alias — some services import `client` directly
-export const NVIDIA_CLIENT       = nvidiaClient;
-export const NVIDIA_GENERAL_CLIENT = nvidiaGeneralClient;
-export const LLAMA_MODEL         = "meta/llama-3.1-8b-instruct";
-export const PRIMARY_MODEL       = "qwen/qwen3.5-122b-a10b";
-export const GENERAL_MODEL       = "openai/gpt-oss-20b";
-export const LIGHT_MODEL         = "nvidia/nemotron-3-nano-30b-a3b";
-
-export const client        = nvidiaClient;
-export const generalClient = nvidiaGeneralClient;
+import logger from "../../utils/logger.mjs";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,58 +41,15 @@ export function isSimpleConversation(message) {
   return simpleGreetings.includes(cleaned);
 }
 
-// ── Language detection via GPT ────────────────────────────────────────────────
-// DEPRECATED: Language detection is now handled natively by Gemini via the system prompt.
-// This function is kept for reference but is no longer called anywhere.
-export async function detectLanguageWithGPT(message) {
-  if (!message || typeof message !== "string") return "en";
-  try {
-    // Always use NVIDIA general client for fast language detection
-    const completion = await withTimeout(
-      nvidiaGeneralClient.chat.completions.create({
-        model:      GENERAL_MODEL,
-        temperature: 0,
-        max_tokens: 10,
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a language detection engine. Analyze the user's message and determine its language. " +
-              "Respond ONLY with one of the following language codes:\n" +
-              "- 'si': for Sinhala script or Singlish/Sinhala in English alphabet (e.g. 'kohomada', 'oyata', 'machan').\n" +
-              "- 'ta': for Tamil script or Tanglish/Tamil in English alphabet (e.g. 'eppadi irukkinga', 'vanakkam', 'enanga').\n" +
-              "- 'en': for English or any other language.\n" +
-              "Do not output any other text, punctuation, or explanation. Respond with just the two-letter code.",
-          },
-          { role: "user", content: message },
-        ],
-      }),
-      undefined,
-      "Language detection"
-    );
-    const result = completion.choices[0].message.content.trim().toLowerCase();
-    logger.info(`GPT language detection result for "${message}": "${result}"`);
-    if (result.includes("si")) return "si";
-    if (result.includes("ta")) return "ta";
-    return "en";
-  } catch (err) {
-    logger.error("Failed to detect language with GPT", { error: err.message });
-    return "en";
-  }
-}
-
 // ── Main chat function ─────────────────────────────────────────────────────────
 export const chatWithLLM = async ({
   message,
-  history      = [],
-  memory       = {},
+  history = [],
+  memory = {},
   memoryContext = "",
 }) => {
   const { client: activeClient, model: selectedModel, provider, displayName } =
     getGeneralChatModel();
-
-  // Language detection is now handled natively by Gemini via the system prompt.
-  // No separate langInstruction needed.
 
   const systemContent = `${SYSTEM_PROMPT}\n\nCustomer Context:\n${JSON.stringify(memory, null, 2)}`;
 
@@ -122,77 +64,41 @@ export const chatWithLLM = async ({
   const t = context?.telemetry;
   if (t) {
     t.router.selectedModel = `${displayName} [${selectedModel}]`;
-    t.router.reason        = `Environment-routed: generalChat role.`;
-    t.router.scores        = [
-      { name: displayName, score: 98 },
+    t.router.reason = `Environment-routed: generalChat role.`;
+    t.router.scores = [
+      { name: displayName, score: 100 },
     ];
-    t.prompt.version            = "2.0.0";
-    t.prompt.length             = SYSTEM_PROMPT.length;
+    t.prompt.version = "2.0.0";
+    t.prompt.length = SYSTEM_PROMPT.length;
     t.prompt.activeSystemPrompt = SYSTEM_PROMPT;
-    t.workflow.modelSelected    = true;
+    t.workflow.modelSelected = true;
   }
 
   const llmCallStart = Date.now();
 
   try {
-    let responseText;
-
-    // ── Both Gemini and NVIDIA NIM receive the SAME system prompt content ─────
-    // The only difference is the API format:
-    //   Gemini  → systemInstruction field in config  (Gemini API spec)
-    //   NVIDIA  → { role: "system", content: ... }   (OpenAI-compatible spec)
-    // systemContent = SYSTEM_PROMPT + langInstruction + memory (identical)
-    // userContent   = memoryContext  + current message (identical)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    if (provider === "gemini") {
-      // ── Gemini path ────────────────────────────────────────────────────────
-      responseText = await callGemini(activeClient, selectedModel, systemContent, history, userContent);
-
-    } else {
-      // ── NVIDIA NIM (OpenAI-compatible) path ───────────────────────────────
-      const messagesArray = [
-        { role: "system", content: systemContent },
-        ...history,
-        { role: "user",   content: userContent },
-      ];
-
-      const completion = await withTimeout(
-        activeClient.chat.completions.create({
-          model:       selectedModel,
-          temperature: 0.8,
-          max_tokens:  4096,
-          messages:    messagesArray,
-        }),
-        undefined,
-        "General chat"
-      );
-
-      const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
-      if (reasoning) logger.info("[LLM RESPONSE] Reasoning Content:\n" + reasoning);
-
-      responseText = completion.choices[0].message.content;
-    }
+    // We only use Gemini now.
+    const responseText = await callGemini(activeClient, selectedModel, systemContent, history, userContent);
 
     const latencyMs = Date.now() - llmCallStart;
 
     // Token / cost estimation
-    const promptLen         = (systemContent + history.map(m => m.content).join(" ") + userContent).length;
-    const promptTokens      = Math.ceil(promptLen / 4);
-    const completionTokens  = Math.ceil((responseText || "").length / 4);
-    const totalTokens       = promptTokens + completionTokens;
-    const costPerToken      = provider === "gemini" ? 0.00015 / 1000 : 0.0001 / 1000;
+    const promptLen = (systemContent + history.map(m => m.content).join(" ") + userContent).length;
+    const promptTokens = Math.ceil(promptLen / 4);
+    const completionTokens = Math.ceil((responseText || "").length / 4);
+    const totalTokens = promptTokens + completionTokens;
+    const costPerToken = 0.00015 / 1000;
 
     if (t) {
-      t.llm.provider         = provider === "gemini" ? "Google Vertex AI" : "NVIDIA NIM";
-      t.llm.model            = selectedModel;
-      t.llm.ttft             = Math.round(latencyMs * 0.35);
-      t.llm.completionTime   = latencyMs;
-      t.llm.promptTokens     = promptTokens;
+      t.llm.provider = "Google Vertex AI";
+      t.llm.model = selectedModel;
+      t.llm.ttft = Math.round(latencyMs * 0.35);
+      t.llm.completionTime = latencyMs;
+      t.llm.promptTokens = promptTokens;
       t.llm.completionTokens = completionTokens;
-      t.llm.totalTokens      = totalTokens;
-      t.llm.estimatedCost    = totalTokens * costPerToken;
-      t.performance.llmTtft       = t.llm.ttft;
+      t.llm.totalTokens = totalTokens;
+      t.llm.estimatedCost = totalTokens * costPerToken;
+      t.performance.llmTtft = t.llm.ttft;
       t.performance.llmGeneration = latencyMs - t.llm.ttft;
       t.workflow.responseGenerated = true;
     }
@@ -209,109 +115,19 @@ export const chatWithLLM = async ({
 
   } catch (error) {
     const ctx = getContext();
-    const te  = ctx?.telemetry;
+    const te = ctx?.telemetry;
     if (te) {
       te.error = {
-        serviceName:    selectedModel,
-        errorType:      error.name || "APIError",
-        errorMessage:   error.message,
-        stackTrace:     error.stack,
+        serviceName: selectedModel,
+        errorType: error.name || "APIError",
+        errorMessage: error.message,
+        stackTrace: error.stack,
         recoveryAction: "Returned error to controller",
-        fallbackModel:  "None",
+        fallbackModel: "None",
       };
     }
     logger.error("chatWithLLM call failed", { error: error.message, model: selectedModel, provider });
     return { error: true, message: "Failed to process AI request" };
-  }
-};
-
-// ── Intent detection ──────────────────────────────────────────────────────────
-export const detectIntent = async (message) => {
-  logger.info(`Running intent detection...`);
-  const start = Date.now();
-
-  const { client: activeClient, model, provider, displayName } = getIntentModel();
-
-  try {
-    let raw;
-
-    if (provider === "gemini") {
-      raw = await callGeminiSingleTurn(
-        activeClient,
-        model,
-        INTENT_PROMPT,
-        message,
-        { temperature: 0, maxOutputTokens: 1000 }
-      );
-    } else {
-      const completion = await withTimeout(
-        activeClient.chat.completions.create({
-          model,
-          temperature: 0,
-          max_tokens:  200,
-          messages: [
-            { role: "system", content: INTENT_PROMPT },
-            { role: "user",   content: message },
-          ],
-        }),
-        undefined,
-        "Intent detection"
-      );
-      raw = completion.choices[0].message.content;
-    }
-
-    const elapsed = Date.now() - start;
-    logger.info(`Intent detection completed in ${elapsed}ms via ${displayName}`);
-    return raw;
-
-  } catch (error) {
-    logger.error("detectIntent failed", { error: error.message, model, provider });
-    throw error;
-  }
-};
-
-// ── Context Extraction ────────────────────────────────────────────────────────
-export const extractContext = async (message) => {
-  logger.info(`Running context extraction...`);
-  const start = Date.now();
-
-  const { client: activeClient, model, provider, displayName } = getContextExtractorModel();
-
-  try {
-    let raw;
-
-    if (provider === "gemini") {
-      raw = await callGeminiSingleTurn(
-        activeClient,
-        model,
-        CONTEXT_EXTRACTOR_PROMPT,
-        message,
-        { temperature: 0, maxOutputTokens: 1000 }
-      );
-    } else {
-      const completion = await withTimeout(
-        activeClient.chat.completions.create({
-          model,
-          temperature: 0,
-          max_tokens:  500,
-          messages: [
-            { role: "system", content: CONTEXT_EXTRACTOR_PROMPT },
-            { role: "user",   content: message },
-          ],
-        }),
-        undefined,
-        "Context extraction"
-      );
-      raw = completion.choices[0].message.content;
-    }
-
-    const elapsed = Date.now() - start;
-    logger.info(`Context extraction completed in ${elapsed}ms via ${displayName}`);
-    return raw;
-
-  } catch (error) {
-    logger.error("extractContext failed", { error: error.message, model, provider });
-    throw error;
   }
 };
 
@@ -320,8 +136,6 @@ export const generateSummaryWithNemotron = async (messages) => {
   const { client: activeClient, model, provider } = getSummaryModel();
 
   // Limit to the most recent 40 messages to keep the prompt size manageable.
-  // This prevents the input from being too large, which causes the LLM to truncate
-  // its own output mid-JSON ("Unterminated string" error).
   const recentMessages = messages.slice(-40);
   const formattedConvo = recentMessages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join("\n");
 
@@ -344,31 +158,10 @@ Ensure all JSON is correctly formatted and all strings are properly closed.`;
 
   const userContent = `Here is the conversation log to analyze:\n\n${formattedConvo}`;
 
-  if (provider === "gemini") {
-    return await callGeminiSingleTurn(activeClient, model, systemContent, userContent, {
-      temperature:    0.1,
-      maxOutputTokens: 2000,  // Increased from 1000 to prevent truncated JSON
-    });
-  }
-
-  const completion = await withTimeout(
-    activeClient.chat.completions.create({
-      model,
-      temperature: 0.1,
-      max_tokens:  2000,  // Increased from 1000 to prevent truncated JSON
-      messages: [
-        { role: "system", content: systemContent },
-        { role: "user",   content: userContent },
-      ],
-    }),
-    undefined,
-    "Memory summary"
-  );
-
-  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
-  if (reasoning) logger.info("[MongoDB Summary] Reasoning Content:\n" + reasoning);
-
-  return completion.choices[0].message.content;
+  return await callGeminiSingleTurn(activeClient, model, systemContent, userContent, {
+    temperature: 0.1,
+    maxOutputTokens: 2000,
+  });
 };
 
 // ── Shopping intelligence insights (background task) ──────────────────────────
@@ -378,8 +171,8 @@ export const generateInsightsWithNemotron = async (profile, currentSummary, inte
   const profileBlock = JSON.stringify({
     favoriteCategories: profile?.favoriteCategories || [],
     favoriteRecipients: profile?.favoriteRecipients || [],
-    favoriteOccasions:  profile?.favoriteOccasions  || [],
-    averageBudget:      profile?.averageBudget       ?? null,
+    favoriteOccasions: profile?.favoriteOccasions || [],
+    averageBudget: profile?.averageBudget ?? null,
   }, null, 2);
 
   const scoresBlock = JSON.stringify(interactionScores || {}, null, 2);
@@ -407,34 +200,13 @@ Rules:
 
   const userContent = `User Profile:\n${profileBlock}\n\nMemory Summary:\n${currentSummary || "(none)"}\n\nInteraction Scores (category → score):\n${scoresBlock}`;
 
-  if (provider === "gemini") {
-    return await callGeminiSingleTurn(activeClient, model, systemContent, userContent, {
-      temperature:    0.1,
-      maxOutputTokens: 300,
-    });
-  }
-
-  const completion = await withTimeout(
-    activeClient.chat.completions.create({
-      model,
-      temperature: 0.1,
-      max_tokens:  300,
-      messages: [
-        { role: "system", content: systemContent },
-        { role: "user",   content: userContent },
-      ],
-    }),
-    undefined,
-    "Shopping insights"
-  );
-
-  const reasoning = completion.choices[0].message.reasoning_content || completion.choices[0].message.reasoning;
-  if (reasoning) logger.info("[MongoDB Insights] Reasoning Content:\n" + reasoning);
-
-  return completion.choices[0].message.content;
+  return await callGeminiSingleTurn(activeClient, model, systemContent, userContent, {
+    temperature: 0.1,
+    maxOutputTokens: 300,
+  });
 };
 
-// ── Legacy model selection (kept for backward compat — no longer used in chat) ─
+// ── Legacy model selection (kept for backward compat) ─────────────────────────
 export async function selectModel(message, detectedLang = "en") {
   return getGeneralChatModel().model;
 }

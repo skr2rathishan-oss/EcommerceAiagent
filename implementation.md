@@ -1,787 +1,510 @@
-# Velora Conversation State Manager (VCSM)
+# Velora AI Agent – AI-Driven Conversation Understanding Pipeline Refactor
 
-# Phase 5 – Intelligent Shopping Context Memory & Conversation Resume
+You are a Senior AI Architect, Senior Node.js Engineer, NLP Specialist, and Software Refactoring Engineer.
 
-## Implementation Plan
+Your task is to refactor the existing Conversation Understanding pipeline of the Velora AI Shopping Assistant.
 
----
+This is NOT a new feature.
 
-# Objective
+This is an architectural upgrade that replaces fragmented local language detection with a centralized AI-driven Conversation Understanding pipeline.
 
-Implement a **Conversation State Manager** that allows Velora to intelligently manage multiple shopping conversations while preserving an active delivery process.
-
-Instead of treating every user message independently, Velora should understand the user's current activity, previous shopping sessions, and pending orders.
-
-This feature transforms Velora from a chatbot into a true conversational shopping assistant.
+The objective is to simplify the architecture, eliminate duplicate analysis logic, and make the LLM the primary source of conversational understanding.
 
 ---
 
-# Primary Goals
+# PRIMARY GOAL
 
-The Conversation State Manager should enable Velora to:
+Refactor the Conversation Understanding pipeline so that a single AI request determines:
 
-* Remember unfinished shopping searches
-* Remember pending orders waiting for confirmation
-* Resume previous shopping sessions
-* Prevent users from accidentally abandoning an active delivery process
-* Allow browsing after an order reaches the confirmation stage
-* Restore unfinished conversations after page refresh or login
-* Persist conversation state in MongoDB
+* Language
+* Intent
+* Emotion
+* Variables
+* Conversation Stage
+* Confidence
+
+The Conversation Understanding Layer becomes the single intelligence layer of Velora.
+
+All downstream components must consume its structured output.
 
 ---
 
-# Overall Architecture
+# CURRENT PROBLEM
 
-```
+The current architecture performs language detection separately using keyword matching.
+
+This causes:
+
+• incorrect language detection
+
+• duplicated logic
+
+• inconsistent Decision Objects
+
+• mixed responsibilities
+
+• poor handling of Sri Lankan mixed-language conversations
+
+Examples
+
+"Machan show me laptops"
+
+"Anna compare this phone"
+
+"Mama meka order karanna oni"
+
+"Super, idha deliver pannunga"
+
+Keyword detection cannot reliably classify these conversations.
+
+---
+
+# TARGET ARCHITECTURE
+
 User Message
-      │
-      ▼
+
+↓
+
 Conversation State Manager
-      │
-      ├── Delivery Session Manager
-      ├── Shopping Context Manager
-      ├── Pending Order Manager
-      ├── Conversation Memory
-      └── Intent Router
-```
 
-Every incoming message must first pass through the **Conversation State Manager** before reaching the normal intent router.
+↓
 
----
+Conversation Understanding (LLM)
 
-# Phase 1 – MongoDB Conversation Storage
+↓
 
-## Objective
+Structured Conversation Object
 
-Create persistent storage for delivery sessions and shopping contexts.
+↓
 
----
+Decision Builder
 
-## Collections
+↓
 
-### 1. delivery_sessions
+Response Engine
 
-Stores delivery-related information.
+↓
 
-Example fields:
+Response Library
 
-* session_id
-* user_id
-* product
-* delivery address
-* delivery date
-* contact details
-* delivery fee
-* order status
-* payment link
-* created_at
-* updated_at
+↓
 
-Status values:
+Streaming Controller
 
-* COLLECTING_ADDRESS
-* WAITING_FOR_ADDRESS_CONFIRMATION
-* WAITING_FOR_DATE
-* CHECKING_DELIVERY
-* WAITING_FOR_CONTACT_NAME
-* WAITING_FOR_CONTACT_PHONE
-* PENDING_CONFIRMATION
-* ORDER_CREATED
-* PAYMENT_PENDING
-* COMPLETED
-* CANCELLED
+↓
+
+Frontend
+
+There should be only one conversational analysis pipeline.
 
 ---
 
-### 2. shopping_contexts
+# RULE 1 — ANALYZE THE EXISTING PROJECT FIRST
 
-Stores unfinished shopping sessions.
+Before writing any code:
 
-Each shopping search becomes one document.
+Analyze the entire backend.
 
-Example:
+Locate:
 
-```
-Gaming Laptop Search
+Conversation Understanding
 
-Status:
-PAUSED
-```
+Language Detection
 
-Fields:
+Intent Detection
 
-* context_id
-* user_id
-* search_query
-* category
-* filters
-* viewed_products
-* selected_product
-* status
-* created_at
-* updated_at
-* expires_at
+Emotion Detection
 
-Status values:
+Decision Builder
 
-* ACTIVE
-* PAUSED
-* RESUMABLE
-* COMPLETED
-* CANCELLED
-* EXPIRED
+Conversation State Manager
+
+Response Engine
+
+Response Library
+
+Streaming Controllers
+
+Chat Controllers
+
+Determine how conversational analysis currently flows through the project.
+
+Reuse existing implementations whenever possible.
 
 ---
 
-### 3. conversation_state
+# RULE 2 — REMOVE DUPLICATE ANALYSIS
 
-One document per user.
+Do NOT create another language detector.
 
-Purpose:
+Do NOT create another intent detector.
 
-Store only references to currently active conversations.
+Do NOT create another emotion detector.
 
-Example:
+Instead,
 
-```
+merge the responsibilities into the existing Conversation Understanding Layer.
+
+Conversation Understanding becomes the only AI analysis component.
+
+---
+
+# RULE 3 — PRESERVE BACKWARD COMPATIBILITY
+
+Do NOT break:
+
+Shopping
+
+Delivery
+
+Orders
+
+Voice Mode
+
+Streaming
+
+Response Library
+
+Controllers
+
+MCP Tools
+
+Existing APIs
+
+All existing functionality must continue working.
+
+---
+
+# NEW RESPONSIBILITIES OF THE CONVERSATION UNDERSTANDING LAYER
+
+For every user message,
+
+the Conversation Understanding Layer must determine:
+
+Language
+
+Intent
+
+Emotion
+
+Variables
+
+Conversation Stage
+
+Confidence
+
+using one AI request.
+
+---
+
+# STRUCTURED OUTPUT
+
+The Conversation Understanding Layer should return a standardized object.
+
+Example
+
 {
-    active_delivery_session,
-    pending_order,
-    active_shopping_context,
-    paused_contexts:[]
+"language": {
+"detected": "tamil_mix",
+"confidence": 0.98
+},
+
+"intent": {
+"value": "search_product",
+"confidence": 0.97
+},
+
+"emotion": "friendly",
+
+"conversationStage": "shopping",
+
+"variables": {
+"product": "Laptop"
+},
+
+"analysisConfidence": 0.96
 }
-```
 
-This becomes the first document loaded whenever the user sends a message.
-
----
-
-# Phase 2 – Conversation State Manager
-
-Create:
-
-```
-conversationStateService.mjs
-```
-
-Responsibilities:
-
-* Load user conversation state
-* Save state
-* Determine active session
-* Determine conversation priority
-* Route incoming messages
-
-Functions:
-
-```
-loadConversationState()
-
-saveConversationState()
-
-getActiveDelivery()
-
-getPendingOrder()
-
-getShoppingContexts()
-
-setActiveShoppingContext()
-
-setPendingOrder()
-
-clearPendingOrder()
-
-clearConversationState()
-```
+Every downstream service should consume this object.
 
 ---
 
-# Phase 3 – Shopping Context Manager
+# LANGUAGE DETECTION
 
-Create:
+Language must no longer rely primarily on keyword matching.
 
-```
-shoppingContextService.mjs
-```
+The AI should determine:
 
-Responsibilities
+english
 
-* Create shopping contexts
-* Pause contexts
-* Resume contexts
-* Complete contexts
-* Remove expired contexts
-* Detect duplicate searches
+sinhala_mix
 
-Functions
+tamil_mix
 
-```
-createShoppingContext()
+based on the complete conversational context.
 
-pauseShoppingContext()
+It must correctly understand:
 
-resumeShoppingContext()
+Romanized Sinhala
 
-completeShoppingContext()
+Romanized Tamil
 
-expireShoppingContext()
+Mixed English + Sinhala
 
-findMatchingContext()
+Mixed English + Tamil
 
-restoreShoppingContext()
-```
+Natural Sri Lankan conversation styles.
 
 ---
 
-# Phase 4 – Conversation Priority Engine
+# CONVERSATION STATE INTEGRATION
 
-Every incoming message follows this priority order.
-
-Priority 1
-
-Pending Order Confirmation
-
-↓
-
-Priority 2
-
-Active Delivery Session
-
-↓
-
-Priority 3
-
-Active Shopping Context
-
-↓
-
-Priority 4
-
-Paused Shopping Context
-
-↓
-
-Priority 5
-
-Small Talk / General Questions
-
-Only one priority handles the message.
-
----
-
-# Phase 5 – Delivery Protection
-
-If delivery is collecting:
-
-* address
-* delivery date
-* contact name
-* phone number
-
-Velora should not allow new shopping.
-
-Example
-
-User:
-
-"Show me laptops."
-
-Velora:
-
-😊 We're almost done with your current order.
-
-Let's finish this first.
-
-If you'd like to cancel it, just let me know and I'll help you search for something else.
-
----
-
-# Phase 6 – Pending Order Mode
-
-Once the Order Summary has been shown,
-
-Delivery Status becomes:
-
-```
-PENDING_CONFIRMATION
-```
-
-Conversation lock is removed.
-
-The user can now:
-
-* browse products
-* compare products
-* ask questions
-* continue previous searches
-* have normal conversations
-
-The pending order remains safely stored.
-
----
-
-# Phase 7 – Pending Order Reminder
-
-If the user starts browsing while a pending order exists,
-
-Velora should only remind them once.
-
-Example
-
-😊 By the way, your Chocolate Cake order is still waiting for confirmation.
-
-Whenever you're ready, simply type **Yes** and I'll place the order.
-
-After this reminder,
-
-continue browsing normally.
-
-Do not repeatedly interrupt the user.
-
----
-
-# Phase 8 – Shopping Context Resume
-
-Whenever a new search arrives,
-
-check MongoDB for matching shopping contexts.
-
-Example
-
-Existing Context
-
-Gaming Laptop
-
-User later types
-
-"Laptop"
-
-Instead of creating another search,
-
-Velora should respond
-
-😊 Welcome back!
-
-We were already looking at Gaming Laptops earlier.
-
-Would you like to:
-
-A. Continue the previous search
-
-B. Start a new search
-
----
-
-# Phase 9 – Resume Previous Search
-
-If user selects
-
-A
-
-Restore:
-
-* search query
-* filters
-* viewed products
-* selected products
-
-Continue browsing naturally.
-
----
-
-# Phase 10 – Start New Search
-
-If user selects
-
-B
-
-Close previous shopping context.
-
-Create a brand-new context.
-
-Continue product search.
-
----
-
-# Phase 11 – Small Talk Handling
-
-Small talk should never destroy shopping contexts.
+The Conversation State Manager should provide context to the AI.
 
 Examples
 
-* Hi
-* Thank you
-* Tell me a joke
-* What's the weather?
-* How are you?
+Current Flow
 
-Answer normally.
+Current Step
 
-After answering,
+Previous Language
 
-continue the active shopping or delivery session.
+Paused Flows
 
----
+Recent Conversation History
 
-# Phase 12 – Pending Order Confirmation
-
-If the user types
-
-```
-Yes
-```
-
-or
-
-```
-Y
-```
-
-Conversation State Manager checks:
-
-```
-Pending Order Exists?
-```
-
-YES
-
-↓
-
-Call
-
-```
-kapruka_create_order()
-```
-
-NO
-
-↓
-
-Treat "Yes" as a normal conversation reply.
+This allows the AI to make better language and intent decisions.
 
 ---
 
-# Phase 13 – Order Cancellation
+# LANGUAGE PREFERENCE
 
-If user says
-
-* Cancel order
-* Don't place it
-* Never mind
-
-Clear:
-
-* pending order
-* delivery session
-
-Keep:
-
-* shopping contexts
+Persist the detected language inside the Conversation State Manager.
 
 Example
 
-😊 No worries.
+preferences:
 
-I've cancelled your pending order.
+preferredLanguage
 
-What would you like to do next?
+languageConfidence
+
+lastDetectedLanguage
+
+Future responses should reuse this information.
+
+Do not unnecessarily switch languages during a conversation.
 
 ---
 
-# Phase 14 – Context Similarity Detection
+# LLM FALLBACK STRATEGY
 
-Before creating a new shopping context,
+The AI becomes the primary language detector.
 
-compare:
+However,
 
-* category
-* keywords
-* search intent
+if the AI request fails:
+
+network error
+
+timeout
+
+quota exceeded
+
+invalid JSON
+
+fallback to the existing lightweight keyword detector.
+
+Do NOT remove the existing detector immediately.
+
+Downgrade it into a fallback mechanism.
+
+---
+
+# DECISION BUILDER
+
+The Decision Builder must consume:
+
+language
+
+intent
+
+emotion
+
+variables
+
+conversationStage
+
+directly from the Conversation Understanding Layer.
+
+It should never perform additional conversational analysis.
+
+---
+
+# RESPONSE ENGINE
+
+The Response Engine should consume only:
+
+decision.language.detected
+
+No language detection logic should exist inside the Response Engine.
+
+---
+
+# RESPONSE LIBRARY
+
+The Response Library continues working exactly as before.
+
+Only the language source changes.
+
+The Response Engine should automatically load:
+
+english
+
+sinhala_mix
+
+tamil_mix
+
+based on the AI result.
+
+---
+
+# STREAMING COMPATIBILITY
+
+Streaming should remain unchanged.
+
+Conversation Understanding completes first.
+
+Streaming begins only after the structured analysis has been produced.
+
+---
+
+# FILE CREATION POLICY
+
+Before creating any new files:
+
+Search the project.
+
+Reuse:
+
+Conversation Understanding
+
+Language Utilities
+
+Decision Builder
+
+Response Engine
+
+Conversation State Manager
+
+If obsolete language utilities become unnecessary,
+
+remove them safely.
+
+Never leave duplicate conversational analysis logic inside the project.
+
+---
+
+# CODE QUALITY
+
+Reuse:
+
+Existing logging
+
+Existing error handling
+
+Existing folder structure
+
+Existing naming conventions
+
+Existing helper utilities
+
+Follow the project's architecture.
+
+Maintain single responsibility for every service.
+
+---
+
+# VALIDATION PLAN
+
+Verify:
+
+✓ English conversations detect correctly
+
+✓ Sinhala Mixed conversations detect correctly
+
+✓ Tamil Mixed conversations detect correctly
+
+✓ Romanized Sinhala works
+
+✓ Romanized Tamil works
+
+✓ Mixed-language conversations work
+
+✓ Preferred language persists
+
+✓ Response Library loads correct language
+
+✓ Streaming still works
+
+✓ Delivery flow still works
+
+✓ Shopping flow still works
+
+✓ Order flow still works
+
+✓ No duplicate language detection remains
+
+✓ Existing APIs remain unchanged
+
+---
+
+# TEST SCENARIOS
+
+Test using realistic Sri Lankan conversations.
 
 Examples
 
-Existing
+"Machan show me birthday cakes."
 
-Gaming Laptop
+"Anna compare this laptop."
 
-Incoming
+"Mama meka order karanna oni."
 
-Laptop
+"Seri, intha address ku anuppunga."
 
-Gaming ASUS Laptop
+"Hari, tomorrow deliver karanna."
 
-Best Laptop for Gaming
+"Super, thanks machan."
 
-These should all match the existing shopping context.
-
----
-
-# Phase 15 – Context Expiration
-
-Automatically clean old contexts.
-
-Shopping Context
-
-Paused
-
-↓
-
-Expire after
-
-2 Hours
-
-Completed
-
-↓
-
-Delete after
-
-24 Hours
-
-Pending Orders
-
-↓
-
-Keep until
-
-* Order placed
-* Cancelled
-* Timeout reached
+Ensure the AI consistently returns the correct language and the Response Engine loads the appropriate localized response.
 
 ---
 
-# Phase 16 – Browser Refresh Recovery
+# FINAL OUTPUT
 
-If user refreshes the application,
+Before implementing any changes provide:
 
-load
+1. Current architecture analysis
 
-conversation_state
+2. Existing conversational analysis pipeline
 
-↓
+3. Existing files reused
 
-restore
+4. Files modified
 
-* pending delivery
-* pending order
-* paused shopping contexts
+5. New files created (only if absolutely necessary)
 
-Velora should continue naturally without asking the user to start over.
+6. Obsolete files safely removed
 
----
+7. Updated architecture diagram
 
-# Phase 17 – Cross Device Support
+8. Migration plan
 
-If the same user logs in from another device,
+9. Validation strategy
 
-load conversation_state
+10. Rollback strategy
 
-↓
+Only after completing the analysis should implementation begin.
 
-restore
-
-active delivery
-
-shopping contexts
-
-pending orders
-
-Conversation continues seamlessly.
-
----
-
-# Backend Components
-
-Create
-
-```
-conversationStateService.mjs
-```
-
-Create
-
-```
-shoppingContextService.mjs
-```
-
-Update
-
-```
-contextEngine.mjs
-```
-
-Update
-
-```
-intentRouter.mjs
-```
-
-Update
-
-```
-chat.controller.mjs
-```
-
----
-
-# Suggested Backend Functions
-
-Conversation State
-
-```
-loadConversationState()
-
-saveConversationState()
-
-getHighestPriorityContext()
-
-getPendingOrder()
-
-setPendingOrder()
-
-clearPendingOrder()
-```
-
-Shopping Context
-
-```
-createContext()
-
-pauseContext()
-
-resumeContext()
-
-completeContext()
-
-expireContext()
-
-findMatchingContext()
-
-restoreContext()
-```
-
----
-
-# Testing Scenarios
-
-Scenario 1
-
-Gaming Laptop Search
-
-↓
-
-Cake Delivery
-
-↓
-
-Pending Order
-
-↓
-
-Browse Watches
-
-↓
-
-Return to Laptop
-
-↓
-
-Resume Prompt Appears
-
----
-
-Scenario 2
-
-Pending Cake Order
-
-↓
-
-Browse Laptops
-
-↓
-
-Type
-
-Yes
-
-↓
-
-Cake Order Placed
-
----
-
-Scenario 3
-
-Browser Refresh
-
-↓
-
-Conversation Restored
-
----
-
-Scenario 4
-
-Login From Another Device
-
-↓
-
-Conversation Restored
-
----
-
-Scenario 5
-
-Search Same Category Again
-
-↓
-
-Resume Prompt Appears
-
----
-
-Scenario 6
-
-Small Talk During Shopping
-
-↓
-
-Conversation Continues Normally
-
-↓
-
-Shopping Context Preserved
-
----
-
-# Definition of Done
-
-✓ Delivery sessions persist in MongoDB.
-
-✓ Shopping contexts persist in MongoDB.
-
-✓ Pending orders survive browser refresh.
-
-✓ Users can browse while an order is waiting for confirmation.
-
-✓ Previous shopping searches can be resumed.
-
-✓ Duplicate shopping contexts are detected.
-
-✓ Resume prompts work correctly.
-
-✓ Conversation state restores after reconnect.
-
-✓ Expired contexts are cleaned automatically.
-
-✓ Conversation State Manager becomes the single source of truth for every incoming user message.
-
----
-
-# Final Goal
-
-Velora should behave like a real human shopping assistant.
-
-It should remember what the customer was shopping for, safely pause and resume conversations, preserve pending orders, and allow users to move naturally between shopping and checkout without losing progress.
-
-The result is a premium conversational commerce experience that feels intelligent, organized, and personalized while remaining technically scalable and easy to extend.
+The final architecture must make the Conversation Understanding Layer the single source of truth for conversational analysis while preserving backward compatibility and minimizing duplicate logic.

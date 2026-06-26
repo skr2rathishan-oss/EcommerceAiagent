@@ -23,7 +23,11 @@ export const abortActiveRequest = () => {
 };
 
 // Helper to handle streaming POST requests to /api/chat
-const fetchStream = async (body: any, onProgress?: (payload: any) => void): Promise<any> => {
+const fetchStream = async (
+    body: any,
+    onProgress?: (payload: any) => void,
+    onChunk?: (text: string) => void
+): Promise<any> => {
     if (activeAbortController) {
         activeAbortController.abort();
     }
@@ -70,6 +74,8 @@ const fetchStream = async (body: any, onProgress?: (payload: any) => void): Prom
                         const payload = JSON.parse(trimmedLine.slice(6));
                         if (payload.type === "progress") {
                             onProgress?.(payload);
+                        } else if (payload.type === "chunk") {
+                            onChunk?.(payload.text);
                         } else if (payload.type === "complete") {
                             finalResult = payload.data;
                         }
@@ -86,6 +92,8 @@ const fetchStream = async (body: any, onProgress?: (payload: any) => void): Prom
                 const payload = JSON.parse(buffer.trim().slice(6));
                 if (payload.type === "progress") {
                     onProgress?.(payload);
+                } else if (payload.type === "chunk") {
+                    onChunk?.(payload.text);
                 } else if (payload.type === "complete") {
                     finalResult = payload.data;
                 }
@@ -108,13 +116,14 @@ const fetchStream = async (body: any, onProgress?: (payload: any) => void): Prom
 export const sendMessage = async (
     message: string,
     onProgress?: (payload: any) => void,
-    commerceState?: any
+    commerceState?: any,
+    onChunk?: (text: string) => void
 ) => {
     return fetchStream({
         message,
         sessionId: getSessionId(),
         commerceState,
-    }, onProgress);
+    }, onProgress, onChunk);
 };
 
 export const sendIntentMessage = async (
@@ -122,7 +131,8 @@ export const sendIntentMessage = async (
     intent: string,
     parameters: any,
     onProgress?: (payload: any) => void,
-    commerceState?: any
+    commerceState?: any,
+    onChunk?: (text: string) => void
 ) => {
     return fetchStream({
         message,
@@ -130,7 +140,7 @@ export const sendIntentMessage = async (
         intent,
         parameters,
         commerceState,
-    }, onProgress);
+    }, onProgress, onChunk);
 };
 
 // ── Product Selection ─────────────────────────────────────────────────────────
