@@ -24,7 +24,10 @@ const deliverySessionSchema = new mongoose.Schema({
       "WAITING_FOR_CONTACT_NAME",
       "WAITING_FOR_CONTACT_PHONE",
       "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
-      "WAITING_FOR_CANCEL_CHOICE"
+      "WAITING_FOR_CANCEL_CHOICE",
+      "COLLECTING_ADDRESS",
+      "PENDING_CONFIRMATION",
+      "ORDER_CREATED"
     ],
     default: "IDLE"
   },

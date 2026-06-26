@@ -10,6 +10,8 @@ import { parseAddress } from "../services/commerce/addressService.mjs";
 import { handleDeliveryFailure } from "../services/commerce/deliveryRecoveryService.mjs";
 import { startDeliveryFlow, handleAddressInput } from "../services/commerce/deliveryFlowService.mjs";
 import { getDeliverySession } from "../memory/memoryStore.mjs";
+import { createShoppingContext, updateShoppingContextInDB } from "../services/commerce/shoppingContextService.mjs";
+import { setActiveShoppingContext, loadConversationState } from "../services/commerce/conversationStateService.mjs";
 import logger from "../utils/logger.mjs";
 
 // ── Fallback Query Mapping ───────────────────────────────────────────────────
@@ -140,10 +142,16 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
             onProgress?.("FILTERING", "active");
 
+            const filters = parameters.filters || {};
+            const category = filters.category || "";
+            const activeCtx = await createShoppingContext(sessionId, searchQuery, category, filters);
+            if (activeCtx) {
+                await setActiveShoppingContext(sessionId, activeCtx.contextId);
+                await updateShoppingContextInDB(activeCtx.contextId, { viewedProducts: results });
+            }
+
             updateShoppingContext(sessionId, { lastSearchResults: results });
             logger.info(`[SHOPPING CONTEXT] Stored ${results.length} products for session: ${sessionId}`);
-
-            const filters = parameters.filters || {};
             const filteredResults = applyFilters(results, filters);
             logger.info(`[FILTERING] Applied filters: ${JSON.stringify(filters)} | Filtered count: ${filteredResults.length}`);
 
@@ -200,6 +208,12 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
 
             updateShoppingContext(sessionId, { selectedProduct: product });
             logger.info(`[SHOPPING CONTEXT] Selected product: ${product.name} for session: ${sessionId}`);
+
+            // VCSM Integration: Update active context in MongoDB
+            const state = await loadConversationState(sessionId);
+            if (state && state.active_shopping_context) {
+                await updateShoppingContextInDB(state.active_shopping_context, { selectedProduct: product });
+            }
 
             trackInteraction(sessionId, product.id, product.name, product.category, "view").catch(err => {
                 logger.error("[Background Tracking Error] Failed to track select_product:", err);
@@ -318,7 +332,8 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         }
         case INTENTS.CHECK_DELIVERY: {
             const context = getShoppingContext(sessionId);
-            const productId = parameters.productId || parameters.product_id || (context.selectedProduct ? context.selectedProduct.id : null);
+            const memory = getMemory(sessionId);
+            const productId = parameters.productId || parameters.product_id || (context.selectedProduct ? context.selectedProduct.id : (memory.buyNowProduct ? (memory.buyNowProduct.id || memory.buyNowProduct.productId) : null));
             
             let product = null;
             if (productId) {
@@ -327,10 +342,14 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 } catch (e) {
                     if (context.selectedProduct && context.selectedProduct.id === productId) {
                         product = context.selectedProduct;
+                    } else if (memory.buyNowProduct && (memory.buyNowProduct.id === productId || memory.buyNowProduct.productId === productId)) {
+                        product = memory.buyNowProduct;
                     }
                 }
             } else if (context.selectedProduct) {
                 product = context.selectedProduct;
+            } else if (memory.buyNowProduct) {
+                product = memory.buyNowProduct;
             }
 
             const address = parameters.address || parameters.city;
@@ -341,7 +360,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             } else {
                 return await startDeliveryFlow(sessionId, product, lang);
             }
-            }
+        }
 
         default:
             return {

@@ -71,19 +71,20 @@ export function normalizeDeliveryDate(dateStr) {
   }
 
   // ── Already ISO YYYY-MM-DD ────────────────────────────────────────────────
-  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
-    return clean;
+  const isoMatch = clean.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    return isoMatch[0];
   }
 
   // ── YYYY/MM/DD ────────────────────────────────────────────────────────────
-  const ymd = clean.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  const ymd = clean.match(/\b(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})\b/);
   if (ymd) {
     const [, y, m, d] = ymd;
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
   }
 
   // ── DD/MM/YYYY or DD-MM-YYYY ──────────────────────────────────────────────
-  const dmy = clean.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  const dmy = clean.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/);
   if (dmy) {
     const [, d, m, y] = dmy;
     return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;

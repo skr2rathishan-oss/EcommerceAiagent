@@ -354,6 +354,16 @@ async function scenario6_fullPhase3Checkout() {
     t.toLowerCase().includes("summary") || t.toLowerCase().includes("yes") || t.toLowerCase().includes("hari"),
     `got: "${t}"`
   );
+  assert(
+    "Step 6: response payload has correct productId",
+    r && r.productId === "EF_PC_ELEC0V701POD00603",
+    `got productId: "${r?.productId}"`
+  );
+  assert(
+    "Step 6: response payload has valid orderSummary",
+    r && r.orderSummary && r.orderSummary.product && r.orderSummary.product.id === "EF_PC_ELEC0V701POD00603",
+    `got orderSummary product: ${JSON.stringify(r?.orderSummary?.product)}`
+  );
 
   // Step 7: Confirm order with "Yes"
   console.log("  User → \"Yes\"");

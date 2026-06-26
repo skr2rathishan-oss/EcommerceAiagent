@@ -121,12 +121,12 @@ export const useSearch = () => {
               setMessages(prev => [...prev, {
                 role: "ai",
                 text: data.text,
-                type: (data.available && !data.orderSummary) ? "checkout_confirmation" : undefined,
+                type: (data.available && !data.orderSummary && !data.isConversational) ? "checkout_confirmation" : undefined,
                 orderSummary: data.orderSummary
               }]);
               if (data.available) {
                 // Ensure we have lastCheckedDelivery for the confirmation card
-                setLastCheckedDelivery(prev => prev || { city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
+                setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
               } else {
                 setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
                 if (data.alternativeCities) setNearbyCitiesSuggested(data.alternativeCities);

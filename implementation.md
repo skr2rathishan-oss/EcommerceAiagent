@@ -1,920 +1,787 @@
-# Velora Delivery System — Phase 3 Implementation Plan
+# Velora Conversation State Manager (VCSM)
 
-## Contact Details Collection + Final Order Summary + Manual Order Confirmation
+# Phase 5 – Intelligent Shopping Context Memory & Conversation Resume
+
+## Implementation Plan
+
+---
+
+# Objective
+
+Implement a **Conversation State Manager** that allows Velora to intelligently manage multiple shopping conversations while preserving an active delivery process.
+
+Instead of treating every user message independently, Velora should understand the user's current activity, previous shopping sessions, and pending orders.
+
+This feature transforms Velora from a chatbot into a true conversational shopping assistant.
+
+---
+
+# Primary Goals
+
+The Conversation State Manager should enable Velora to:
+
+* Remember unfinished shopping searches
+* Remember pending orders waiting for confirmation
+* Resume previous shopping sessions
+* Prevent users from accidentally abandoning an active delivery process
+* Allow browsing after an order reaches the confirmation stage
+* Restore unfinished conversations after page refresh or login
+* Persist conversation state in MongoDB
+
+---
+
+# Overall Architecture
+
+```
+User Message
+      │
+      ▼
+Conversation State Manager
+      │
+      ├── Delivery Session Manager
+      ├── Shopping Context Manager
+      ├── Pending Order Manager
+      ├── Conversation Memory
+      └── Intent Router
+```
+
+Every incoming message must first pass through the **Conversation State Manager** before reaching the normal intent router.
+
+---
+
+# Phase 1 – MongoDB Conversation Storage
 
 ## Objective
 
-Extend the current delivery flow so that **after address and delivery date are confirmed and delivery availability is successful**, Velora will:
-
-1. collect the **contact name**
-2. collect the **phone number**
-3. validate both fields
-4. generate a **full order summary**
-5. ask the user to manually confirm the order by replying **Yes / Y**
-6. place the order only after explicit confirmation
-7. handle **No / Cancel** gracefully in Sri Lankan conversational style
-
-This phase turns the delivery flow into a complete **address → date → delivery check → customer details → order summary → confirmation → order creation** journey.
+Create persistent storage for delivery sessions and shopping contexts.
 
 ---
 
-# 1. Final Flow for This Phase
+## Collections
 
-## Target happy path
+### 1. delivery_sessions
 
-User selects a product
-↓
-Velora asks for delivery address
-↓
-Address Intelligence cleans + confirms address
-↓
-Velora asks for delivery date
-↓
-Velora runs `kapruka_check_delivery`
-↓
-Delivery available
-↓
-Velora asks for **contact name**
-↓
-Velora asks for **phone number**
-↓
-Velora shows **full order summary**
-↓
-Velora asks user to reply **Yes / Y** to confirm
-↓
-User sends **Yes**
-↓
-Velora calls `kapruka_create_order`
-↓
-Velora shows order success + payment link
+Stores delivery-related information.
 
----
+Example fields:
 
-# 2. Scope of Phase 3
-
-## In Scope
-
-* collect contact name after successful delivery check
-* collect contact phone number after contact name
-* validate Sri Lankan mobile numbers
-* store customer details in delivery session
-* build a final order summary using:
-
-  * product
-  * confirmed address
-  * delivery date
-  * delivery fee
-  * contact name
-  * phone number
-* ask for explicit confirmation via text reply:
-
-  * Yes / Y
-* create order only after confirmation
-* handle “No” / cancel gracefully
-
-## Out of Scope
-
-Do not add these in this phase:
-
-* gift messages
-* recipient intelligence
-* occasion flow
-* multiple quantities / cart logic
-* payment status polling
-* edit specific order fields from summary screen
-* advanced OTP / phone verification
-
----
-
-# 3. Updated Delivery Session Schema
-
-Add customer details + final confirmation state to the delivery session.
-
-```ts
-type DeliverySession = {
-  session_id: string;
-  session_version: number;
-
-  state:
-    | "IDLE"
-    | "WAITING_FOR_ADDRESS"
-    | "WAITING_FOR_ADDRESS_CONFIRMATION"
-    | "WAITING_FOR_DATE"
-    | "CHECKING_DELIVERY"
-    | "WAITING_FOR_CONTACT_NAME"
-    | "WAITING_FOR_CONTACT_PHONE"
-    | "WAITING_FOR_FINAL_ORDER_CONFIRMATION"
-    | "CREATING_ORDER"
-    | "PAYMENT_PENDING"
-    | "COMPLETED"
-    | "CANCELLED"
-    | "WAITING_FOR_RECOVERY_CHOICE";
-
-  selected_product: {
-    product_id: string;
-    product_name: string;
-    price?: number;
-    category?: string;
-    quantity?: number;
-  } | null;
-
-  raw_address: string | null;
-  cleaned_address: string | null;
-  normalized_address: string | null;
-  address_confidence: number | null;
-
-  house_number: string | null;
-  street: string | null;
-  area: string | null;
-  city: string | null;
-  postal_code: string | null;
-
-  delivery_date: string | null;
-  delivery_available: boolean | null;
-  delivery_fee: number | null;
-
-  contact_name: string | null;
-  contact_phone: string | null;
-
-  order_summary_text: string | null;
-
-  alternative_dates: string[];
-  nearest_cities: string[];
-  alternative_products: Array<any>;
-
-  order_id: string | null;
-  payment_link: string | null;
-
-  created_at: string;
-  updated_at: string;
-};
-```
-
----
-
-# 4. New Delivery States for This Phase
-
-Add these new states:
-
-## `WAITING_FOR_CONTACT_NAME`
-
-Used after successful delivery validation.
-
-## `WAITING_FOR_CONTACT_PHONE`
-
-Used after valid contact name is collected.
-
-## `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
-
-Used after order summary is shown and Velora is waiting for:
-
-* Yes
-* Y
-* No
-* Cancel
-
----
-
-# 5. Backend Files to Update
-
-## A) `chat.controller.mjs`
-
-Add new state handling for:
-
-* `WAITING_FOR_CONTACT_NAME`
-* `WAITING_FOR_CONTACT_PHONE`
-* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
-
-This file will intercept the user’s reply at each stage and route it correctly.
-
----
-
-## B) `deliveryFlowService.mjs`
-
-Add new functions for contact collection and final confirmation flow.
-
-Suggested functions:
-
-```js
-handleContactNameInput(session, rawName)
-handleContactPhoneInput(session, rawPhone)
-buildOrderSummary(session)
-handleFinalOrderConfirmation(session, userReply)
-confirmAndCreateOrder(session)
-```
-
----
-
-## C) `order.service.mjs`
-
-Update the create-order payload mapping so it uses:
-
-* confirmed normalized delivery address
-* confirmed city
-* confirmed delivery date
-* contact name
-* contact phone
-
-This service should remain the only place that maps Velora session data into Kapruka’s order payload format.
-
----
-
-# 6. Phase 3 State-by-State Flow
-
-# State 1 — Delivery Success → Ask Contact Name
-
-## Trigger
-
-Delivery address is confirmed
-AND delivery date is confirmed
-AND `kapruka_check_delivery` returned success
-
-## Action
-
-Move session to:
-
-```js
-state = "WAITING_FOR_CONTACT_NAME"
-```
-
-## Agent message
-
-Use Sri Lankan-style friendly tone:
-
-### English Sri Lankan style
-
-“Good news 🎉 Delivery is available for this item.
-
-Now I just need the **contact name** for the order 😊
-Please send the name of the person we should contact for delivery.”
-
-### Sinhala mixed
-
-“Hari hari 🎉 me item eka deliver karanna puluwan.
-
-Dan mata **contact name eka** one order eka complete karanna 😊
-Delivery ekata contact karanna ona nama danna please.”
-
-### Tamil mixed
-
-“Super 🎉 indha item-ku delivery panna mudiyum.
-
-Ippo order complete panna **contact name** venum 😊
-Delivery-ku contact panna vendiya name anuppunga.”
-
----
-
-# State 2 — Contact Name Input
-
-## Input expected
-
-A normal human name.
-
-Examples:
-
-* Nimal Perera
-* A. Yogathas
-* Kiruthika
-* M. Sivanesan
-
-## Validation rules
-
-For V1 keep it simple:
-
-### Accept if:
-
-* trimmed length >= 2
-* not purely numeric
-* not obviously invalid like:
-
-  * `12345`
-  * `----`
-  * empty string
-
-### If valid
-
-Save:
-
-```js
-contact_name = cleanedName
-state = "WAITING_FOR_CONTACT_PHONE"
-```
-
-Then ask for phone number.
-
----
-
-## If invalid
-
-Stay in:
-
-```js
-state = "WAITING_FOR_CONTACT_NAME"
-```
-
-## Agent message
-
-“Aiyoo 😅 that doesn’t look like a valid contact name.
-
-Please send the **name of the person receiving the delivery**.
-Example: **Nimal Perera**”
-
----
-
-# State 3 — Ask Contact Phone Number
-
-## Agent message
-
-### English Sri Lankan style
-
-“Perfect 😊 Now send me the **contact phone number** for the delivery.
-
-Example: **0771234567**”
-
-### Sinhala mixed
-
-“Perfect 😊 dan **contact phone number eka** danna.
-
-Example: **0771234567**”
-
-### Tamil mixed
-
-“Seri 😊 ippo **contact phone number** anuppunga.
-
-Example: **0771234567**”
-
----
-
-# State 4 — Contact Phone Input
-
-## Validation goal
-
-Accept valid Sri Lankan mobile numbers.
-
-### Accept these formats in V1
-
-* `0771234567`
-* `0712345678`
-* `+94771234567`
-* `94771234567`
-
-### Normalize into one internal format
-
-Recommended normalized format:
-
-```text
-0771234567
-```
-
----
-
-# 7. Phone Validation Rules
-
-Create a helper:
-
-```js
-normalizeSriLankanPhoneNumber(rawPhone)
-```
-
-## Rules
-
-1. Remove spaces, hyphens, parentheses
-2. Convert:
-
-   * `+94771234567` → `0771234567`
-   * `94771234567` → `0771234567`
-3. Accept only Sri Lankan mobile patterns such as:
-
-```regex
-^0(70|71|72|74|75|76|77|78)\d{7}$
-```
-
-You can extend later if needed.
-
----
-
-## If phone is valid
-
-Save:
-
-```js
-contact_phone = normalizedPhone
-state = "WAITING_FOR_FINAL_ORDER_CONFIRMATION"
-```
-
-Then build and send the order summary.
-
----
-
-## If phone is invalid
-
-Stay in:
-
-```js
-state = "WAITING_FOR_CONTACT_PHONE"
-```
-
-## Agent message
-
-“Aiyoo 😅 that phone number doesn’t look right.
-
-Please send a valid Sri Lankan mobile number like:
-**0771234567**”
-
----
-
-# 8. Build Final Order Summary
-
-After contact name + phone are valid, generate the final order summary.
-
-## Summary must include
-
-### Product details
-
-* product name
-* quantity (default 1 if single-item flow)
-
-### Delivery details
-
-* full confirmed normalized address
-* delivery city
+* session_id
+* user_id
+* product
+* delivery address
 * delivery date
+* contact details
 * delivery fee
+* order status
+* payment link
+* created_at
+* updated_at
 
-### Customer contact details
+Status values:
 
-* contact name
-* phone number
-
----
-
-# 9. Final Order Summary Message Format
-
-## English Sri Lankan style
-
-“🎉 Everything is ready machan / 😊
-
-Here’s your order summary — please check it once before I place the order 👇
-
-**Product:** {product_name}
-**Delivery Address:** {normalized_address}
-**Delivery City:** {city}
-**Delivery Date:** {delivery_date_human}
-**Delivery Fee:** LKR {delivery_fee}
-**Contact Name:** {contact_name}
-**Phone Number:** {contact_phone}
-
-If everything looks good, just reply with **Yes** or **Y** and I’ll place the order for you.
-
-If you don’t want to continue, reply **No**.”
+* COLLECTING_ADDRESS
+* WAITING_FOR_ADDRESS_CONFIRMATION
+* WAITING_FOR_DATE
+* CHECKING_DELIVERY
+* WAITING_FOR_CONTACT_NAME
+* WAITING_FOR_CONTACT_PHONE
+* PENDING_CONFIRMATION
+* ORDER_CREATED
+* PAYMENT_PENDING
+* COMPLETED
+* CANCELLED
 
 ---
 
-## Sinhala mixed style
+### 2. shopping_contexts
 
-“🎉 Hari hari, okkoma ready 😊
+Stores unfinished shopping sessions.
 
-Me order summary eka poddak check karala balanna 👇
+Each shopping search becomes one document.
 
-**Product:** {product_name}
-**Delivery Address:** {normalized_address}
-**Delivery City:** {city}
-**Delivery Date:** {delivery_date_human}
-**Delivery Fee:** LKR {delivery_fee}
-**Contact Name:** {contact_name}
-**Phone Number:** {contact_phone}
+Example:
 
-Okkoma hari nam **Yes** hari **Y** hari reply karanna — mama order eka place karannam.
+```
+Gaming Laptop Search
 
-Continue karanna epa nam **No** kiyanna.”
-
----
-
-## Tamil mixed style
-
-“🎉 Super, ellam ready 😊
-
-Order summary oru thadava check pannunga 👇
-
-**Product:** {product_name}
-**Delivery Address:** {normalized_address}
-**Delivery City:** {city}
-**Delivery Date:** {delivery_date_human}
-**Delivery Fee:** LKR {delivery_fee}
-**Contact Name:** {contact_name}
-**Phone Number:** {contact_phone}
-
-Ellam correct-na **Yes** illa **Y** nu reply pannunga — naan order place pannuren.
-
-Continue panna vendaam-na **No** nu sollunga.”
-
----
-
-# 10. Final Confirmation Input Rules
-
-When state = `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
-
-## Accept as confirmation
-
-* `yes`
-* `y`
-* `Yes`
-* `Y`
-* `yes machan`
-* `hari`
-* `ow`
-
-For V1, I recommend handling at least:
-
-* yes
-* y
-* no
-
-You can add Sinhala/Tamil local confirmations later.
-
----
-
-## If user confirms with Yes / Y
-
-Move to:
-
-```js
-state = "CREATING_ORDER"
+Status:
+PAUSED
 ```
 
-Then call `kapruka_create_order`.
+Fields:
+
+* context_id
+* user_id
+* search_query
+* category
+* filters
+* viewed_products
+* selected_product
+* status
+* created_at
+* updated_at
+* expires_at
+
+Status values:
+
+* ACTIVE
+* PAUSED
+* RESUMABLE
+* COMPLETED
+* CANCELLED
+* EXPIRED
 
 ---
 
-## If user says No
+### 3. conversation_state
 
-Do **not** place the order.
+One document per user.
 
-Move to a cancel / correction response.
+Purpose:
 
----
+Store only references to currently active conversations.
 
-# 11. “No” / Cancel Response Behavior
+Example:
 
-If user replies **No**, Velora should respond politely and keep the conversation alive.
-
-## Suggested behavior
-
-For Phase 3, keep it simple:
-
-### Agent message — English Sri Lankan style
-
-“No worries 😊 I haven’t placed the order yet.
-
-If you want, I can help you with one of these:
-
-**A.** Change the delivery details
-**B.** Start over with another product”
-
----
-
-### Sinhala mixed
-
-“Awulak ne 😊 mama thama order eka place kale ne.
-
-Oyata ona nam me deken ekak karamu:
-
-**A.** Delivery details wenas karamu
-**B.** Aluthin wena product ekak balamu”
-
----
-
-### Tamil mixed
-
-“Parava illa 😊 naan innum order place pannala.
-
-Neenga venumna idhula onnu pannalaam:
-
-**A.** Delivery details maathalaam
-**B.** Pudusa vera product paakalaam”
-
----
-
-# 12. Recommended No/Cancel Routing
-
-## If user chooses A after No
-
-Go back to the delivery flow at the appropriate point.
-
-### Minimum recommended behavior
-
-Restart from:
-
-```js
-state = "WAITING_FOR_ADDRESS"
 ```
-
-if you want the simplest implementation.
-
-### Better behavior
-
-Ask what they want to change:
-
-* address
-* date
-* phone number
-
-That can be a later improvement.
-
----
-
-## If user chooses B after No
-
-Clear the delivery session and return to product search / browsing flow.
-
----
-
-# 13. Create Order Payload for This Phase
-
-When user confirms Yes / Y, build the order payload using the already confirmed session data.
-
-## Required payload structure
-
-```json
 {
-  "items": [
-    {
-      "product_id": "CAKE123",
-      "quantity": 1
-    }
-  ],
-  "recipient_name": "Nimal Perera",
-  "delivery_address": "No 25, Temple Road, Wellawatte, Colombo 06",
-  "delivery_city": "Colombo",
-  "delivery_date": "2026-06-30",
-  "contact_phone": "0771234567"
+    active_delivery_session,
+    pending_order,
+    active_shopping_context,
+    paused_contexts:[]
 }
 ```
 
-### Mapping rules
-
-* `recipient_name` ← `contact_name`
-* `delivery_address` ← `normalized_address`
-* `delivery_city` ← `city`
-* `delivery_date` ← `delivery_date`
-* `contact_phone` ← `contact_phone`
+This becomes the first document loaded whenever the user sends a message.
 
 ---
 
-# 14. Order Success Message
+# Phase 2 – Conversation State Manager
 
-If `kapruka_create_order` succeeds:
+Create:
 
-Save:
+```
+conversationStateService.mjs
+```
 
-* `order_id`
-* `payment_link`
-* `state = "PAYMENT_PENDING"`
+Responsibilities:
 
-## Agent message — English Sri Lankan style
+* Load user conversation state
+* Save state
+* Determine active session
+* Determine conversation priority
+* Route incoming messages
 
-“🎉 Order eka ready!
+Functions:
 
-**Order ID:** {order_id}
-**Product:** {product_name}
-**Delivery To:** {normalized_address}
-**Delivery Date:** {delivery_date_human}
+```
+loadConversationState()
 
-Here’s your payment link 👇
-{payment_link}”
+saveConversationState()
 
----
+getActiveDelivery()
 
-# 15. Order Error Handling
+getPendingOrder()
 
-If order creation fails:
+getShoppingContexts()
 
-Do not destroy the delivery session.
+setActiveShoppingContext()
 
-Keep:
+setPendingOrder()
 
-* address
-* date
-* contact name
-* contact phone
-* selected product
+clearPendingOrder()
 
-## Agent message
-
-“Sorry 😔 I couldn’t place the order right now.
-
-But don’t worry — your details are still saved.
-If you want, send **Yes** again and I’ll retry the order.”
-
----
-
-# 16. Backend Functions to Add
-
-## In `deliveryFlowService.mjs`
-
-```js
-handleContactNameInput(session, rawName)
-handleContactPhoneInput(session, rawPhone)
-normalizeSriLankanPhoneNumber(rawPhone)
-buildOrderSummary(session)
-handleFinalOrderConfirmation(session, userReply)
-confirmAndCreateOrder(session)
+clearConversationState()
 ```
 
 ---
 
-# 17. `chat.controller.mjs` Updates
+# Phase 3 – Shopping Context Manager
 
-Add state handlers for:
+Create:
 
-* `WAITING_FOR_CONTACT_NAME`
-* `WAITING_FOR_CONTACT_PHONE`
-* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+```
+shoppingContextService.mjs
+```
 
-Flow logic:
+Responsibilities
 
-## After successful delivery check
+* Create shopping contexts
+* Pause contexts
+* Resume contexts
+* Complete contexts
+* Remove expired contexts
+* Detect duplicate searches
 
-→ ask contact name
+Functions
 
-## After valid name
+```
+createShoppingContext()
 
-→ ask phone
+pauseShoppingContext()
 
-## After valid phone
+resumeShoppingContext()
 
-→ send order summary + ask for Yes/Y
+completeShoppingContext()
 
-## If Yes
+expireShoppingContext()
 
-→ create order
+findMatchingContext()
 
-## If No
-
-→ send change/restart options
-
----
-
-# 18. Frontend Work for This Phase
-
-## `ChatInterface.tsx`
-
-Render:
-
-* contact name request message
-* phone request message
-* final order summary card/message
-* final confirmation prompt
-* order success message
-
-## Optional improvement
-
-Create an `OrderSummaryCard.tsx` component to render the final summary cleanly inside chat.
+restoreShoppingContext()
+```
 
 ---
 
-# 19. Test Plan for Phase 3
+# Phase 4 – Conversation Priority Engine
 
-## Test 1 — Happy path
+Every incoming message follows this priority order.
 
-1. product selected
-2. address confirmed
-3. date confirmed
-4. delivery available
-5. enter valid contact name
-6. enter valid phone number
-7. summary shown
-8. user sends Yes
-9. order created successfully
+Priority 1
 
----
+Pending Order Confirmation
 
-## Test 2 — Invalid contact name
+↓
 
-1. delivery success
-2. user sends invalid name like `1234`
-3. system rejects and asks again
-4. user sends valid name
-5. flow continues
+Priority 2
 
----
+Active Delivery Session
 
-## Test 3 — Invalid phone number
+↓
 
-1. valid name entered
-2. user sends invalid phone
-3. system rejects and asks again
-4. user sends valid Sri Lankan mobile
-5. summary shown
+Priority 3
 
----
+Active Shopping Context
 
-## Test 4 — User says No at summary stage
+↓
 
-1. summary shown
-2. user replies No
-3. order is not created
-4. change/restart options shown
+Priority 4
+
+Paused Shopping Context
+
+↓
+
+Priority 5
+
+Small Talk / General Questions
+
+Only one priority handles the message.
 
 ---
 
-## Test 5 — Order creation failure
+# Phase 5 – Delivery Protection
 
-1. full summary confirmed with Yes
-2. create order fails
-3. session remains intact
-4. retry is possible
+If delivery is collecting:
 
----
+* address
+* delivery date
+* contact name
+* phone number
 
-# 20. Implementation Order
+Velora should not allow new shopping.
 
-## Milestone 1
+Example
 
-Add new session fields:
+User:
 
-* `contact_name`
-* `contact_phone`
-* `order_summary_text`
+"Show me laptops."
 
-Add new states:
+Velora:
 
-* `WAITING_FOR_CONTACT_NAME`
-* `WAITING_FOR_CONTACT_PHONE`
-* `WAITING_FOR_FINAL_ORDER_CONFIRMATION`
+😊 We're almost done with your current order.
 
----
+Let's finish this first.
 
-## Milestone 2
-
-Implement contact name collection + validation.
+If you'd like to cancel it, just let me know and I'll help you search for something else.
 
 ---
 
-## Milestone 3
+# Phase 6 – Pending Order Mode
 
-Implement phone number normalization + validation.
+Once the Order Summary has been shown,
 
----
+Delivery Status becomes:
 
-## Milestone 4
+```
+PENDING_CONFIRMATION
+```
 
-Build final order summary generator.
+Conversation lock is removed.
 
----
+The user can now:
 
-## Milestone 5
+* browse products
+* compare products
+* ask questions
+* continue previous searches
+* have normal conversations
 
-Implement Yes / Y / No final confirmation logic.
-
----
-
-## Milestone 6
-
-Connect `kapruka_create_order` using the confirmed session data.
-
----
-
-## Milestone 7
-
-Implement order success / failure responses.
+The pending order remains safely stored.
 
 ---
 
-# 21. Definition of Done
+# Phase 7 – Pending Order Reminder
 
-Phase 3 is complete only if:
+If the user starts browsing while a pending order exists,
 
-* after delivery availability success, Velora asks for contact name
-* valid contact name is stored in session
-* Velora asks for contact phone number
-* Sri Lankan mobile number validation works
-* Velora shows a full order summary with all client details
-* Velora explicitly asks the user to reply **Yes / Y** to confirm
-* order is created only after Yes / Y
-* if user says No, order is not created and Velora offers next actions
-* order success returns order ID + payment link
-* order creation failure does not destroy the session
+Velora should only remind them once.
+
+Example
+
+😊 By the way, your Chocolate Cake order is still waiting for confirmation.
+
+Whenever you're ready, simply type **Yes** and I'll place the order.
+
+After this reminder,
+
+continue browsing normally.
+
+Do not repeatedly interrupt the user.
 
 ---
 
-# Final Goal of Phase 3
+# Phase 8 – Shopping Context Resume
 
-By the end of this phase, Velora should support this complete conversational order flow:
+Whenever a new search arrives,
 
-**User:** I want this cake
-**Velora:** Please send the delivery address
-**User:** no25 temple rd wellawatte col 6
-**Velora:** I found this address — No 25, Temple Road, Wellawatte, Colombo 06. Is this correct?
-**User:** Yes
-**Velora:** When would you like it delivered?
-**User:** Tomorrow
-**Velora:** Good news! Delivery is available. What’s the contact name for this order?
-**User:** Nimal Perera
-**Velora:** Great 😊 Now send the contact phone number.
-**User:** 0771234567
-**Velora:** Here’s your order summary. If everything looks good, reply Yes or Y to place the order.
-**User:** Yes
-**Velora:** Your order is ready. Here’s your payment link.
+check MongoDB for matching shopping contexts.
 
-That will complete the first full **address → delivery check → customer details → manual order confirmation → order creation** journey for Velora.
+Example
+
+Existing Context
+
+Gaming Laptop
+
+User later types
+
+"Laptop"
+
+Instead of creating another search,
+
+Velora should respond
+
+😊 Welcome back!
+
+We were already looking at Gaming Laptops earlier.
+
+Would you like to:
+
+A. Continue the previous search
+
+B. Start a new search
+
+---
+
+# Phase 9 – Resume Previous Search
+
+If user selects
+
+A
+
+Restore:
+
+* search query
+* filters
+* viewed products
+* selected products
+
+Continue browsing naturally.
+
+---
+
+# Phase 10 – Start New Search
+
+If user selects
+
+B
+
+Close previous shopping context.
+
+Create a brand-new context.
+
+Continue product search.
+
+---
+
+# Phase 11 – Small Talk Handling
+
+Small talk should never destroy shopping contexts.
+
+Examples
+
+* Hi
+* Thank you
+* Tell me a joke
+* What's the weather?
+* How are you?
+
+Answer normally.
+
+After answering,
+
+continue the active shopping or delivery session.
+
+---
+
+# Phase 12 – Pending Order Confirmation
+
+If the user types
+
+```
+Yes
+```
+
+or
+
+```
+Y
+```
+
+Conversation State Manager checks:
+
+```
+Pending Order Exists?
+```
+
+YES
+
+↓
+
+Call
+
+```
+kapruka_create_order()
+```
+
+NO
+
+↓
+
+Treat "Yes" as a normal conversation reply.
+
+---
+
+# Phase 13 – Order Cancellation
+
+If user says
+
+* Cancel order
+* Don't place it
+* Never mind
+
+Clear:
+
+* pending order
+* delivery session
+
+Keep:
+
+* shopping contexts
+
+Example
+
+😊 No worries.
+
+I've cancelled your pending order.
+
+What would you like to do next?
+
+---
+
+# Phase 14 – Context Similarity Detection
+
+Before creating a new shopping context,
+
+compare:
+
+* category
+* keywords
+* search intent
+
+Examples
+
+Existing
+
+Gaming Laptop
+
+Incoming
+
+Laptop
+
+Gaming ASUS Laptop
+
+Best Laptop for Gaming
+
+These should all match the existing shopping context.
+
+---
+
+# Phase 15 – Context Expiration
+
+Automatically clean old contexts.
+
+Shopping Context
+
+Paused
+
+↓
+
+Expire after
+
+2 Hours
+
+Completed
+
+↓
+
+Delete after
+
+24 Hours
+
+Pending Orders
+
+↓
+
+Keep until
+
+* Order placed
+* Cancelled
+* Timeout reached
+
+---
+
+# Phase 16 – Browser Refresh Recovery
+
+If user refreshes the application,
+
+load
+
+conversation_state
+
+↓
+
+restore
+
+* pending delivery
+* pending order
+* paused shopping contexts
+
+Velora should continue naturally without asking the user to start over.
+
+---
+
+# Phase 17 – Cross Device Support
+
+If the same user logs in from another device,
+
+load conversation_state
+
+↓
+
+restore
+
+active delivery
+
+shopping contexts
+
+pending orders
+
+Conversation continues seamlessly.
+
+---
+
+# Backend Components
+
+Create
+
+```
+conversationStateService.mjs
+```
+
+Create
+
+```
+shoppingContextService.mjs
+```
+
+Update
+
+```
+contextEngine.mjs
+```
+
+Update
+
+```
+intentRouter.mjs
+```
+
+Update
+
+```
+chat.controller.mjs
+```
+
+---
+
+# Suggested Backend Functions
+
+Conversation State
+
+```
+loadConversationState()
+
+saveConversationState()
+
+getHighestPriorityContext()
+
+getPendingOrder()
+
+setPendingOrder()
+
+clearPendingOrder()
+```
+
+Shopping Context
+
+```
+createContext()
+
+pauseContext()
+
+resumeContext()
+
+completeContext()
+
+expireContext()
+
+findMatchingContext()
+
+restoreContext()
+```
+
+---
+
+# Testing Scenarios
+
+Scenario 1
+
+Gaming Laptop Search
+
+↓
+
+Cake Delivery
+
+↓
+
+Pending Order
+
+↓
+
+Browse Watches
+
+↓
+
+Return to Laptop
+
+↓
+
+Resume Prompt Appears
+
+---
+
+Scenario 2
+
+Pending Cake Order
+
+↓
+
+Browse Laptops
+
+↓
+
+Type
+
+Yes
+
+↓
+
+Cake Order Placed
+
+---
+
+Scenario 3
+
+Browser Refresh
+
+↓
+
+Conversation Restored
+
+---
+
+Scenario 4
+
+Login From Another Device
+
+↓
+
+Conversation Restored
+
+---
+
+Scenario 5
+
+Search Same Category Again
+
+↓
+
+Resume Prompt Appears
+
+---
+
+Scenario 6
+
+Small Talk During Shopping
+
+↓
+
+Conversation Continues Normally
+
+↓
+
+Shopping Context Preserved
+
+---
+
+# Definition of Done
+
+✓ Delivery sessions persist in MongoDB.
+
+✓ Shopping contexts persist in MongoDB.
+
+✓ Pending orders survive browser refresh.
+
+✓ Users can browse while an order is waiting for confirmation.
+
+✓ Previous shopping searches can be resumed.
+
+✓ Duplicate shopping contexts are detected.
+
+✓ Resume prompts work correctly.
+
+✓ Conversation state restores after reconnect.
+
+✓ Expired contexts are cleaned automatically.
+
+✓ Conversation State Manager becomes the single source of truth for every incoming user message.
+
+---
+
+# Final Goal
+
+Velora should behave like a real human shopping assistant.
+
+It should remember what the customer was shopping for, safely pause and resume conversations, preserve pending orders, and allow users to move naturally between shopping and checkout without losing progress.
+
+The result is a premium conversational commerce experience that feels intelligent, organized, and personalized while remaining technically scalable and easy to extend.

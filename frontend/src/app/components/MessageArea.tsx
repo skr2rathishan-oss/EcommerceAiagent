@@ -60,6 +60,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   const { displayedCounts, setDisplayedCounts, setMessages, setActiveDetailsProduct } = useApp();
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const lastScrolledProductIdRef = useRef<string | null>(null);
 
   const [voiceStates, setVoiceStates] = useState<Record<number, 'idle' | 'generating' | 'playing' | 'error'>>({});
   const [voiceErrors, setVoiceErrors] = useState<Record<number, string>>({});
@@ -136,9 +137,10 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   };
 
   useEffect(() => {
-    const activeProductId = Object.values(selectedIds).find(id => id !== null && id !== undefined);
+    const activeProductId = Object.values(selectedIds).find(id => id !== null && id !== undefined) || null;
 
-    if (activeProductId) {
+    if (activeProductId && activeProductId !== lastScrolledProductIdRef.current) {
+      lastScrolledProductIdRef.current = activeProductId;
       const t = setTimeout(() => {
         const productEl = document.getElementById(`product-slot-${activeProductId}`);
         if (productEl) {
@@ -147,6 +149,9 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
       }, 100);
       return () => clearTimeout(t);
     } else {
+      if (!activeProductId) {
+        lastScrolledProductIdRef.current = null;
+      }
       const el = scrollRef.current;
       if (!el) return;
       el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });

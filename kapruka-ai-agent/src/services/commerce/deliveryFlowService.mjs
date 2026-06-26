@@ -1,4 +1,6 @@
 import { getDeliverySession, updateDeliverySession } from "../../memory/memoryStore.mjs";
+import { saveConversationState, loadConversationState } from "./conversationStateService.mjs";
+import { completeShoppingContext } from "./shoppingContextService.mjs";
 import { parseAddress } from "./addressService.mjs";
 import { checkDelivery } from "./delivery.service.mjs";
 import { createOrder } from "./order.service.mjs";
@@ -29,6 +31,7 @@ export async function startDeliveryFlow(sessionId, product, lang = "en") {
   } : null;
 
   const session = await getDeliverySession(sessionId);
+  await saveConversationState(sessionId, { active_delivery_session: sessionId });
   
   await updateDeliverySession(sessionId, {
     state: "WAITING_FOR_ADDRESS",
@@ -215,8 +218,13 @@ export async function handleDateInput(session, dateText, lang = "en") {
     }
 
     return {
-      type: "text",
-      text: successMsg
+      type: "delivery_result",
+      text: successMsg,
+      available: true,
+      city,
+      deliveryDate: normalizedDate,
+      productId,
+      isConversational: true
     };
   } else {
     const failureResult = await handleDeliveryFailure(city, normalizedDate, productId, lang);
@@ -257,10 +265,19 @@ export async function handleRecoveryChoice(session, choice, lang = "en") {
 
     const prefix = getDeliverySelectedCityPrefix(selectedCity, lang);
     
+    let updatedAddress = session.normalized_address;
+    if (session.city && selectedCity && session.normalized_address) {
+      const cityRegex = new RegExp(session.city, "gi");
+      updatedAddress = session.normalized_address.replace(cityRegex, selectedCity);
+    } else if (selectedCity) {
+      updatedAddress = [session.house_number, session.street, session.area, selectedCity].filter(Boolean).join(", ");
+    }
+
     // Transition to checking delivery
     let updates = {
       state: "CHECKING_DELIVERY",
-      city: selectedCity
+      city: selectedCity,
+      normalized_address: updatedAddress
     };
     let updated = await updateDeliverySession(session.sessionId, updates, session.session_version);
     if (!updated) return null;
@@ -288,8 +305,13 @@ export async function handleRecoveryChoice(session, choice, lang = "en") {
         successMsg += "Good news! 🎉 Delivery is available for this item.\n\nNow I just need the **contact name** for the order. 😊\nPlease send the name of the person we should contact for delivery.";
       }
       return {
-        type: "text",
-        text: successMsg
+        type: "delivery_result",
+        text: successMsg,
+        available: true,
+        city: selectedCity,
+        deliveryDate: date,
+        productId,
+        isConversational: true
       };
     } else {
       const failureResult = await handleDeliveryFailure(selectedCity, date, productId, lang);
@@ -445,6 +467,8 @@ export async function handleContactPhoneInput(session, phoneText, lang = "en") {
   const updated = await updateDeliverySession(session.sessionId, updates, session.session_version);
   if (!updated) return null;
 
+  await saveConversationState(session.sessionId, { pending_order: session.sessionId });
+
   const summaryText = buildOrderSummary(updated, lang);
   const orderSummary = buildOrderSummaryPayload(updated);
 
@@ -562,7 +586,9 @@ If you don’t want to continue, reply **No**.`;
 
 export async function handleFinalOrderConfirmation(session, choice, lang = "en") {
   const lowerMsg = choice.toLowerCase().trim();
-  const isYes = lowerMsg === "yes" || lowerMsg === "y" || lowerMsg === "yes machan" || lowerMsg === "hari" || lowerMsg === "ow" || lowerMsg === "okay" || lowerMsg === "ok";
+  const isYes = ["yes", "y", "hari", "ow", "yes machan", "confirm", "place the order", "place order", "confirm the order", "yes, place", "yes please", "ok", "okay"].some(
+    word => lowerMsg === word || lowerMsg.startsWith(word + " ") || lowerMsg.endsWith(" " + word) || lowerMsg.includes("yes ") || lowerMsg.includes("confirm ") || lowerMsg.includes("place ")
+  );
   const isNo = lowerMsg === "no" || lowerMsg === "n" || lowerMsg === "cancel" || lowerMsg === "stop" || lowerMsg === "epa" || lowerMsg === "epa machan" || lowerMsg === "na";
 
   if (isYes) {
@@ -723,6 +749,18 @@ export async function confirmAndCreateOrder(session, lang = "en") {
     };
     updated = await updateDeliverySession(session.sessionId, orderSuccessUpdates, freshSession.session_version);
     if (!updated) return null;
+
+    // Complete shopping context if active
+    const state = await loadConversationState(session.sessionId);
+    if (state && state.active_shopping_context) {
+      await completeShoppingContext(session.sessionId, state.active_shopping_context);
+    }
+
+    await saveConversationState(session.sessionId, { 
+      active_delivery_session: session.sessionId, 
+      pending_order: null,
+      active_shopping_context: null
+    });
 
     let successText = "";
     if (lang === "si") {

@@ -15,12 +15,32 @@ import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
 import { memoryExtractor } from "../memory/memoryExtractor.mjs";
-import { mergeToProfile, getDeliverySession } from "../memory/memoryStore.mjs";
+import { mergeToProfile, getDeliverySession, updateDeliverySession } from "../memory/memoryStore.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
 import { getContext } from "../services/core/logger.service.mjs";
 import { cacheService } from "../cache/cacheService.mjs";
 import { extractContext as localExtractContext } from "../ai/context/contextExtractor.mjs";
 import { localDetectLanguage, detectLanguageFromHistory } from "../utils/language.utils.mjs";
+import {
+  loadConversationState,
+  saveConversationState,
+  getActiveDelivery,
+  getPendingOrder,
+  getShoppingContexts,
+  setActiveShoppingContext,
+  setPendingOrder,
+  clearPendingOrder,
+  clearConversationState
+} from "../services/commerce/conversationStateService.mjs";
+import {
+  createShoppingContext,
+  pauseShoppingContext,
+  resumeShoppingContext,
+  completeShoppingContext,
+  findMatchingContext,
+  restoreShoppingContext,
+  updateShoppingContextInDB
+} from "../services/commerce/shoppingContextService.mjs";
 import {
   handleAddressInput,
   handleAddressConfirmation,
@@ -53,9 +73,6 @@ import {
   logError,
 } from "../utils/velora.console.mjs";
 
-// ───────────────────────────────────────────────────────────────────────────────
-// CHAT CONTROLLER  — with live step-by-step terminal logging
-// ───────────────────────────────────────────────────────────────────────────────
 export const chat = async (req, res) => {
   const requestStart = Date.now();
   const context = getContext();
@@ -98,8 +115,6 @@ export const chat = async (req, res) => {
     }
 
     // ── Step 1: Log incoming message ───────────────────────────────────────────
-    // Language detection is now handled natively by Gemini via the system prompt.
-    // We still do a quick Unicode check for logging purposes only.
     const logLang = localDetectLanguage(message);
     logIncomingMessage(sessionId, message, logLang);
     logStepDone("Language detected", logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English");
@@ -116,15 +131,45 @@ export const chat = async (req, res) => {
       mergeToProfile(sessionId, extracted).catch(() => { });
     }
 
-    // ── Step 3.5: Delivery Session State Interception (MongoDB-backed) ─────────
+    // ── VCSM Priority Routing and Interception ───────────────────────────────
     const currentLang = localDetectLanguage(message);
     const lowerMsg = message.toLowerCase().trim();
     const memory = getMemory(sessionId);
 
-    // Load the MongoDB-backed delivery session for this user
-    const deliverySession = await getDeliverySession(sessionId).catch(() => null);
+    // Initial Intent Detection to inform VCSM routing
+    let parsedIntent = { intent: "general_chat", parameters: {} };
+    if (req.body.intent) {
+      parsedIntent = {
+        intent: req.body.intent,
+        parameters: req.body.parameters || {}
+      };
+      intentLabel = parsedIntent.intent;
+    } else {
+      try {
+        const intentResult = await detectIntent(message);
+        const cleanIntent = intentResult
+          .trim()
+          .replace(/^```json\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```\s*$/, "")
+          .trim();
+        parsedIntent = JSON.parse(cleanIntent);
+        intentLabel = parsedIntent.intent;
+      } catch (parseErr) {
+        parsedIntent = { intent: "general_chat", parameters: {} };
+      }
+    }
+
+    // Load ConversationState
+    const userState = await loadConversationState(sessionId);
+    const activeDeliveryId = userState?.active_delivery_session;
+    const pendingOrder = userState?.pending_order;
+
+    // Load delivery session
+    const deliverySession = activeDeliveryId ? await getDeliverySession(activeDeliveryId).catch(() => null) : null;
     const deliveryState = deliverySession?.state;
-    const activeDeliveryStates = [
+
+    const activeCollectingStates = [
       "WAITING_FOR_ADDRESS",
       "WAITING_FOR_ADDRESS_CONFIRMATION",
       "WAITING_FOR_DATE",
@@ -134,16 +179,215 @@ export const chat = async (req, res) => {
       "WAITING_FOR_CONFIRMATION",
       "WAITING_FOR_CONTACT_NAME",
       "WAITING_FOR_CONTACT_PHONE",
-      "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
       "WAITING_FOR_CANCEL_CHOICE"
     ];
 
-    if (deliverySession && activeDeliveryStates.includes(deliveryState)) {
-      logStepDone("Interception", `DeliverySession state: ${deliveryState}`);
+    // If active delivery flow is ongoing, check if the input is a valid flow response.
+    // If so, override general_chat to prevent it being intercepted as small talk.
+    if (deliverySession && activeCollectingStates.includes(deliveryState) && parsedIntent.intent === "general_chat") {
+      const isChoiceInput = ["a", "b", "c", "1", "2", "3", "yes", "no", "y", "n", "hari", "ow", "na", "epa", "confirm", "cancel", "edit"].some(
+        opt => lowerMsg === opt || lowerMsg.startsWith(opt + " ") || lowerMsg.includes("use this") || lowerMsg.includes("start over")
+      );
+
+      let isFlowInput = false;
+      if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION" || 
+          deliveryState === "WAITING_FOR_RECOVERY_CHOICE" || 
+          deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION" || 
+          deliveryState === "WAITING_FOR_CONFIRMATION" || 
+          deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
+        if (isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_DATE") {
+        const dateKeywords = ["today", "tomorrow", "next", "day after", "ada", "heta", "anidda", "indru", "naalai", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        const hasDateKeyword = dateKeywords.some(kw => lowerMsg.includes(kw));
+        const hasDigits = /\d+/.test(lowerMsg);
+        if (hasDateKeyword || hasDigits || isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+        const hasDigits = lowerMsg.replace(/[^0-9]/g, "").length >= 7;
+        if (hasDigits || isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+        const wordCount = lowerMsg.split(/\s+/).length;
+        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
+        if (wordCount <= 3 && !isQuestion) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_ADDRESS") {
+        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
+        const wordCount = lowerMsg.split(/\s+/).length;
+        if (wordCount >= 2 && !isQuestion) {
+          isFlowInput = true;
+        }
+      }
+
+      if (isFlowInput) {
+        parsedIntent.intent = "delivery_flow_input";
+      }
+    }
+
+    // Priority 13: Order Cancellation ("cancel", "don't place it", "never mind", "cancel order", "stop order")
+    const cancellationPhrases = ["cancel order", "don't place it", "never mind", "don't place", "cancel my order", "stop order", "cancel"];
+    const isCancellation = cancellationPhrases.some(phrase => lowerMsg.includes(phrase)) || (deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION" && lowerMsg === "no");
+    if (isCancellation && (pendingOrder || deliverySession)) {
+      logStepDone("Interception", "VCSM: Order Cancellation");
+      await saveConversationState(sessionId, { active_delivery_session: null, pending_order: null });
+      if (deliverySession) {
+        await updateDeliverySession(deliverySession.sessionId, { state: "CANCELLED" }, deliverySession.session_version);
+      }
       setSSEHeaders(res);
+      const cancelText = "😊 No worries. I've cancelled your pending order. What would you like to do next?";
+      saveMessage(sessionId, "assistant", cancelText).catch(() => {});
+      return sendCompleteAndEnd(res, { type: "text", text: cancelText });
+    }
 
+    // Block operations if order is currently being created or payment is pending
+    if (deliverySession && (deliveryState === "CREATING_ORDER" || deliveryState === "PAYMENT_PENDING")) {
+      logStepDone("Interception", `VCSM Order Processing Block. State: ${deliveryState}`);
+      setSSEHeaders(res);
+      let msgText = "😊 We are currently processing your order. Please finish that first.";
+      if (deliveryState === "PAYMENT_PENDING") {
+        msgText = `😊 Your order is currently processing (payment pending). Please complete the payment using the checkout link first. If you would like to cancel this order to do something else, just tell me "cancel".`;
+      } else if (deliveryState === "CREATING_ORDER") {
+        msgText = "😊 We are currently creating your order. Please wait a moment.";
+      }
+      saveMessage(sessionId, "assistant", msgText).catch(() => {});
+      return sendCompleteAndEnd(res, { type: "text", text: msgText });
+    }
+
+    // Priority 3 / 9 / 10 Choice: Shopping Context Resume Choice
+    if (memory.waitingForResumeChoice && memory.resumableContextId) {
+      const contextId = memory.resumableContextId;
+      const isChoiceA = lowerMsg === "a" || lowerMsg === "1" || lowerMsg.includes("continue") || lowerMsg.includes("previous");
+      const isChoiceB = lowerMsg === "b" || lowerMsg === "2" || lowerMsg.includes("new") || lowerMsg.includes("start over");
+
+      if (isChoiceA) {
+        logStepDone("Interception", "VCSM: Resume Previous Search");
+        delete memory.waitingForResumeChoice;
+        delete memory.resumableContextId;
+        updateMemory(sessionId, memory);
+
+        const restored = await resumeShoppingContext(sessionId, contextId);
+        if (restored) {
+          await setActiveShoppingContext(sessionId, contextId);
+          setSSEHeaders(res);
+          const searchResult = await routeIntent("search_products", { query: restored.searchQuery, filters: restored.filters }, sessionId, null, currentLang);
+          
+          let finalPayload = searchResult;
+          if (Array.isArray(searchResult)) {
+            const history = await getRecentHistory(sessionId);
+            const formattedText = await formatRecommendations(message, searchResult, history, voiceMode);
+            finalPayload = { type: "product_grid", text: formattedText, products: searchResult };
+          }
+          
+          const assistantText = extractText(finalPayload);
+          if (assistantText) saveMessage(sessionId, "assistant", assistantText).catch(() => {});
+          return sendCompleteAndEnd(res, finalPayload);
+        }
+      } else if (isChoiceB) {
+        logStepDone("Interception", "VCSM: Start New Search");
+        const pendingQuery = memory.pendingSearchQuery;
+        delete memory.waitingForResumeChoice;
+        delete memory.resumableContextId;
+        delete memory.pendingSearchQuery;
+        updateMemory(sessionId, memory);
+
+        await pauseShoppingContext(sessionId, contextId);
+
+        if (pendingQuery) {
+          const newCtx = await createShoppingContext(sessionId, pendingQuery);
+          await setActiveShoppingContext(sessionId, newCtx.contextId);
+
+          setSSEHeaders(res);
+          const searchResult = await routeIntent("search_products", { query: pendingQuery }, sessionId, null, currentLang);
+          
+          let finalPayload = searchResult;
+          if (Array.isArray(searchResult)) {
+            const history = await getRecentHistory(sessionId);
+            const formattedText = await formatRecommendations(pendingQuery, searchResult, history, voiceMode);
+            finalPayload = { type: "product_grid", text: formattedText, products: searchResult };
+          }
+          
+          const assistantText = extractText(finalPayload);
+          if (assistantText) saveMessage(sessionId, "assistant", assistantText).catch(() => {});
+          return sendCompleteAndEnd(res, finalPayload);
+        }
+        // Continue regular search routing
+      } else {
+        setSSEHeaders(res);
+        const promptText = "Please reply with **A** to continue the previous search or **B** to start a new search.";
+        saveMessage(sessionId, "assistant", promptText).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: promptText });
+      }
+    }
+
+    // Priority 1: Pending Order Confirmation (Yes/Y/Confirm)
+    const isYes = ["yes", "y", "hari", "ow", "yes machan", "confirm", "place the order", "place order", "confirm the order", "yes, place", "yes please", "ok", "okay"].some(
+      word => lowerMsg === word || lowerMsg.startsWith(word + " ") || lowerMsg.endsWith(" " + word) || lowerMsg.includes("yes ") || lowerMsg.includes("confirm ") || lowerMsg.includes("place ")
+    );
+    if (pendingOrder && isYes && deliverySession) {
+      logStepDone("Interception", "VCSM: Pending Order Confirmation");
+      
+      // Clear reminder memory so that future orders can trigger reminders again
+      delete memory.hasRemindedPendingOrder;
+      updateMemory(sessionId, memory);
+
+      setSSEHeaders(res);
+      const serviceResult = await handleFinalOrderConfirmation(deliverySession, message, currentLang);
+      if (serviceResult) {
+        saveMessage(sessionId, "assistant", serviceResult.text || "").catch(() => {});
+      }
+      return sendCompleteAndEnd(res, serviceResult);
+    }
+
+    // Priority 2: Active Delivery Session & Delivery Protection
+    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+      logStepDone("Interception", `VCSM Active Delivery Session state: ${deliveryState}`);
+      
+      // Delivery Protection: Block shopping intents
+      if (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details") {
+        logStepDone("Interception", "VCSM: Delivery Protection Triggered");
+        setSSEHeaders(res);
+        const protectMsg = "😊 We're almost done with your current order. Let's finish this first. If you'd like to cancel it, just let me know and I'll help you search for something else.";
+        saveMessage(sessionId, "assistant", protectMsg).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: protectMsg });
+      }
+
+      // Small Talk / General Chat in Active Delivery
+      if (parsedIntent.intent === "general_chat") {
+        logStepDone("Interception", "VCSM: Small Talk during Active Delivery");
+        const history = await getRecentHistory(sessionId);
+        const memoryState = {
+          ...getShoppingContext(sessionId),
+          ...(memory || {})
+        };
+        const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "" });
+        
+        let promptText = "";
+        if (deliveryState === "WAITING_FOR_ADDRESS") {
+          promptText = "\n\nTo check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+        } else if (deliveryState === "WAITING_FOR_DATE") {
+          promptText = "\n\nGot it 👍 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+        } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+          promptText = "\n\nNow I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+        } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+          promptText = "\n\nPerfect! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
+        } else {
+          promptText = "\n\nPlease continue with your delivery flow.";
+        }
+
+        const combinedText = (typeof chatResult === "string" ? chatResult : chatResult.text || "") + promptText;
+        saveMessage(sessionId, "assistant", combinedText).catch(() => {});
+        setSSEHeaders(res);
+        return sendCompleteAndEnd(res, { type: "text", text: combinedText });
+      }
+
+      // Route to Delivery Flow State Machine
+      setSSEHeaders(res);
       let serviceResult = null;
-
       if (deliveryState === "WAITING_FOR_ADDRESS") {
         serviceResult = await handleAddressInput(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION") {
@@ -152,34 +396,14 @@ export const chat = async (req, res) => {
         serviceResult = await handleDateInput(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_RECOVERY_CHOICE") {
         serviceResult = await handleRecoveryChoice(deliverySession, message, currentLang);
-        if (serviceResult?.type === "similar_products") {
-          const searchResult = await routeIntent("search_products", { query: "gift" }, sessionId, null, currentLang);
-          const prefix = serviceResult.text;
-          if (Array.isArray(searchResult)) {
-            serviceResult = { type: "product_grid", text: prefix, products: searchResult };
-          } else if (searchResult && typeof searchResult === "object") {
-            serviceResult = { ...searchResult, text: prefix + "\n\n" + (searchResult.text || "") };
-          }
-        }
       } else if (deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION") {
         serviceResult = await handleCancelOptions(deliverySession, message, currentLang);
-        if (serviceResult?.type === "similar_products") {
-          const searchResult = await routeIntent("search_products", { query: "gift" }, sessionId, null, currentLang);
-          const prefix = serviceResult.text;
-          if (Array.isArray(searchResult)) {
-            serviceResult = { type: "product_grid", text: prefix, products: searchResult };
-          } else if (searchResult && typeof searchResult === "object") {
-            serviceResult = { ...searchResult, text: prefix + "\n\n" + (searchResult.text || "") };
-          }
-        }
       } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
         serviceResult = await handleCheckoutConfirmation(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
         serviceResult = await handleContactNameInput(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
         serviceResult = await handleContactPhoneInput(deliverySession, message, currentLang);
-      } else if (deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
-        serviceResult = await handleFinalOrderConfirmation(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
         serviceResult = await handleCancelChoice(deliverySession, message, currentLang);
       }
@@ -189,79 +413,49 @@ export const chat = async (req, res) => {
         saveMessage(sessionId, "assistant", staleMsg).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: staleMsg });
       }
-
-      const resultText = serviceResult?.text || "";
-      if (resultText) saveMessage(sessionId, "assistant", resultText).catch(() => {});
+      if (serviceResult.text) saveMessage(sessionId, "assistant", serviceResult.text).catch(() => {});
       return sendCompleteAndEnd(res, serviceResult);
     }
 
+    // Priority 3: Shopping Context Resume Detection
+    if (parsedIntent.intent === "search_products") {
+      const searchQuery = parsedIntent.parameters.query || parsedIntent.parameters.q;
+      if (searchQuery) {
+        const matchingCtx = await findMatchingContext(sessionId, searchQuery);
+        if (matchingCtx && matchingCtx.contextId !== userState.active_shopping_context) {
+          logStepDone("Interception", `VCSM: Found matching context ${matchingCtx.contextId}`);
+          memory.waitingForResumeChoice = true;
+          memory.resumableContextId = matchingCtx.contextId;
+          memory.pendingSearchQuery = searchQuery;
+          updateMemory(sessionId, memory);
 
-
-    // ── Step 4: Direct intent from frontend (fast path) ───────────────────────
-    if (req.body.intent) {
-      logStepDone("Intent (direct)", req.body.intent);
-      intentLabel = req.body.intent;
-
-      setSSEHeaders(res);
-      const updateProgress = createProgressUpdater(res, [
-        { id: "UNDERSTANDING", title: "Processing request", status: "active", details: [] }
-      ]);
-      updateProgress("UNDERSTANDING", "completed");
-
-      const history = await getRecentHistory(sessionId);
-      const directLang = detectLanguageFromHistory(history);
-      const directResult = await routeIntent(req.body.intent, req.body.parameters || {}, sessionId, null, directLang);
-
-      const assistantText = extractText(directResult);
-      if (assistantText) {
-        saveMessage(sessionId, "assistant", assistantText)
-          .then((u) => { if (u) checkAndTriggerSummarization(sessionId, u.messages.length).catch(() => { }); })
-          .catch(() => { });
+          setSSEHeaders(res);
+          const resumePrompt = `😊 Welcome back!\n\nWe were already looking at ${matchingCtx.searchQuery} earlier.\n\nWould you like to:\n\n**A.** Continue the previous search\n**B.** Start a new search`;
+          saveMessage(sessionId, "assistant", resumePrompt).catch(() => {});
+          return sendCompleteAndEnd(res, { type: "text", text: resumePrompt });
+        }
       }
-      logRequestFooter(intentLabel, Date.now() - requestStart, "—");
-      return sendCompleteAndEnd(res, directResult);
     }
 
-    // ── Step 5: Intent Detection ──────────────────────────────────────────────
-    setSSEHeaders(res);
-    let parsedIntent = { intent: "general_chat", parameters: {} };
-
-    // Initial SSE progress placeholder
-    res.write(`data: ${JSON.stringify({
-      type: "progress",
-      step: "UNDERSTANDING",
-      message: "Understanding request...",
-      logs: [{ id: "UNDERSTANDING", title: "Understanding request", status: "active", details: [] }]
-    })}\n\n`);
-
-    logStepStart("Intent detection");
-    let intentMs = 0;
-    try {
-      const intentStart = Date.now();
-      const intentResult = await detectIntent(message);
-      intentMs = Date.now() - intentStart;
-      recordIntentDetection(intentMs);
-
-      // Strip markdown code fences Gemini sometimes adds (```json ... ```)
-      const cleanIntent = intentResult
-        .trim()
-        .replace(/^```json\s*/i, "")
-        .replace(/^```\s*/i, "")
-        .replace(/```\s*$/, "")
-        .trim();
-
-      parsedIntent = JSON.parse(cleanIntent);
-      intentLabel = parsedIntent.intent;
-      logStepDone("Intent detection", `${parsedIntent.intent}  (${intentMs}ms)`);
-    } catch (parseErr) {
-      logStepError("Intent detection", parseErr.message);
-      parsedIntent = { intent: "general_chat", parameters: {} };
+    // Priority 7: Pending Order Reminder Check
+    let shouldAddReminder = false;
+    let reminderText = "";
+    if (pendingOrder && (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details")) {
+      if (!memory.hasRemindedPendingOrder) {
+        memory.hasRemindedPendingOrder = true;
+        updateMemory(sessionId, memory);
+        
+        const pendingSession = await getDeliverySession(pendingOrder).catch(() => null);
+        const pendingProduct = pendingSession?.selected_product?.product_name || "item";
+        reminderText = `😊 By the way, your **${pendingProduct}** order is still waiting for confirmation. Whenever you're ready, simply type **Yes** and I'll place the order.\n\n`;
+        shouldAddReminder = true;
+      }
     }
 
     // ── Step 5b: Context Extraction ───────────────────────────────────────────
     logStepStart("Context extraction");
+    setSSEHeaders(res);
 
-    // Update frontend UI that we are extracting context
     if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({
         type: "progress",
@@ -281,7 +475,6 @@ export const chat = async (req, res) => {
       const cleanCtx = ctxRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
       extractedContext = JSON.parse(cleanCtx);
 
-      // Merge deterministic local pattern-based context
       try {
         const localCtx = localExtractContext(message);
         if (localCtx) {
@@ -308,7 +501,6 @@ export const chat = async (req, res) => {
       logStepDone("Context extraction", `(${ctxMs}ms)`);
       logContextExtracted(extractedContext);
 
-      // Build detail tags from extracted context for the SSE UI
       const ctxDetails = [];
       if (extractedContext.conversationLanguage) ctxDetails.push(`Language: ${extractedContext.conversationLanguage}`);
       if (extractedContext.recipient) ctxDetails.push(`Recipient: ${extractedContext.recipient}`);
@@ -318,7 +510,6 @@ export const chat = async (req, res) => {
       if (extractedContext.deliveryLocation) ctxDetails.push(`Location: ${extractedContext.deliveryLocation}`);
       if (extractedContext.urgency) ctxDetails.push(`Urgency: ${extractedContext.urgency}`);
 
-      // Tell the frontend that context extraction is done
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({
           type: "progress",
@@ -331,7 +522,6 @@ export const chat = async (req, res) => {
         })}\n\n`);
       }
 
-      // Merge into parsedIntent
       if (parsedIntent.intent === "search_products" && extractedContext) {
         parsedIntent.parameters = parsedIntent.parameters || {};
         parsedIntent.parameters.filters = parsedIntent.parameters.filters || {};
@@ -352,7 +542,6 @@ export const chat = async (req, res) => {
       }
     } catch (err) {
       logStepError("Context extraction", err.message);
-      // Still notify frontend to move on
       if (!res.writableEnded) {
         res.write(`data: ${JSON.stringify({
           type: "progress",
@@ -381,7 +570,7 @@ export const chat = async (req, res) => {
     const memoryMs = Date.now() - memoryStart;
     logStepDone("Memory retrieval", `${memoryContext ? "profile loaded" : "no profile"}  (${memoryMs}ms)`);
 
-    // ── Step 7: Cache check (for product searches) ────────────────────────────
+    // ── Step 7: Cache check ───────────────────────────────────────────────────
     let cacheKey = null;
     if (parsedIntent.intent === "search_products" && parsedIntent.parameters?.query) {
       cacheKey = `velora:search:${sessionId}:${parsedIntent.parameters.query}`.toLowerCase().replace(/\s+/g, "_");
@@ -409,13 +598,13 @@ export const chat = async (req, res) => {
       logStepStart("LLM generation", "Gemini 2.5 Flash");
       const history = await getRecentHistory(sessionId);
       await addMessage(sessionId, "user", message);
-      const memory = {
+      const memoryState = {
         ...getShoppingContext(sessionId),
         ...(extractedContext || {})
       };
 
       const llmStart = Date.now();
-      result = await chatWithLLM({ message, history, memory, memoryContext });
+      result = await chatWithLLM({ message, history, memory: memoryState, memoryContext });
       const llmMs = Date.now() - llmStart;
 
       if (typeof result === "string") {
@@ -462,6 +651,9 @@ export const chat = async (req, res) => {
         text = await formatRecommendations(message, result, history, voiceMode);
         logStepDone("Formatting done", `${result.length} products`);
       }
+      if (shouldAddReminder) {
+        text = reminderText + text;
+      }
       await addMessage(sessionId, "assistant", text);
       finalPayload = { type: "product_grid", text, products: result };
     } else if (result?.type) {
@@ -475,11 +667,21 @@ export const chat = async (req, res) => {
           logStepDone("Formatting suggested done");
         }
         result.text = text;
+        if (shouldAddReminder) {
+          result.text = reminderText + result.text;
+        }
         await addMessage(sessionId, "assistant", result.text || "");
+      }
+      if (shouldAddReminder && result.text) {
+        result.text = reminderText + result.text;
       }
       finalPayload = result;
     } else if (typeof result === "string") {
-      finalPayload = { type: "text", text: result };
+      let text = result;
+      if (shouldAddReminder) {
+        text = reminderText + text;
+      }
+      finalPayload = { type: "text", text };
     } else {
       finalPayload = result;
     }
@@ -499,9 +701,7 @@ export const chat = async (req, res) => {
         .catch(() => { });
     }
 
-    // ── Final console summary ─────────────────────────────────────────────────
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);
-
     return sendCompleteAndEnd(res, finalPayload);
 
   } catch (error) {
