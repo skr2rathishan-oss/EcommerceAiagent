@@ -4,7 +4,7 @@ version: "3.8"
 services:
   backend:
     build:
-      context: ./backend
+      context: ./kapruka-ai-agent
       dockerfile: Dockerfile
 
     container_name: velora-backend
@@ -12,8 +12,12 @@ services:
     ports:
       - "5000:5000"
 
+    env_file:
+      - ./kapruka-ai-agent/.env
+
     environment:
       GOOGLE_CLOUD_PROJECT: spheric-algebra-499718-r2
+      GOOGLE_CLOUD_LOCATION: global
 
     restart: always
 
