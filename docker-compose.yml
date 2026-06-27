@@ -1,22 +1,4 @@
 services:
-  caddy:
-    image: caddy:2
-    container_name: velora-caddy
-    restart: always
-
-    ports:
-      - "80:80"
-      - "443:443"
-
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-
-    depends_on:
-      - frontend
-      - backend
-
   backend:
     build:
       context: ./kapruka-ai-agent
@@ -24,8 +6,8 @@ services:
 
     container_name: velora-backend
 
-    expose:
-      - "5000"
+    ports:
+      - "5000:5000"
 
     env_file:
       - ./kapruka-ai-agent/.env
@@ -45,14 +27,10 @@ services:
 
     container_name: velora-frontend
 
-    expose:
-      - "80"
+    ports:
+      - "80:80"
 
     depends_on:
       - backend
 
     restart: always
-
-volumes:
-  caddy_data:
-  caddy_config:
