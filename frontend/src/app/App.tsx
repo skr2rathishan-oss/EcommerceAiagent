@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart, Menu, ChevronDown, Bell } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
@@ -12,7 +12,6 @@ import { useCart } from "./contexts/CartContext";
 import { useWishlist } from "./contexts/WishlistContext";
 import { useConcierge } from "./hooks/useConcierge";
 import { Sidebar } from "./components/Sidebar";
-import { TopNavbar } from "./components/TopNavbar";
 import { MessageArea } from "./components/MessageArea";
 import { ChatInputBox } from "./components/ChatInputBox";
 import { VoiceDashboard } from "./components/VoiceDashboard";
@@ -87,7 +86,7 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
       whileHover={{ y: -3, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 6px 18px rgba(64, 41, 112, 0.06)" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 mx-auto"
+      className="w-[130px] md:w-[160px] flex-shrink-0 mx-auto"
       style={{
         background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
         backdropFilter: "blur(10px)",
@@ -232,6 +231,7 @@ function MainApp() {
   const { removeFromCart } = useCart();
   const {
     phase, setPhase,
+    sidebarOpen, setSidebarOpen,
     activePanel, setActivePanel,
     anchorPos, setAnchorPos,
     value, setValue,
@@ -276,6 +276,21 @@ function MainApp() {
     setNearbyCitiesSuggested,
     setIsCartCheckout
   } = useApp();
+
+
+
+  const [profileOpen, setProfileOpen] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (profileOpen && profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [profileOpen]);
 
   const {
     handleProductSelect,
@@ -446,6 +461,18 @@ function MainApp() {
       setPhase("centered");
       setMessages([]);
       setValue("");
+      setActiveScreen("chat");
+      return;
+    }
+    if (label === "Recent Conversations") {
+      setActiveScreen("chat");
+    }
+    if (label === "Cart") {
+      setActiveScreen("cart");
+      return;
+    }
+    if (label === "Wishlist") {
+      setActiveScreen("wishlist");
       return;
     }
     if (activePanel === label) {
@@ -488,41 +515,192 @@ function MainApp() {
 
       {/* Main */}
       <div className="flex-1 flex flex-col relative overflow-hidden min-h-0">
+        {/* Floating Header Bar */}
+        <div
+          className="absolute top-6 left-0 right-0 z-30 w-full select-none"
+          style={{ height: 48 }}
+        >
+          <div className="w-full px-4 md:px-8 flex items-center justify-between">
+            {/* Left Side: Hamburger trigger + Logo */}
+            <div className="flex items-center gap-3">
 
 
+              <div
+                onClick={() => {
+                  setPhase("centered");
+                  setMessages([]);
+                  setValue("");
+                  setActiveScreen("chat");
+                }}
+                className="flex items-center gap-2.5 cursor-pointer group"
+                title="Go to Home"
+              >
+                <img
+                  src="/logo.png"
+                  alt="Velora"
+                  className="object-contain group-hover:scale-102 transition-transform duration-200"
+                  style={{
+                    height: 32,
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
+            </div>
 
-        <TopNavbar
-          onTrackOrder={(orderNumber) => {
-            if (phase === "centered") setPhase("bottom");
-            setMessages(prev => [...prev, { role: "user", text: `Track order ${orderNumber}` }]);
-            // Re-trigger standard track search
-            const getSessionId = () => sessionStorage.getItem("velora_session_id") || "default";
-            setIsTyping(true);
-            fetch("/api/orders/track", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "x-session-id": getSessionId() },
-              body: JSON.stringify({ orderNumber })
-            })
-              .then(res => res.json())
-              .then(data => {
-                setMessages(prev => [...prev, {
-                  role: "ai",
-                  type: "order_tracking",
-                  text: `Here is the current tracking status for order **${orderNumber}**:`,
-                  tracking: data
-                }]);
-              })
-              .catch(err => {
-                setMessages(prev => [...prev, {
-                  role: "ai",
-                  type: "order_tracking_error",
-                  text: `❌ ${err.message || "Failed to retrieve order status"}`,
-                  orderNumber
-                }]);
-              })
-              .finally(() => setIsTyping(false));
-          }}
-        />
+            {/* Right Side: Notification Bell + Profile Button */}
+            <AnimatePresence>
+              {phase === "centered" && (
+                <motion.div
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-6"
+                >
+                  {/* Notification Bell */}
+                  <button
+                    type="button"
+                    className="relative flex items-center justify-center text-[#7c4dba] hover:bg-[rgba(124,77,186,0.06)] transition-all"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 12,
+                      border: "none",
+                      background: "transparent",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Bell size={20} strokeWidth={2} />
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 9,
+                        right: 9,
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: "#ec4899",
+                      }}
+                    />
+                  </button>
+
+                  {/* Profile Dropdown Button */}
+                  <div ref={profileRef} className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setProfileOpen(o => !o)}
+                      className="flex items-center gap-2.5"
+                      style={{
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      {/* Avatar */}
+                      <div
+                        style={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: "50%",
+                          background: "linear-gradient(135deg, #a855f7, #7c3aed)",
+                          color: "#ffffff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontWeight: 700,
+                          fontSize: 15,
+                          fontFamily: "'Nunito', sans-serif",
+                          flexShrink: 0,
+                          boxShadow: "0 2px 8px rgba(124, 77, 186, 0.22)",
+                        }}
+                      >
+                        V
+                      </div>
+                      {/* User Info Text */}
+                      <div className="hidden sm:flex flex-col text-left justify-center">
+                        <span style={{ fontSize: 9.5, fontWeight: 600, color: "#9e8dc0", lineHeight: 1.1 }}>Welcome back,</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: "#1a1025", fontFamily: "'Nunito', sans-serif", display: "flex", alignItems: "center", gap: 3 }}>
+                          Velora User <ChevronDown size={12} strokeWidth={2.5} color="#9e8dc0" />
+                        </span>
+                      </div>
+                    </button>
+
+                    <AnimatePresence>
+                      {profileOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 6px)",
+                            right: 0,
+                            width: 210,
+                            background: "rgba(255, 255, 255, 0.98)",
+                            backdropFilter: "blur(20px)",
+                            borderRadius: 14,
+                            border: "1px solid rgba(124, 77, 186, 0.18)",
+                            boxShadow: "0 10px 30px rgba(64, 41, 112, 0.12)",
+                            zIndex: 100,
+                            padding: "10px 12px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, borderBottom: "1px solid rgba(64, 41, 112, 0.08)", paddingBottom: 8 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#f0ebfa", color: "#7c4dba", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13 }}>
+                              V
+                            </div>
+                            <div style={{ minWidth: 0, textAlign: "left" }}>
+                              <h5 style={{ color: "#1a1025", fontSize: 12.5, fontWeight: 800, margin: 0, fontFamily: "'Nunito', sans-serif" }}>Velora User</h5>
+                              <p style={{ color: "#7c6a9e", fontSize: 10, margin: 0, overflow: "hidden", textOverflow: "ellipsis", fontFamily: "'Nunito', sans-serif" }}>user@velora.ai</p>
+                            </div>
+                          </div>
+
+                          <div style={{ display: "flex", flexDirection: "column", gap: 4, textAlign: "left" }}>
+                            <button
+                              onClick={(e) => {
+                                setProfileOpen(false);
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setAnchorPos({ x: rect.left - 10, y: rect.bottom + 10 });
+                                setActivePanel("Profile");
+                              }}
+                              className="px-2 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors"
+                              style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, color: "#402970", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+                            >
+                              My Account
+                            </button>
+                            <button
+                              onClick={() => {
+                                setProfileOpen(false);
+                              }}
+                              className="px-2 py-1.5 rounded-lg text-left hover:bg-[#f5f3fa] transition-colors"
+                              style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, color: "#402970", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+                            >
+                              Purchase History
+                            </button>
+                            <button
+                              onClick={() => {
+                                setProfileOpen(false);
+                              }}
+                              className="px-2 py-1.5 rounded-lg text-left hover:bg-[#fff0f3] transition-colors"
+                              style={{ border: "none", background: "transparent", fontSize: 12, fontWeight: 700, color: "#d4183d", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+                            >
+                              Sign Out
+                            </button>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
         {activeScreen === "cart" ? (
           <CartScreen
@@ -551,6 +729,7 @@ function MainApp() {
                   style={{
                     scrollbarWidth: "none",
                     msOverflowStyle: "none",
+                    paddingTop: 84,
                   }}
                 >
                   <style>{`
@@ -564,33 +743,26 @@ function MainApp() {
 
                   {/* Hero Banner Card */}
                   <motion.div
-                    className="hero-banner relative w-full max-w-7xl rounded-3xl border p-6 py-10 md:py-16 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[280px]"
+                    className="hero-banner relative w-full max-w-7xl rounded-3xl border p-6 py-20 md:py-24 md:px-16 mb-4 flex flex-col items-center justify-center overflow-hidden min-h-[380px]"
                     style={{
                       borderColor: "var(--banner-border)",
-                      boxShadow: "0 12px 40px rgba(64, 41, 112, 0.08)",
+                      boxShadow: "0 20px 40px rgba(64, 41, 112, 0.08)",
                     }}
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0, transition: { duration: 0.5 } }}
                   >
                     {/* Content Wrapper */}
                     <div className="relative z-10 w-full max-w-2xl flex flex-col items-center">
-                      <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1"
-                        style={{ color: "var(--text-primary)", fontSize: "clamp(24px, 4.5vw, 36px)", fontWeight: 800, lineHeight: 1.2 }}>
-                        <span className="hidden md:inline">Discover Smart Shopping</span>
+                      <h1 className="text-center font-extrabold tracking-tight mb-2 flex flex-col items-center justify-center gap-1"
+                        style={{ color: "var(--text-primary)", fontSize: "clamp(26px, 4.5vw, 38px)", fontWeight: 800, lineHeight: 1.2 }}>
+                        <span>Discover Smart Shopping</span>
                         <span className="inline-flex items-center gap-1.5 text-[#7c4dba] dark:text-[#bda6ff]">
-                          <span className="inline md:hidden">Shop with</span>
-                          <span className="hidden md:inline">with</span>
-                          Velora <Sparkles size={20} className="text-[#a78bfa]" fill="#a78bfa" />
+                          with Velora <Sparkles size={22} className="text-[#a855f7]" fill="#a855f7" />
                         </span>
                       </h1>
 
-                      <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "460px", lineHeight: 1.5 }}>
-                        <span className="hidden md:inline">
-                          Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find deals</strong>, and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track orders</strong> in one place.
-                        </span>
-                        <span className="inline md:hidden">
-                          Your AI shopping assistant. Ask, compare, and track orders in one place.
-                        </span>
+                      <p className="text-center mb-6" style={{ color: "var(--text-secondary)", fontSize: "14px", maxWidth: "560px", lineHeight: 1.5 }}>
+                        Your <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>intelligent</strong> shopping assistant. Ask questions, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>compare products</strong>, <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>find the best gifts</strong> and <strong style={{ color: "var(--text-primary)", fontWeight: 700 }}>track your orders</strong> — all in one place.
                       </p>
 
                       <div className="w-full">
@@ -734,7 +906,7 @@ function MainApp() {
                       <div
                         ref={scrollContainerRef}
                         onScroll={handleScrollEvent}
-                        className="no-scrollbar grid grid-cols-4 gap-2 md:flex md:gap-5 md:overflow-x-auto"
+                        className="no-scrollbar flex overflow-x-auto gap-3 md:gap-5"
                         style={{
                           padding: "8px 4px 16px",
                           scrollbarWidth: "none",
@@ -746,7 +918,7 @@ function MainApp() {
                           Array.from({ length: 5 }).map((_, i) => (
                             <div
                               key={i}
-                              className="w-full max-w-[140px] md:max-w-none md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
+                              className="w-[130px] md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
                               style={{
                                 borderRadius: 14,
                                 background: "var(--card-bg, rgba(255, 255, 255, 0.4))",

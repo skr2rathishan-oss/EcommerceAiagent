@@ -604,13 +604,18 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
         layout
         style={{
           display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(4, minmax(0, 1fr))" : "repeat(4, 148px)",
+          gridTemplateColumns: isMobile 
+            ? (selectedIndex !== -1 ? "repeat(4, minmax(0, 1fr))" : `repeat(${products.length}, 130px)`)
+            : "repeat(4, 148px)",
           gap: isMobile ? 6 : 10,
           width: "100%",
           maxWidth: isMobile ? "100%" : 622,
           margin: "0 auto",
-          justifyContent: "center",
+          justifyContent: isMobile ? (selectedIndex !== -1 ? "center" : "flex-start") : "center",
+          overflowX: isMobile && selectedIndex === -1 ? "auto" : "visible",
+          scrollbarWidth: "none",
         }}
+        className="no-scrollbar"
       >
         {layoutItems.map(item => {
           const isSelected = item.type === "banner";
