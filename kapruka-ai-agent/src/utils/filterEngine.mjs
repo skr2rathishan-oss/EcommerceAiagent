@@ -236,7 +236,7 @@ export function getSuggestions(products, filters) {
       const catLower = String(filters.category).toLowerCase().trim();
       const synonyms = CATEGORY_SYNONYMS[catLower] || [catLower];
 
-      if (product.category && synonyms.includes(product.category.toLowerCase())) {
+      if (product.category && typeof product.category === "string" && synonyms.includes(product.category.toLowerCase())) {
         isRelated = true;
       } else {
         for (const syn of synonyms) {

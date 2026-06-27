@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// src/services/modelRouter.mjs
+// src/services/ai/modelRouter.mjs
 //
 // Reads AI_MODE from .env (or runtime override) and returns the correct
 // client + model for each role.
@@ -12,32 +12,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import "../../config/loadEnv.mjs";
-import OpenAI        from "openai";
 import { GoogleGenAI } from "@google/genai";
 import { getActiveEnvironment, setRuntimeMode, clearRuntimeMode } from "../../config/aiEnvironment.mjs";
-
-// ── Client Singletons ─────────────────────────────────────────────────────────
-// One instance per external provider — reused across requests.
-
-const nvidiaApiKey = process.env.NVIDIA_API_KEY;
-const generalChatApiKey = process.env.GENERAL_CHAT_API_KEY || nvidiaApiKey;
-
-if (!nvidiaApiKey) {
-  throw new Error(
-    "[ModelRouter] NVIDIA_API_KEY is not set. Copy kapruka-ai-agent/.env.example to .env and add your NVIDIA API key."
-  );
-}
-
-const nvidiaClient = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey:  nvidiaApiKey,
-});
-
-// Separate NVIDIA key for general-chat quota isolation
-const nvidiaGeneralClient = new OpenAI({
-  baseURL: "https://integrate.api.nvidia.com/v1",
-  apiKey:  generalChatApiKey,
-});
+import logger from "../../utils/logger.mjs";
 
 let _geminiClient = null;
 
@@ -48,7 +25,7 @@ export function getGeminiClient() {
   const project = process.env.GOOGLE_CLOUD_PROJECT;
   if (!project) {
     throw new Error(
-      "[ModelRouter] GOOGLE_CLOUD_PROJECT is not set. Required when AI_MODE is staging or production."
+      "[ModelRouter] GOOGLE_CLOUD_PROJECT is not set. Required for Gemini AI."
     );
   }
 
@@ -64,10 +41,8 @@ export function getGeminiClient() {
 // ── Provider → Client resolution ──────────────────────────────────────────────
 
 function resolveClient(provider, role) {
-  if (provider === "gemini") return getGeminiClient();
-  // For NVIDIA: general-chat uses its own quota key
-  if (role === "generalChat") return nvidiaGeneralClient;
-  return nvidiaClient;
+  // We only use Gemini now.
+  return getGeminiClient();
 }
 
 // ── Role Getters ──────────────────────────────────────────────────────────────
@@ -104,12 +79,7 @@ export const getSummaryModel        = () => getModelForRole("summary");
 // ── Runtime mode management (forwarded from aiEnvironment) ────────────────────
 export { setRuntimeMode, clearRuntimeMode };
 
-// ── Raw client exports (for health checks etc.) ───────────────────────────────
-export { nvidiaClient, nvidiaGeneralClient };
-
 // ── Retry + Fallback Helpers ──────────────────────────────────────────────────
-
-import logger from "../../utils/logger.mjs";
 
 /**
  * Returns true if the error is a Gemini quota/rate-limit error (HTTP 429).
@@ -127,14 +97,12 @@ function isRateLimitError(err) {
 
 /**
  * Retries a Gemini call up to maxRetries times with exponential backoff.
- * On persistent failure, invokes the fallback function.
  *
  * @param {Function} geminiCall   - async () => string
- * @param {Function} nvidiaCb     - async () => string (fallback)
  * @param {number}   maxRetries   - default 2
  * @returns {Promise<string>}
  */
-async function withGeminiFallback(geminiCall, nvidiaCb, maxRetries = 2) {
+async function withGeminiRetry(geminiCall, maxRetries = 2) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await geminiCall();
@@ -146,16 +114,9 @@ async function withGeminiFallback(geminiCall, nvidiaCb, maxRetries = 2) {
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        // Exhausted retries — fall back to NVIDIA
-        logger.warn("[ModelRouter] Gemini quota exhausted after retries. Falling back to NVIDIA NIM.");
-        try {
-          return await nvidiaCb();
-        } catch (nvErr) {
-          logger.error(`[ModelRouter] NVIDIA fallback also failed: ${nvErr.message}`);
-          throw nvErr;
-        }
+        logger.error("[ModelRouter] Gemini quota exhausted after retries.");
       }
-      throw err; // Non-429 error — re-throw immediately
+      throw err; // Non-429 error or exhausted retries — re-throw
     }
   }
 }
@@ -204,7 +165,7 @@ export function getEnvironmentSummary() {
 
 // ── Gemini multi-turn call ────────────────────────────────────────────────────
 /**
- * Calls Gemini generateContent with retry + automatic NVIDIA NIM fallback on 429.
+ * Calls Gemini generateContent with retry.
  *
  * @param {GoogleGenAI}                      client
  * @param {string}                           model
@@ -236,33 +197,12 @@ export async function callGemini(client, model, systemPrompt, messages, userMess
     "Gemini chat"
   ).then(r => r.text);
 
-  // NVIDIA NIM fallback (general-chat model)
-  const nvidiaCb = async () => {
-    logger.info("[ModelRouter] Using NVIDIA NIM fallback for general chat.");
-    const messagesArray = [
-      { role: "system", content: systemPrompt },
-      ...messages,
-      { role: "user", content: userMessage },
-    ];
-    const completion = await withTimeout(
-      nvidiaGeneralClient.chat.completions.create({
-        model:       "meta/llama-3.1-8b-instruct",
-        temperature: 0.8,
-        max_tokens:  4096,
-        messages:    messagesArray,
-      }),
-      LLM_TIMEOUT_MS,
-      "NVIDIA fallback chat"
-    );
-    return completion.choices[0].message.content;
-  };
-
-  return withGeminiFallback(geminiCall, nvidiaCb);
+  return withGeminiRetry(geminiCall);
 }
 
 // ── Gemini single-turn call (intent detection, summaries, insights) ────────────
 /**
- * Calls Gemini single-turn with retry + automatic NVIDIA NIM fallback on 429.
+ * Calls Gemini single-turn with retry.
  *
  * @param {GoogleGenAI} client
  * @param {string}      model
@@ -286,24 +226,5 @@ export async function callGeminiSingleTurn(client, model, systemPrompt, userProm
     "Gemini single-turn"
   ).then(r => r.text);
 
-  // NVIDIA NIM fallback
-  const nvidiaCb = async () => {
-    logger.info("[ModelRouter] Using NVIDIA NIM fallback for single-turn call.");
-    const completion = await withTimeout(
-      nvidiaClient.chat.completions.create({
-        model:       "qwen/qwen3.5-122b-a10b",
-        temperature: options.temperature ?? 0,
-        max_tokens:  options.maxOutputTokens ?? 1000,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user",   content: userPrompt },
-        ],
-      }),
-      LLM_TIMEOUT_MS,
-      "NVIDIA fallback single-turn"
-    );
-    return completion.choices[0].message.content;
-  };
-
-  return withGeminiFallback(geminiCall, nvidiaCb);
+  return withGeminiRetry(geminiCall);
 }

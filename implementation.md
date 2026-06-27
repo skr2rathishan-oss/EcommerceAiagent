@@ -1,787 +1,543 @@
-# Velora Conversation State Manager (VCSM)
-
-# Phase 5 – Intelligent Shopping Context Memory & Conversation Resume
-
-## Implementation Plan
-
----
-
-# Objective
-
-Implement a **Conversation State Manager** that allows Velora to intelligently manage multiple shopping conversations while preserving an active delivery process.
-
-Instead of treating every user message independently, Velora should understand the user's current activity, previous shopping sessions, and pending orders.
-
-This feature transforms Velora from a chatbot into a true conversational shopping assistant.
-
----
-
-# Primary Goals
-
-The Conversation State Manager should enable Velora to:
-
-* Remember unfinished shopping searches
-* Remember pending orders waiting for confirmation
-* Resume previous shopping sessions
-* Prevent users from accidentally abandoning an active delivery process
-* Allow browsing after an order reaches the confirmation stage
-* Restore unfinished conversations after page refresh or login
-* Persist conversation state in MongoDB
-
----
-
-# Overall Architecture
-
-```
-User Message
-      │
-      ▼
-Conversation State Manager
-      │
-      ├── Delivery Session Manager
-      ├── Shopping Context Manager
-      ├── Pending Order Manager
-      ├── Conversation Memory
-      └── Intent Router
-```
-
-Every incoming message must first pass through the **Conversation State Manager** before reaching the normal intent router.
-
----
-
-# Phase 1 – MongoDB Conversation Storage
+# Implementation Plan – Fix Conversation State & Resume Flow
 
 ## Objective
 
-Create persistent storage for delivery sessions and shopping contexts.
+Investigate and resolve incorrect conversation state restoration and shopping session continuation.
+
+The goal is to make Velora behave like a premium shopping concierge by restoring previous shopping sessions **only when the user intends to continue them**.
+
+Current behavior incorrectly resumes previous shopping sessions for unrelated greetings and loses previous search context during continuation.
+
+This is a Conversation State Manager and Response Engine improvement, **not a Prompt OS change**.
 
 ---
 
-## Collections
+# Critical Requirements
 
-### 1. delivery_sessions
+## Preserve Existing Features
 
-Stores delivery-related information.
+Do NOT remove or rewrite:
 
-Example fields:
+* Conversation Understanding Layer
+* Decision Builder
+* Conversation State Manager
+* Response Engine
+* Response Library
+* Memory System
+* MCP Product Search
+* Shopping Flow
+* Delivery Flow
+* Checkout Flow
+* Orders
+* Tracking
+* Voice Mode
+* Streaming
+* Prompt Operating System
 
-* session_id
-* user_id
-* product
-* delivery address
-* delivery date
-* contact details
-* delivery fee
-* order status
-* payment link
-* created_at
-* updated_at
-
-Status values:
-
-* COLLECTING_ADDRESS
-* WAITING_FOR_ADDRESS_CONFIRMATION
-* WAITING_FOR_DATE
-* CHECKING_DELIVERY
-* WAITING_FOR_CONTACT_NAME
-* WAITING_FOR_CONTACT_PHONE
-* PENDING_CONFIRMATION
-* ORDER_CREATED
-* PAYMENT_PENDING
-* COMPLETED
-* CANCELLED
+Maintain full backward compatibility.
 
 ---
 
-### 2. shopping_contexts
+# Current Problems
 
-Stores unfinished shopping sessions.
-
-Each shopping search becomes one document.
+## Issue 1 — Greeting incorrectly restores shopping context
 
 Example:
-
-```
-Gaming Laptop Search
-
-Status:
-PAUSED
-```
-
-Fields:
-
-* context_id
-* user_id
-* search_query
-* category
-* filters
-* viewed_products
-* selected_product
-* status
-* created_at
-* updated_at
-* expires_at
-
-Status values:
-
-* ACTIVE
-* PAUSED
-* RESUMABLE
-* COMPLETED
-* CANCELLED
-* EXPIRED
-
----
-
-### 3. conversation_state
-
-One document per user.
-
-Purpose:
-
-Store only references to currently active conversations.
-
-Example:
-
-```
-{
-    active_delivery_session,
-    pending_order,
-    active_shopping_context,
-    paused_contexts:[]
-}
-```
-
-This becomes the first document loaded whenever the user sends a message.
-
----
-
-# Phase 2 – Conversation State Manager
-
-Create:
-
-```
-conversationStateService.mjs
-```
-
-Responsibilities:
-
-* Load user conversation state
-* Save state
-* Determine active session
-* Determine conversation priority
-* Route incoming messages
-
-Functions:
-
-```
-loadConversationState()
-
-saveConversationState()
-
-getActiveDelivery()
-
-getPendingOrder()
-
-getShoppingContexts()
-
-setActiveShoppingContext()
-
-setPendingOrder()
-
-clearPendingOrder()
-
-clearConversationState()
-```
-
----
-
-# Phase 3 – Shopping Context Manager
-
-Create:
-
-```
-shoppingContextService.mjs
-```
-
-Responsibilities
-
-* Create shopping contexts
-* Pause contexts
-* Resume contexts
-* Complete contexts
-* Remove expired contexts
-* Detect duplicate searches
-
-Functions
-
-```
-createShoppingContext()
-
-pauseShoppingContext()
-
-resumeShoppingContext()
-
-completeShoppingContext()
-
-expireShoppingContext()
-
-findMatchingContext()
-
-restoreShoppingContext()
-```
-
----
-
-# Phase 4 – Conversation Priority Engine
-
-Every incoming message follows this priority order.
-
-Priority 1
-
-Pending Order Confirmation
-
-↓
-
-Priority 2
-
-Active Delivery Session
-
-↓
-
-Priority 3
-
-Active Shopping Context
-
-↓
-
-Priority 4
-
-Paused Shopping Context
-
-↓
-
-Priority 5
-
-Small Talk / General Questions
-
-Only one priority handles the message.
-
----
-
-# Phase 5 – Delivery Protection
-
-If delivery is collecting:
-
-* address
-* delivery date
-* contact name
-* phone number
-
-Velora should not allow new shopping.
-
-Example
 
 User:
 
-"Show me laptops."
-
-Velora:
-
-😊 We're almost done with your current order.
-
-Let's finish this first.
-
-If you'd like to cancel it, just let me know and I'll help you search for something else.
-
----
-
-# Phase 6 – Pending Order Mode
-
-Once the Order Summary has been shown,
-
-Delivery Status becomes:
-
 ```
-PENDING_CONFIRMATION
+Vanakkam
 ```
 
-Conversation lock is removed.
+Current Response:
 
-The user can now:
+```
+Vanakkam!
 
-* browse products
-* compare products
-* ask questions
-* continue previous searches
-* have normal conversations
+We were just looking at chocolates...
+```
 
-The pending order remains safely stored.
+Expected:
 
----
+```
+Vanakkam!
 
-# Phase 7 – Pending Order Reminder
+Welcome to Kapruka.
 
-If the user starts browsing while a pending order exists,
+How can I help you today?
+```
 
-Velora should only remind them once.
-
-Example
-
-😊 By the way, your Chocolate Cake order is still waiting for confirmation.
-
-Whenever you're ready, simply type **Yes** and I'll place the order.
-
-After this reminder,
-
-continue browsing normally.
-
-Do not repeatedly interrupt the user.
+Greeting alone should **never** automatically resume an old shopping session.
 
 ---
 
-# Phase 8 – Shopping Context Resume
+## Issue 2 — Previous search context is lost
 
-Whenever a new search arrives,
+Current:
 
-check MongoDB for matching shopping contexts.
+```
+We were already looking at earlier.
+```
 
-Example
+Expected:
 
-Existing Context
+```
+We were already looking at smartwatches.
 
-Gaming Laptop
+Would you like to continue?
+```
 
-User later types
+The Response Engine is attempting to use previous shopping context, but the required variable is empty or missing.
 
-"Laptop"
-
-Instead of creating another search,
-
-Velora should respond
-
-😊 Welcome back!
-
-We were already looking at Gaming Laptops earlier.
-
-Would you like to:
-
-A. Continue the previous search
-
-B. Start a new search
+Investigate why the previous search query is not being stored or restored correctly.
 
 ---
 
-# Phase 9 – Resume Previous Search
+## Issue 3 — Continue Search uses an empty query
 
-If user selects
+Conversation:
 
+```
+User:
+Show me smartwatches
+
+↓
+
+AI:
+Continue previous search?
+
+↓
+
+User:
 A
 
-Restore:
+↓
 
-* search query
-* filters
-* viewed products
-* selected products
+AI:
+No products found.
+```
 
-Continue browsing naturally.
+Expected:
+
+```
+Continue Previous Search
+
+↓
+
+Retrieve previous query
+
+↓
+
+Search MCP
+
+↓
+
+Return products
+```
+
+Current implementation appears to call MCP using an empty or invalid query.
 
 ---
 
-# Phase 10 – Start New Search
+# Investigation Phase
 
-If user selects
+## Step 1 — Analyze Conversation State Manager
 
-B
+Inspect:
 
-Close previous shopping context.
+* Active Shopping Session
+* Previous Search Query
+* Shopping Context
+* Session Memory
+* Current Stage
 
-Create a brand-new context.
+Determine:
 
-Continue product search.
-
----
-
-# Phase 11 – Small Talk Handling
-
-Small talk should never destroy shopping contexts.
-
-Examples
-
-* Hi
-* Thank you
-* Tell me a joke
-* What's the weather?
-* How are you?
-
-Answer normally.
-
-After answering,
-
-continue the active shopping or delivery session.
+* When sessions are created
+* When sessions expire
+* When sessions are resumed
 
 ---
 
-# Phase 12 – Pending Order Confirmation
+## Step 2 — Analyze Resume Logic
 
-If the user types
+Identify the current resume decision.
 
-```
-Yes
-```
-
-or
+Determine why:
 
 ```
-Y
+Greeting
+
+↓
+
+Resume Shopping
 ```
 
-Conversation State Manager checks:
+is occurring.
+
+Resume should only happen when the user explicitly intends to continue.
+
+---
+
+## Step 3 — Add Resume Intent Detection
+
+Introduce a dedicated decision before restoring shopping state.
+
+Expected logic:
 
 ```
-Pending Order Exists?
-```
+Incoming Message
+
+↓
+
+Greeting?
+
+↓
 
 YES
 
 ↓
 
-Call
+Does user explicitly reference previous shopping?
 
-```
-kapruka_create_order()
-```
+Examples:
+
+continue
+
+same
+
+previous
+
+those
+
+again
+
+last one
+
+resume
+
+↓
+
+YES
+
+Resume Session
+
+↓
 
 NO
 
-↓
+Fresh Greeting
+```
 
-Treat "Yes" as a normal conversation reply.
-
----
-
-# Phase 13 – Order Cancellation
-
-If user says
-
-* Cancel order
-* Don't place it
-* Never mind
-
-Clear:
-
-* pending order
-* delivery session
-
-Keep:
-
-* shopping contexts
-
-Example
-
-😊 No worries.
-
-I've cancelled your pending order.
-
-What would you like to do next?
+This decision should occur before the Conversation State Manager restores shopping context.
 
 ---
 
-# Phase 14 – Context Similarity Detection
+## Step 4 — Analyze Shopping Session Storage
 
-Before creating a new shopping context,
+Verify that the following values are correctly stored:
 
-compare:
+* Previous Search Query
+* Product Category
+* Filters
+* Recipient
+* Budget
+* Occasion
+* Last MCP Query
+* Search Timestamp
 
-* category
-* keywords
-* search intent
-
-Examples
-
-Existing
-
-Gaming Laptop
-
-Incoming
-
-Laptop
-
-Gaming ASUS Laptop
-
-Best Laptop for Gaming
-
-These should all match the existing shopping context.
+Ensure they remain available for continuation.
 
 ---
 
-# Phase 15 – Context Expiration
+## Step 5 — Analyze Continue Search Flow
 
-Automatically clean old contexts.
+Current:
 
-Shopping Context
-
-Paused
+```
+Continue Search
 
 ↓
 
-Expire after
-
-2 Hours
-
-Completed
+Empty Query
 
 ↓
 
-Delete after
-
-24 Hours
-
-Pending Orders
+MCP
 
 ↓
 
-Keep until
+0 Products
+```
 
-* Order placed
-* Cancelled
-* Timeout reached
+Expected:
 
----
-
-# Phase 16 – Browser Refresh Recovery
-
-If user refreshes the application,
-
-load
-
-conversation_state
+```
+Continue Search
 
 ↓
 
-restore
-
-* pending delivery
-* pending order
-* paused shopping contexts
-
-Velora should continue naturally without asking the user to start over.
-
----
-
-# Phase 17 – Cross Device Support
-
-If the same user logs in from another device,
-
-load conversation_state
+Restore Previous Query
 
 ↓
 
-restore
+Validate Query
 
-active delivery
+↓
 
-shopping contexts
+Search MCP
 
-pending orders
+↓
 
-Conversation continues seamlessly.
-
----
-
-# Backend Components
-
-Create
-
-```
-conversationStateService.mjs
-```
-
-Create
-
-```
-shoppingContextService.mjs
-```
-
-Update
-
-```
-contextEngine.mjs
-```
-
-Update
-
-```
-intentRouter.mjs
-```
-
-Update
-
-```
-chat.controller.mjs
+Products
 ```
 
 ---
 
-# Suggested Backend Functions
+## Step 6 — Validate Shopping Context
+
+Before calling MCP verify:
+
+* Previous Search exists
+* Query is not empty
+* Query is valid
+* Shopping session is active
+
+If validation fails:
+
+Do not call MCP.
+
+Instead gracefully ask the customer what they would like to search for.
+
+---
+
+## Step 7 — Session Expiration
+
+Introduce session rules.
+
+Example:
+
+Resume only if:
+
+* Active session exists
+* Session not expired
+* User intends to continue
+
+Otherwise:
+
+Create a fresh shopping flow.
+
+---
+
+## Step 8 — Greeting Rules
+
+Greeting messages should never automatically restore shopping.
+
+Greeting should:
+
+* Welcome customer
+* Introduce Velora
+* Offer shopping assistance
+
+Only restore shopping if Resume Intent Detection returns TRUE.
+
+---
+
+## Step 9 — Logging
+
+Temporarily log:
+
+```
+Incoming Message
+
+↓
+
+Intent
+
+↓
+
+Resume Intent
+
+↓
 
 Conversation State
 
-```
-loadConversationState()
+↓
 
-saveConversationState()
+Previous Search
 
-getHighestPriorityContext()
-
-getPendingOrder()
-
-setPendingOrder()
-
-clearPendingOrder()
-```
+↓
 
 Shopping Context
 
-```
-createContext()
+↓
 
-pauseContext()
+Decision
 
-resumeContext()
+↓
 
-completeContext()
+MCP Query
 
-expireContext()
+↓
 
-findMatchingContext()
-
-restoreContext()
+Gemini Response
 ```
 
----
-
-# Testing Scenarios
-
-Scenario 1
-
-Gaming Laptop Search
-
-↓
-
-Cake Delivery
-
-↓
-
-Pending Order
-
-↓
-
-Browse Watches
-
-↓
-
-Return to Laptop
-
-↓
-
-Resume Prompt Appears
+This should clearly show where incorrect state restoration occurs.
 
 ---
 
-Scenario 2
+# Expected Conversation
 
-Pending Cake Order
+Example 1
 
-↓
-
-Browse Laptops
-
-↓
-
-Type
-
-Yes
+```
+User:
+Vanakkam
 
 ↓
 
-Cake Order Placed
+Greeting
+
+↓
+
+Fresh Greeting
+
+↓
+
+Welcome Message
+```
 
 ---
 
-Scenario 3
+Example 2
 
-Browser Refresh
-
-↓
-
-Conversation Restored
-
----
-
-Scenario 4
-
-Login From Another Device
+```
+User:
+Show me smartwatches
 
 ↓
 
-Conversation Restored
-
----
-
-Scenario 5
-
-Search Same Category Again
+Shopping Search
 
 ↓
 
-Resume Prompt Appears
-
----
-
-Scenario 6
-
-Small Talk During Shopping
+MCP
 
 ↓
 
-Conversation Continues Normally
+Products
+```
+
+---
+
+Example 3
+
+```
+User:
+Continue
 
 ↓
 
-Shopping Context Preserved
+Resume Intent
+
+↓
+
+Restore Previous Search
+
+↓
+
+Search MCP
+
+↓
+
+Products
+```
 
 ---
 
-# Definition of Done
+Example 4
 
-✓ Delivery sessions persist in MongoDB.
+```
+User:
+Show me flowers
 
-✓ Shopping contexts persist in MongoDB.
+↓
 
-✓ Pending orders survive browser refresh.
+New Search
 
-✓ Users can browse while an order is waiting for confirmation.
+↓
 
-✓ Previous shopping searches can be resumed.
+Replace Previous Search
 
-✓ Duplicate shopping contexts are detected.
+↓
 
-✓ Resume prompts work correctly.
+MCP
 
-✓ Conversation state restores after reconnect.
+↓
 
-✓ Expired contexts are cleaned automatically.
+Products
+```
 
-✓ Conversation State Manager becomes the single source of truth for every incoming user message.
+The new search should replace the previous shopping context instead of continuing an unrelated one.
 
 ---
 
-# Final Goal
+# Validation
 
-Velora should behave like a real human shopping assistant.
+Verify:
 
-It should remember what the customer was shopping for, safely pause and resume conversations, preserve pending orders, and allow users to move naturally between shopping and checkout without losing progress.
+✓ Greeting
 
-The result is a premium conversational commerce experience that feels intelligent, organized, and personalized while remaining technically scalable and easy to extend.
+✓ Small Talk
+
+✓ New Shopping Search
+
+✓ Continue Shopping
+
+✓ Previous Search
+
+✓ Session Expiration
+
+✓ Resume Intent
+
+✓ MCP Search
+
+✓ Response Engine
+
+✓ Conversation State
+
+✓ Memory
+
+✓ Streaming
+
+✓ Voice Mode
+
+---
+
+# Completion Criteria
+
+The task is complete only if:
+
+* Greetings no longer resume old shopping sessions.
+* Resume occurs only when the user explicitly intends it.
+* Previous shopping query is correctly stored and restored.
+* Continue Search always uses the correct previous query.
+* MCP never receives an empty search query.
+* New shopping requests replace previous shopping context appropriately.
+* No existing shopping, delivery, checkout, tracking, or voice functionality is broken.
+
+---
+
+# Deliverables
+
+Produce a final report containing:
+
+* Root cause
+* Conversation state changes
+* Resume logic improvements
+* Files modified
+* Validation results
+* Regression test results
+* Confirmation that all existing features remain functional

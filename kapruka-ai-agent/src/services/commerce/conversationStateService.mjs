@@ -3,6 +3,93 @@ import ShoppingContext from "../../database/ShoppingContext.mjs";
 import DeliverySession from "../../database/DeliverySession.mjs";
 import logger from "../../utils/logger.mjs";
 
+/**
+ * Synchronizes legacy fields and new flow fields both ways to guarantee 100% backward compatibility.
+ */
+function syncLegacyFields(stateDoc, updates = {}) {
+  // 1. Inverse Sync: Legacy inputs update the new Flow state
+  if (updates.active_delivery_session !== undefined) {
+    if (updates.active_delivery_session) {
+      stateDoc.activeFlow = {
+        type: "delivery",
+        status: "active",
+        currentStep: stateDoc.activeFlow?.type === "delivery" ? stateDoc.activeFlow.currentStep : "waiting_address"
+      };
+    } else if (stateDoc.activeFlow?.type === "delivery") {
+      stateDoc.activeFlow = {
+        type: "general_chat",
+        status: "active",
+        currentStep: "browsing"
+      };
+    }
+  }
+
+  if (updates.active_shopping_context !== undefined) {
+    if (updates.active_shopping_context) {
+      stateDoc.activeFlow = {
+        type: "shopping",
+        status: "active",
+        currentStep: stateDoc.activeFlow?.type === "shopping" ? stateDoc.activeFlow.currentStep : "searching"
+      };
+      if (!stateDoc.shopping) stateDoc.shopping = {};
+      stateDoc.shopping.activeContextId = updates.active_shopping_context;
+    } else if (stateDoc.activeFlow?.type === "shopping") {
+      stateDoc.activeFlow = {
+        type: "general_chat",
+        status: "active",
+        currentStep: "browsing"
+      };
+    }
+  }
+
+  if (updates.pending_order !== undefined) {
+    if (updates.pending_order) {
+      if (!stateDoc.order) stateDoc.order = {};
+      stateDoc.order.pendingOrderId = updates.pending_order;
+      stateDoc.activeFlow = {
+        type: "checkout",
+        status: "active",
+        currentStep: "payment_pending"
+      };
+    } else {
+      if (stateDoc.order) {
+        stateDoc.order.pendingOrderId = null;
+      }
+      if (stateDoc.activeFlow?.type === "checkout") {
+        stateDoc.activeFlow = {
+          type: "general_chat",
+          status: "active",
+          currentStep: "browsing"
+        };
+      }
+    }
+  }
+
+  // 2. Forward Sync: Active flow state updates the legacy fields
+  if (stateDoc.activeFlow && stateDoc.activeFlow.type === "delivery" && stateDoc.activeFlow.status === "active") {
+    stateDoc.active_delivery_session = stateDoc.sessionId;
+  } else {
+    stateDoc.active_delivery_session = null;
+  }
+
+  if (stateDoc.activeFlow && stateDoc.activeFlow.type === "shopping" && stateDoc.activeFlow.status === "active") {
+    stateDoc.active_shopping_context = stateDoc.shopping?.activeContextId || null;
+  } else {
+    stateDoc.active_shopping_context = null;
+  }
+
+  stateDoc.pending_order = stateDoc.order?.pendingOrderId || null;
+
+  // Mark all Mixed fields modified to ensure mongoose saves them
+  if (stateDoc && typeof stateDoc.markModified === "function") {
+    stateDoc.markModified("activeFlow");
+    stateDoc.markModified("pausedFlows");
+    stateDoc.markModified("shopping");
+    stateDoc.markModified("delivery");
+    stateDoc.markModified("order");
+  }
+}
+
 export async function loadConversationState(sessionId) {
   try {
     let state = await ConversationState.findOne({ sessionId }).lean();
@@ -19,14 +106,150 @@ export async function loadConversationState(sessionId) {
 
 export async function saveConversationState(sessionId, updates) {
   try {
-    const updated = await ConversationState.findOneAndUpdate(
-      { sessionId },
-      { $set: updates },
-      { new: true, upsert: true }
-    );
-    return updated?.toObject() || null;
+    let stateDoc = await ConversationState.findOne({ sessionId });
+    if (!stateDoc) {
+      stateDoc = new ConversationState({ sessionId });
+    }
+
+    // Apply updates
+    for (const [key, val] of Object.entries(updates)) {
+      stateDoc[key] = val;
+    }
+
+    // Sync legacy/flow structures
+    syncLegacyFields(stateDoc, updates);
+
+    await stateDoc.save();
+    return stateDoc.toObject();
   } catch (err) {
     logger.error(`[ConversationState] saveConversationState failed: ${err.message}`);
+    return null;
+  }
+}
+
+export async function transitionTo(sessionId, flowType, step, status = "active") {
+  try {
+    let stateDoc = await ConversationState.findOne({ sessionId });
+    if (!stateDoc) {
+      stateDoc = new ConversationState({ sessionId });
+    }
+
+    const currentFlowType = stateDoc.activeFlow?.type || "general_chat";
+    const currentStatus = stateDoc.activeFlow?.status || "active";
+
+    // If changing flows, and the current flow is active and not general_chat, pause it!
+    if (flowType !== currentFlowType && currentFlowType !== "general_chat" && currentStatus === "active") {
+      const pausedFlow = {
+        type: currentFlowType,
+        status: "paused",
+        reason: "user_interruption",
+        currentStep: stateDoc.activeFlow?.currentStep || "browsing",
+        state: stateDoc[currentFlowType] || {}
+      };
+      
+      stateDoc.pausedFlows = (stateDoc.pausedFlows || []).filter(f => f.type !== currentFlowType);
+      stateDoc.pausedFlows.push(pausedFlow);
+      
+      if (stateDoc[currentFlowType]) {
+        stateDoc[currentFlowType].status = "PAUSED";
+      }
+    }
+
+    stateDoc.activeFlow = {
+      type: flowType,
+      status: status,
+      currentStep: step
+    };
+
+    syncLegacyFields(stateDoc);
+
+    await stateDoc.save();
+    return stateDoc.toObject();
+  } catch (err) {
+    logger.error(`[ConversationState] transitionTo failed for session ${sessionId}: ${err.message}`);
+    return null;
+  }
+}
+
+export async function pauseCurrentFlow(sessionId, reason = "user_interruption") {
+  try {
+    let stateDoc = await ConversationState.findOne({ sessionId });
+    if (!stateDoc) return null;
+
+    const currentFlowType = stateDoc.activeFlow?.type || "general_chat";
+    const currentStatus = stateDoc.activeFlow?.status || "active";
+
+    if (currentFlowType !== "general_chat" && currentStatus === "active") {
+      const pausedFlow = {
+        type: currentFlowType,
+        status: "paused",
+        reason: reason,
+        currentStep: stateDoc.activeFlow?.currentStep || "browsing",
+        state: stateDoc[currentFlowType] || {}
+      };
+
+      stateDoc.pausedFlows = (stateDoc.pausedFlows || []).filter(f => f.type !== currentFlowType);
+      stateDoc.pausedFlows.push(pausedFlow);
+
+      stateDoc.activeFlow = {
+        type: "general_chat",
+        status: "active",
+        currentStep: "browsing"
+      };
+
+      syncLegacyFields(stateDoc);
+      await stateDoc.save();
+    }
+    return stateDoc.toObject();
+  } catch (err) {
+    logger.error(`[ConversationState] pauseCurrentFlow failed for session ${sessionId}: ${err.message}`);
+    return null;
+  }
+}
+
+export async function resumeFlow(sessionId, flowType) {
+  try {
+    let stateDoc = await ConversationState.findOne({ sessionId });
+    if (!stateDoc) return null;
+
+    const pausedFlowIndex = (stateDoc.pausedFlows || []).findIndex(f => f.type === flowType);
+    if (pausedFlowIndex !== -1) {
+      const pausedFlow = stateDoc.pausedFlows[pausedFlowIndex];
+      
+      // Remove from paused flows list
+      stateDoc.pausedFlows.splice(pausedFlowIndex, 1);
+
+      // Pause current active flow if it is active and not general_chat
+      const currentFlowType = stateDoc.activeFlow?.type || "general_chat";
+      const currentStatus = stateDoc.activeFlow?.status || "active";
+      if (currentFlowType !== "general_chat" && currentStatus === "active") {
+        const toPause = {
+          type: currentFlowType,
+          status: "paused",
+          reason: "flow_resume",
+          currentStep: stateDoc.activeFlow?.currentStep || "browsing",
+          state: stateDoc[currentFlowType] || {}
+        };
+        stateDoc.pausedFlows = (stateDoc.pausedFlows || []).filter(f => f.type !== currentFlowType);
+        stateDoc.pausedFlows.push(toPause);
+      }
+
+      // Restore active flow
+      stateDoc.activeFlow = {
+        type: flowType,
+        status: "active",
+        currentStep: pausedFlow.currentStep
+      };
+
+      // Restore specific state
+      stateDoc[flowType] = pausedFlow.state || {};
+
+      syncLegacyFields(stateDoc);
+      await stateDoc.save();
+    }
+    return stateDoc.toObject();
+  } catch (err) {
+    logger.error(`[ConversationState] resumeFlow failed for session ${sessionId}: ${err.message}`);
     return null;
   }
 }
@@ -94,7 +317,16 @@ export async function clearConversationState(sessionId) {
       active_delivery_session: null,
       pending_order: null,
       active_shopping_context: null,
-      paused_contexts: []
+      paused_contexts: [],
+      activeFlow: {
+        type: "general_chat",
+        status: "active",
+        currentStep: "browsing"
+      },
+      pausedFlows: [],
+      shopping: {},
+      delivery: {},
+      order: {}
     });
   } catch (err) {
     logger.error(`[ConversationState] clearConversationState failed: ${err.message}`);

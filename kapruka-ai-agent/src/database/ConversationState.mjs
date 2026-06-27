@@ -21,6 +21,46 @@ const conversationStateSchema = new mongoose.Schema({
   paused_contexts: {
     type: [String],
     default: []
+  },
+  activeFlow: {
+    type: { type: String, default: "general_chat" },
+    status: { type: String, default: "active" },
+    currentStep: { type: String, default: "browsing" }
+  },
+  pausedFlows: {
+    type: [mongoose.Schema.Types.Mixed],
+    default: []
+  },
+  shopping: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  delivery: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  order: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
+  },
+  preferences: {
+    language: { type: String, default: "english" }
+  },
+  preferredLanguage: {
+    type: String,
+    default: "english"
+  },
+  lastDetectedLanguage: {
+    type: String,
+    default: "english"
+  },
+  languageConfidence: {
+    type: Number,
+    default: 1.0
+  },
+  consecutiveMessagesInSameLanguage: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

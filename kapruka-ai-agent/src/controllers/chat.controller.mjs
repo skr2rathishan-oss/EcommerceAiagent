@@ -1,4 +1,6 @@
-import { detectIntent, extractContext, chatWithLLM } from "../services/ai/llm.service.mjs";
+import { chatWithLLM } from "../services/ai/llm.service.mjs";
+import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
+import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
 import {
   recordIntentDetection,
   recordMemoryLoad,
@@ -14,13 +16,10 @@ import { getShoppingContext, updateMemory, getMemory } from "../agent/memoryMana
 import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
-import { memoryExtractor } from "../memory/memoryExtractor.mjs";
 import { mergeToProfile, getDeliverySession, updateDeliverySession } from "../memory/memoryStore.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
 import { getContext } from "../services/core/logger.service.mjs";
 import { cacheService } from "../cache/cacheService.mjs";
-import { extractContext as localExtractContext } from "../ai/context/contextExtractor.mjs";
-import { localDetectLanguage, detectLanguageFromHistory } from "../utils/language.utils.mjs";
 import {
   loadConversationState,
   saveConversationState,
@@ -30,7 +29,9 @@ import {
   setActiveShoppingContext,
   setPendingOrder,
   clearPendingOrder,
-  clearConversationState
+  clearConversationState,
+  pauseCurrentFlow,
+  resumeFlow
 } from "../services/commerce/conversationStateService.mjs";
 import {
   createShoppingContext,
@@ -114,60 +115,128 @@ export const chat = async (req, res) => {
       updateMemory(sessionId, memoryUpdates);
     }
 
-    // ── Step 1: Log incoming message ───────────────────────────────────────────
-    const logLang = localDetectLanguage(message);
-    logIncomingMessage(sessionId, message, logLang);
-    logStepDone("Language detected", logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English");
+    // ── Load Conversation State and History first for CUL ───────────────────
+    const userState = await loadConversationState(sessionId);
+    const history = await getRecentHistory(sessionId);
+    const activeDeliveryId = userState?.active_delivery_session || userState?.pending_order;
+    const pendingOrder = userState?.pending_order;
 
-    // ── Step 2: Persist user message (background) ─────────────────────────────
+    // Load delivery session
+    let deliverySession = activeDeliveryId ? await getDeliverySession(activeDeliveryId).catch(() => null) : null;
+    let deliveryState = deliverySession?.state;
+
+    // ── Run Conversation Understanding Layer (CUL) ──
+    logStepStart("Conversation Understanding");
+    const culOutput = await understandConversation({
+      message,
+      deliveryState: deliveryState || null,
+      conversationState: userState,
+      history,
+      voiceMode: !!voiceMode,
+    });
+    const decision = buildDecision(culOutput, deliveryState || null, userState, message);
+    const currentLang = decision.language.code;
+    const lowerMsg = message.toLowerCase().trim();
+    const memory = getMemory(sessionId);
+
+    // ── Log incoming message using CUL's resolved language ──
+    logIncomingMessage(sessionId, message, currentLang);
+    logStepDone("Language detected", currentLang === "si" ? "Sinhala" : currentLang === "ta" ? "Tamil" : "English");
+
+    // ── Persist user message (background) ──
     saveMessage(sessionId, "user", message).catch(() => { });
     addMessage(sessionId, "user", message).catch(() => { });
 
-    // ── Step 3: Memory extraction (background) ────────────────────────────────
-    const extracted = memoryExtractor.extractFromText(message);
+    // ── Memory extraction using CUL variables (background) ──
+    const extracted = {
+      recipients: decision.variables.recipient ? [decision.variables.recipient] : [],
+      occasions: decision.variables.occasion ? [decision.variables.occasion] : [],
+      budget: decision.variables.price ? parseFloat(decision.variables.price) || null : null,
+      categories: decision.variables.category ? [decision.variables.category] : []
+    };
     const hasEntities = extracted.recipients.length || extracted.occasions.length ||
       extracted.budget !== null || extracted.categories.length;
     if (hasEntities) {
       mergeToProfile(sessionId, extracted).catch(() => { });
     }
 
-    // ── VCSM Priority Routing and Interception ───────────────────────────────
-    const currentLang = localDetectLanguage(message);
-    const lowerMsg = message.toLowerCase().trim();
-    const memory = getMemory(sessionId);
-
-    // Initial Intent Detection to inform VCSM routing
-    let parsedIntent = { intent: "general_chat", parameters: {} };
-    if (req.body.intent) {
-      parsedIntent = {
-        intent: req.body.intent,
-        parameters: req.body.parameters || {}
-      };
-      intentLabel = parsedIntent.intent;
-    } else {
-      try {
-        const intentResult = await detectIntent(message);
-        const cleanIntent = intentResult
-          .trim()
-          .replace(/^```json\s*/i, "")
-          .replace(/^```\s*/i, "")
-          .replace(/```\s*$/, "")
-          .trim();
-        parsedIntent = JSON.parse(cleanIntent);
-        intentLabel = parsedIntent.intent;
-      } catch (parseErr) {
-        parsedIntent = { intent: "general_chat", parameters: {} };
+    // Build compatibility parsedIntent and extractedContext structures for existing VCSM logic
+    let parsedIntent = {
+      intent: decision.intent.value,
+      parameters: {
+        query: decision.variables.product_name,
+        city: decision.variables.city,
+        deliveryDate: decision.variables.delivery_date,
+        recipient: decision.variables.recipient,
+        occasion: decision.variables.occasion,
+        filters: {
+          category: decision.variables.category,
+          brand: decision.variables.brand,
+          priceMax: decision.variables.price ? parseFloat(decision.variables.price) || null : null
+        }
       }
+    };
+    if (req.body.intent) {
+      parsedIntent.intent = req.body.intent;
+      parsedIntent.parameters = {
+        ...parsedIntent.parameters,
+        ...(req.body.parameters || {})
+      };
     }
+    intentLabel = parsedIntent.intent;
 
-    // Load ConversationState
-    const userState = await loadConversationState(sessionId);
-    const activeDeliveryId = userState?.active_delivery_session;
-    const pendingOrder = userState?.pending_order;
+    const extractedContext = {
+      conversationLanguage: decision.language.detected,
+      recipient: decision.variables.recipient || null,
+      occasion: decision.variables.occasion || null,
+      budget: decision.variables.price ? parseFloat(decision.variables.price) || null : null,
+      productType: decision.variables.product_name || null,
+      brand: decision.variables.brand || null,
+      category: decision.variables.category || null,
+      deliveryDate: decision.variables.delivery_date || null,
+      deliveryLocation: decision.variables.city || null,
+      phone_number: decision.variables.phone_number || null,
+      customer_name: decision.variables.customer_name || null,
+      emotion: decision.emotion,
+      urgency: decision._raw?.urgency || "normal",
+      situation: decision._raw?.situation || "general"
+    };
+    parsedIntent.parameters.context = extractedContext;
 
-    // Load delivery session
-    const deliverySession = activeDeliveryId ? await getDeliverySession(activeDeliveryId).catch(() => null) : null;
-    const deliveryState = deliverySession?.state;
+
+
+    // CSM Resume Flow Check: If user explicitly asks to continue or resume their order/delivery
+    const isResumeRequest = ["continue my order", "resume order", "continue order", "continue my laptop order", "laptop order", "resume my order", "go back to my order"].some(
+      phrase => lowerMsg.includes(phrase)
+    );
+    if (isResumeRequest && userState?.pausedFlows?.some(f => f.type === "delivery")) {
+      logStepDone("Interception", "VCSM: Resuming Paused Delivery Flow");
+      await resumeFlow(sessionId, "delivery");
+      
+      // Reload delivery session details
+      deliverySession = await getDeliverySession(sessionId);
+      deliveryState = deliverySession?.state;
+
+      let promptText = "Welcome back to your order! 😊 Let's continue.";
+      if (deliveryState === "WAITING_FOR_ADDRESS") {
+        promptText = "Welcome back! 😊 To check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+      } else if (deliveryState === "WAITING_FOR_DATE") {
+        promptText = "Welcome back! 😊 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+      } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+        promptText = "Welcome back! 😊 Now I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+      } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+        promptText = "Welcome back! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
+        promptText = "Welcome back! 😊 Please confirm your order details to place it.";
+      }
+
+      setSSEHeaders(res);
+      if (!res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ type: "chunk", text: promptText })}\n\n`);
+      }
+      saveMessage(sessionId, "assistant", promptText).catch(() => {});
+      return sendCompleteAndEnd(res, { type: "text", text: promptText });
+    }
 
     const activeCollectingStates = [
       "WAITING_FOR_ADDRESS",
@@ -345,9 +414,6 @@ export const chat = async (req, res) => {
 
     // Priority 2: Active Delivery Session & Delivery Protection
     if (deliverySession && activeCollectingStates.includes(deliveryState)) {
-      logStepDone("Interception", `VCSM Active Delivery Session state: ${deliveryState}`);
-      
-      // Delivery Protection: Block shopping intents
       if (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details") {
         logStepDone("Interception", "VCSM: Delivery Protection Triggered");
         setSSEHeaders(res);
@@ -355,6 +421,10 @@ export const chat = async (req, res) => {
         saveMessage(sessionId, "assistant", protectMsg).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: protectMsg });
       }
+    }
+
+    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+      logStepDone("Interception", `VCSM Active Delivery Session state: ${deliveryState}`);
 
       // Small Talk / General Chat in Active Delivery
       if (parsedIntent.intent === "general_chat") {
@@ -364,7 +434,55 @@ export const chat = async (req, res) => {
           ...getShoppingContext(sessionId),
           ...(memory || {})
         };
-        const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "" });
+        const runtimeContext = {
+          decision,
+          conversationState: userState,
+          customer: {
+            name: decision.variables?.customer_name || userState?.customerName,
+            preferredLanguage: decision.language?.code || userState?.language,
+            city: decision.variables?.city || userState?.city,
+            shoppingStyle: memory?.shoppingStyle || "standard"
+          },
+          memory: memoryState,
+          commerce: {
+            searchQuery: decision.variables?.product_name || memory?.searchQuery,
+            category: decision.variables?.category || memory?.category,
+            deliveryRequired: userState?.activeFlow === "delivery",
+            checkoutStarted: userState?.activeFlow === "checkout",
+            paymentCompleted: deliverySession?.state === "COMPLETED"
+          },
+          products: [],
+          cart: {
+            items: memory?.cart || [],
+            total: memory?.cart?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0,
+            deliveryAddress: deliverySession?.delivery_address
+          },
+          order: {
+            orderNumber: pendingOrder || deliverySession?.orderNumber || deliverySession?.id
+          },
+          tracking: {
+            status: deliverySession?.state
+          },
+          response: {
+            type: decision.response?.type || "conversation",
+            templateId: decision.response?.templateId,
+            templateName: decision.response?.templateName,
+            mode: decision.response?.mode || "dynamic",
+            searchProducts: decision.response?.searchProducts,
+            recommendProducts: decision.response?.recommendProducts,
+            askClarification: decision.response?.askClarification,
+            useMemory: decision.response?.useMemory !== false,
+            template: decision.response?.templateId
+          },
+          settings: {
+            streaming: !voiceMode,
+            voiceMode: voiceMode,
+            model: null,
+            environment: process.env.NODE_ENV || "development"
+          },
+          latestMessage: message
+        };
+        const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "", runtimeContext });
         
         let promptText = "";
         if (deliveryState === "WAITING_FOR_ADDRESS") {
@@ -452,107 +570,31 @@ export const chat = async (req, res) => {
       }
     }
 
-    // ── Step 5b: Context Extraction ───────────────────────────────────────────
+    // ── Step 5b: Context Extraction (Consolidated into CUL) ───────────────────
     logStepStart("Context extraction");
     setSSEHeaders(res);
+    logStepDone("Context extraction", "done");
+    logContextExtracted(extractedContext);
+
+    const ctxDetails = [];
+    if (extractedContext.conversationLanguage) ctxDetails.push(`Language: ${extractedContext.conversationLanguage}`);
+    if (extractedContext.recipient) ctxDetails.push(`Recipient: ${extractedContext.recipient}`);
+    if (extractedContext.occasion) ctxDetails.push(`Occasion: ${extractedContext.occasion}`);
+    if (extractedContext.budget) ctxDetails.push(`Budget: Rs.${extractedContext.budget}`);
+    if (extractedContext.productType) ctxDetails.push(`Product: ${extractedContext.productType}`);
+    if (extractedContext.deliveryLocation) ctxDetails.push(`Location: ${extractedContext.deliveryLocation}`);
+    if (extractedContext.urgency) ctxDetails.push(`Urgency: ${extractedContext.urgency}`);
 
     if (!res.writableEnded) {
       res.write(`data: ${JSON.stringify({
         type: "progress",
         step: "EXTRACTING",
-        message: "Extracting context...",
+        message: "Context extracted",
         logs: [
           { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [`Intent: ${parsedIntent.intent}`] },
-          { id: "EXTRACTING", title: "Extracting context", status: "active", details: [] }
+          { id: "EXTRACTING", title: "Extracting context", status: "completed", details: ctxDetails }
         ]
       })}\n\n`);
-    }
-
-    let extractedContext = null;
-    try {
-      const ctxStart = Date.now();
-      const ctxRaw = await extractContext(message);
-      const cleanCtx = ctxRaw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
-      extractedContext = JSON.parse(cleanCtx);
-
-      try {
-        const localCtx = localExtractContext(message);
-        if (localCtx) {
-          if (localCtx.emotion && localCtx.emotion !== "neutral") {
-            extractedContext.emotion = localCtx.emotion;
-            extractedContext.emotionConfidence = localCtx.emotionConfidence;
-          }
-          if (localCtx.situation && localCtx.situation !== "general") {
-            extractedContext.situation = localCtx.situation;
-            extractedContext.situationConfidence = localCtx.situationConfidence;
-          }
-          if (localCtx.urgency && localCtx.urgency === "high") {
-            extractedContext.urgency = localCtx.urgency;
-          }
-        }
-      } catch (localErr) {
-        logger.warn(`Local pattern-based context extraction failed: ${localErr.message}`);
-      }
-
-      if (voiceMode) {
-        extractedContext.voiceMode = true;
-      }
-      const ctxMs = Date.now() - ctxStart;
-      logStepDone("Context extraction", `(${ctxMs}ms)`);
-      logContextExtracted(extractedContext);
-
-      const ctxDetails = [];
-      if (extractedContext.conversationLanguage) ctxDetails.push(`Language: ${extractedContext.conversationLanguage}`);
-      if (extractedContext.recipient) ctxDetails.push(`Recipient: ${extractedContext.recipient}`);
-      if (extractedContext.occasion) ctxDetails.push(`Occasion: ${extractedContext.occasion}`);
-      if (extractedContext.budget) ctxDetails.push(`Budget: Rs.${extractedContext.budget}`);
-      if (extractedContext.productType) ctxDetails.push(`Product: ${extractedContext.productType}`);
-      if (extractedContext.deliveryLocation) ctxDetails.push(`Location: ${extractedContext.deliveryLocation}`);
-      if (extractedContext.urgency) ctxDetails.push(`Urgency: ${extractedContext.urgency}`);
-
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({
-          type: "progress",
-          step: "EXTRACTING",
-          message: "Context extracted",
-          logs: [
-            { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [`Intent: ${parsedIntent.intent}`] },
-            { id: "EXTRACTING", title: "Extracting context", status: "completed", details: ctxDetails }
-          ]
-        })}\n\n`);
-      }
-
-      if (parsedIntent.intent === "search_products" && extractedContext) {
-        parsedIntent.parameters = parsedIntent.parameters || {};
-        parsedIntent.parameters.filters = parsedIntent.parameters.filters || {};
-        const f = parsedIntent.parameters.filters;
-        const e = extractedContext;
-
-        if (e.category && !f.category) f.category = e.category;
-        if (e.brand && !f.brand) f.brand = e.brand;
-        if (e.color && !f.color) f.color = e.color;
-        if (e.size && !f.size) f.size = e.size;
-        if (e.gender && !f.gender) f.gender = e.gender;
-        if (e.budget && !f.priceMax) f.priceMax = e.budget;
-
-        parsedIntent.parameters.context = e;
-      } else {
-        parsedIntent.parameters = parsedIntent.parameters || {};
-        parsedIntent.parameters.context = extractedContext;
-      }
-    } catch (err) {
-      logStepError("Context extraction", err.message);
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({
-          type: "progress",
-          step: "EXTRACTING",
-          message: "Context extraction skipped",
-          logs: [
-            { id: "UNDERSTANDING", title: "Understanding request", status: "completed", details: [] },
-            { id: "EXTRACTING", title: "Extracting context", status: "error", details: [] }
-          ]
-        })}\n\n`);
-      }
     }
 
     const isFastPath = shouldBypassQwen(parsedIntent.intent, message, voiceMode);
@@ -603,8 +645,19 @@ export const chat = async (req, res) => {
         ...(extractedContext || {})
       };
 
+      const runtimeContext = constructRuntimeData({
+        decision,
+        userState,
+        memory,
+        memoryState,
+        deliverySession,
+        pendingOrder,
+        voiceMode,
+        message
+      });
+
       const llmStart = Date.now();
-      result = await chatWithLLM({ message, history, memory: memoryState, memoryContext });
+      result = await chatWithLLM({ message, history, memory: memoryState, memoryContext, runtimeContext });
       const llmMs = Date.now() - llmStart;
 
       if (typeof result === "string") {
@@ -639,9 +692,9 @@ export const chat = async (req, res) => {
       const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
-        if (logLang === "si") {
+        if (currentLang === "si") {
           text = "ඔබගේ ඉල්ලීමට ගැලපෙන හොඳම නිෂ්පාදන කිහිපයක් මා සොයාගත්තා! පහතින් බලන්න 😊";
-        } else if (logLang === "ta") {
+        } else if (currentLang === "ta") {
           text = "உங்கள் கோரிக்கைக்குப் பொருத்தமான சில சிறந்த தயாரிப்புகளை நான் கண்டறிந்துள்ளேன்! கீழே பாருங்கள் 😊";
         } else {
           text = "I found some great options matching your request! Take a look below 😊";
@@ -688,6 +741,9 @@ export const chat = async (req, res) => {
 
     updateProgress("READY", "completed");
 
+    // Persist final state transition based on the decision
+    await transitionTo(sessionId, decision.active_flow, decision.conversation_stage);
+
     // ── Step 11: Persist assistant response (background) ──────────────────────
     const assistantText = extractText(finalPayload);
     if (assistantText) {
@@ -699,6 +755,21 @@ export const chat = async (req, res) => {
           }
         })
         .catch(() => { });
+    }
+
+    // Populate request telemetry
+    const ctx = getContext();
+    if (ctx && ctx.telemetry) {
+      ctx.telemetry.detectedLanguage = (typeof decision !== "undefined" && decision?.language?.detected) || (typeof logLang !== "undefined" ? (logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English") : "English");
+      ctx.telemetry.intent = (typeof decision !== "undefined" && decision?.intent?.value) || intentLabel || "general_chat";
+      ctx.telemetry.conversationStage = (typeof decision !== "undefined" && decision?.conversation_stage) || "browsing";
+      ctx.telemetry.activeFlow = (typeof decision !== "undefined" && decision?.active_flow) || "general_chat";
+      ctx.telemetry.decisionBuilder = "READY";
+      ctx.telemetry.responseEngine = providerUsed === "response_library" ? "Response Library" : "LLM Generator";
+      ctx.telemetry.responseLibraryModule = providerUsed === "response_library" ? `${decision?.response?.module || decision?.module}/${decision?.response?.category || decision?.category}` : "N/A";
+      ctx.telemetry.streamingStatus = providerUsed === "response_library" ? "DISABLED" : "ENABLED";
+      ctx.telemetry.commerceResults = finalPayload ? (finalPayload.type === "product_grid" ? `${finalPayload.products?.length || 0} products` : "Text") : "N/A";
+      ctx.telemetry.geminiResponseTime = providerUsed === "gemini" ? `${Date.now() - requestStart}ms` : "0ms";
     }
 
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);

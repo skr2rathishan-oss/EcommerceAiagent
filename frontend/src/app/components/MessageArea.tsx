@@ -189,7 +189,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                     }}
                   >
                     {msg.role === "ai" && !(msg.products && msg.products.length > 0) ? (
-                      <AIMessageRenderer text={msg.text} />
+                      <AIMessageRenderer text={msg.text} streaming={msg.streaming} />
                     ) : (
                       msg.text
                     )}
@@ -436,94 +436,129 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   );
 };
 
-const AIMessageRenderer: React.FC<{ text: string }> = ({ text }) => {
+const AIMessageRenderer: React.FC<{ text: string; streaming?: boolean }> = ({ text, streaming }) => {
+  const STYLES = `
+    @keyframes aiMsgFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes cursorBlink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+    .voice-spinner {
+      display: inline-block;
+      animation: spin 1.5s linear infinite;
+    }
+    .stream-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      background: #7c4dba;
+      border-radius: 1px;
+      margin-left: 2px;
+      vertical-align: text-bottom;
+      animation: cursorBlink 0.75s step-start infinite;
+    }
+    .ai-markdown-content h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-top: 14px;
+      margin-bottom: 8px;
+      color: #1a1025;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content h2 {
+      font-size: 1.20rem;
+      font-weight: 750;
+      margin-top: 12px;
+      margin-bottom: 6px;
+      color: #1a1025;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-top: 10px;
+      margin-bottom: 6px;
+      color: #1a1025;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content p {
+      margin: 0 0 10px 0;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content ul {
+      margin: 6px 0 10px 0;
+      padding-left: 20px !important;
+      list-style-type: disc !important;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content ol {
+      margin: 6px 0 10px 0;
+      padding-left: 20px !important;
+      list-style-type: decimal !important;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content li {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content strong {
+      font-weight: 800;
+      color: #402970;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content em {
+      font-style: italic;
+      font-family: 'Nunito', sans-serif;
+    }
+    .ai-markdown-content a {
+      color: #7c4dba;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+    .ai-markdown-content code {
+      background-color: rgba(64, 41, 112, 0.08);
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    .ai-markdown-content > :last-child { margin-bottom: 0 !important; }
+    .ai-markdown-content > :first-child { margin-top: 0 !important; }
+  `;
+
+  if (streaming) {
+    // ── Live streaming: plain-text, no markdown parsing, blinking cursor ──────
+    return (
+      <div style={{
+        fontFamily: "'Nunito', sans-serif",
+        fontSize: 14,
+        lineHeight: 1.65,
+        whiteSpace: "pre-wrap",
+        color: "#1a1025",
+        wordBreak: "break-word",
+      }}>
+        <style dangerouslySetInnerHTML={{ __html: STYLES }} />
+        {text}<span className="stream-cursor" aria-hidden="true" />
+      </div>
+    );
+  }
+
+  // ── Stream complete: full ReactMarkdown ────────────
   return (
-    <div className="ai-markdown-content">
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .voice-spinner {
-          display: inline-block;
-          animation: spin 1.5s linear infinite;
-        }
-        .ai-markdown-content h1 {
-          font-size: 1.35rem;
-          font-weight: 800;
-          margin-top: 14px;
-          margin-bottom: 8px;
-          color: #1a1025;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content h2 {
-          font-size: 1.20rem;
-          font-weight: 750;
-          margin-top: 12px;
-          margin-bottom: 6px;
-          color: #1a1025;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content h3 {
-          font-size: 1.05rem;
-          font-weight: 700;
-          margin-top: 10px;
-          margin-bottom: 6px;
-          color: #1a1025;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content p {
-          margin: 0 0 10px 0;
-          line-height: 1.65;
-          white-space: pre-wrap;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content ul {
-          margin: 6px 0 10px 0;
-          padding-left: 20px !important;
-          list-style-type: disc !important;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content ol {
-          margin: 6px 0 10px 0;
-          padding-left: 20px !important;
-          list-style-type: decimal !important;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content li {
-          margin-bottom: 4px;
-          line-height: 1.5;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content strong {
-          font-weight: 800;
-          color: #402970;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content em {
-          font-style: italic;
-          font-family: 'Nunito', sans-serif;
-        }
-        .ai-markdown-content a {
-          color: #7c4dba;
-          text-decoration: underline;
-          font-weight: 600;
-        }
-        .ai-markdown-content code {
-          background-color: rgba(64, 41, 112, 0.08);
-          padding: 2px 4px;
-          border-radius: 4px;
-          font-family: monospace;
-          font-size: 0.9em;
-        }
-        .ai-markdown-content > :last-child {
-          margin-bottom: 0 !important;
-        }
-        .ai-markdown-content > :first-child {
-          margin-top: 0 !important;
-        }
-      `}} />
+    <div
+      className="ai-markdown-content"
+    >
+      <style dangerouslySetInnerHTML={{ __html: STYLES }} />
       <ReactMarkdown>{text}</ReactMarkdown>
     </div>
   );

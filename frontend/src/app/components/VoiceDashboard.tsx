@@ -361,7 +361,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
   useEffect(() => {
     if (waitingForAI && messages.length > 0) {
       const lastMsg = messages[messages.length - 1];
-      if (lastMsg.role === "ai") {
+      if (lastMsg.role === "ai" && !lastMsg.streaming) {
         console.log("[VOICE] AI response received");
         setWaitingForAI(false);
         setStatus("speaking");

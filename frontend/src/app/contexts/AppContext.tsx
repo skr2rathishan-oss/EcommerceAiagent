@@ -46,6 +46,8 @@ export interface Message {
   productDetails?: { content: string; product: Product };
   workflow?: GuidedWorkflowState;
   isDetailsClosed?: boolean;
+  /** True while the SSE stream is in progress; false once complete (switches renderer). */
+  streaming?: boolean;
 }
 
 export type { CartItem };

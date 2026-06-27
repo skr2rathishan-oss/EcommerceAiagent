@@ -1,12 +1,12 @@
 // src/services/insights.service.mjs
 // Phase 5 – User Insights Engine
-// Generates and stores compressed shopping intelligence per session using Nemotron.
+// Generates and stores compressed shopping intelligence per session using Gemini.
 // All generation is asynchronous and never blocks user requests.
 
 import UserInsights from "../../database/UserInsights.mjs";
 import UserProfile from "../../database/UserProfile.mjs";
 import MemorySummary from "../../database/MemorySummary.mjs";
-import { generateInsightsWithNemotron } from "../ai/llm.service.mjs";
+import { generateInsightsWithGemini } from "../ai/llm.service.mjs";
 import { refreshRecommendationCache } from "../commerce/recommendationCache.service.mjs";
 import logger from "../../utils/logger.mjs";
 
@@ -31,7 +31,7 @@ function extractInsightsJson(text) {
 
 /**
  * Generates and persists UserInsights for a given sessionId.
- * Fetches UserProfile + MemorySummary + interactionScores, calls Nemotron,
+ * Fetches UserProfile + MemorySummary + interactionScores, calls Gemini,
  * then upserts into the UserInsights collection (latest version only).
  *
  * Must be called with .catch() — never awaited by callers.
@@ -50,8 +50,8 @@ export async function generateUserInsights(sessionId) {
     const currentSummary   = summaryDoc?.currentSummary || "";
     const interactionScores = profile?.interactionScores || {};
 
-    // 2. Call Nemotron (LIGHT_MODEL)
-    const rawContent = await generateInsightsWithNemotron(profile, currentSummary, interactionScores);
+    // 2. Call Gemini
+    const rawContent = await generateInsightsWithGemini(profile, currentSummary, interactionScores);
     const insights   = extractInsightsJson(rawContent);
 
     // 3. Determine next version
