@@ -1,19 +1,16 @@
+```yaml
+version: "3.8"
+
 services:
   backend:
     build:
-      context: ./kapruka-ai-agent
+      context: ./backend
       dockerfile: Dockerfile
 
     container_name: velora-backend
 
     ports:
       - "5000:5000"
-
-    env_file:
-      - ./kapruka-ai-agent/.env
-
-    volumes:
-      - /home/Rathishan/.config/gcloud:/root/.config/gcloud:ro
 
     environment:
       GOOGLE_CLOUD_PROJECT: spheric-algebra-499718-r2
@@ -28,9 +25,10 @@ services:
     container_name: velora-frontend
 
     ports:
-      - "80:80"
+      - "3000:80"
 
     depends_on:
       - backend
 
     restart: always
+```
