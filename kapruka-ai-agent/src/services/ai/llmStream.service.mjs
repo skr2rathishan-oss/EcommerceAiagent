@@ -1,6 +1,6 @@
-// src/services/ai/llmStream.service.mjs
-
-import { SYSTEM_PROMPT } from "../../agent/systemPrompt.mjs";
+import { buildSystemPrompt } from "../../agent/system/buildSystemPrompt.mjs";
+import { validatePrompt } from "../../agent/validators/promptValidator.mjs";
+import { compressPrompt } from "../../agent/validators/promptCompressor.mjs";
 import {
   getGeneralChatModel,
   getRecommendationModel,
@@ -49,6 +49,7 @@ async function withGeminiStreamRetry(geminiStreamCall, maxRetries = 2) {
  * @param {Array} params.history - Message history array
  * @param {Object} params.memory - User profile context / cart info
  * @param {string} params.memoryContext - Memory summary text
+ * @param {Object} params.runtimeContext - Prompt OS runtime context
  * @param {Function} params.onChunk - Callback invoked with each text chunk: (text) => void
  * @returns {Promise<string>} The fully assembled response text.
  */
@@ -57,11 +58,69 @@ export const chatWithLLMStream = async ({
   history = [],
   memory = {},
   memoryContext = "",
+  runtimeContext = null,
   onChunk,
 }) => {
   const { client: activeClient, model: selectedModel, provider } = getGeneralChatModel();
 
-  const systemContent = `${SYSTEM_PROMPT}\n\nCustomer Context:\n${JSON.stringify(memory, null, 2)}`;
+  let systemContent;
+  if (runtimeContext) {
+    systemContent = buildSystemPrompt(runtimeContext);
+  } else {
+    // Fallback/legacy compatibility:
+    const fallbackRuntimeContext = {
+      decision: memory?.decision || {},
+      conversationState: memory?.conversationState || {},
+      customer: {
+        name: memory?.customerName || memory?.customer?.name || "Unknown",
+        preferredLanguage: memory?.language || "en",
+        city: memory?.city || null,
+        shoppingStyle: memory?.shoppingStyle || "standard"
+      },
+      memory: memory || {},
+      commerce: {
+        searchQuery: memory?.searchQuery || null,
+        category: memory?.category || null,
+        deliveryRequired: false,
+        checkoutStarted: false,
+        paymentCompleted: false
+      },
+      products: [],
+      cart: {
+        items: memory?.cart || [],
+        total: memory?.cart?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0,
+        deliveryAddress: memory?.deliveryAddress || null
+      },
+      order: {},
+      tracking: {},
+      response: {
+        type: memory?.response?.type || "conversation",
+        mode: memory?.response?.mode || "dynamic",
+        searchProducts: false,
+        recommendProducts: false,
+        askClarification: false,
+        useMemory: true
+      },
+      settings: {
+        streaming: true,
+        voiceMode: false,
+        model: selectedModel,
+        environment: process.env.NODE_ENV || "development"
+      },
+      latestMessage: message
+    };
+    systemContent = buildSystemPrompt(fallbackRuntimeContext);
+  }
+
+  // Validate System Prompt
+  const validation = validatePrompt(systemContent);
+  if (!validation.valid) {
+    logger.error("[Prompt OS] Prompt validation failed:", validation.errors);
+    throw new Error(`Prompt OS Validation Failed: ${validation.errors.join("; ")}`);
+  }
+
+  // Compress System Prompt
+  const compressedSystemPrompt = compressPrompt(systemContent);
 
   let userContent = message;
   if (memoryContext) {
@@ -81,7 +140,7 @@ export const chatWithLLMStream = async ({
       model: selectedModel,
       contents,
       config: {
-        systemInstruction: systemContent,
+        systemInstruction: compressedSystemPrompt,
         temperature: 0.8,
         maxOutputTokens: 4096,
       },

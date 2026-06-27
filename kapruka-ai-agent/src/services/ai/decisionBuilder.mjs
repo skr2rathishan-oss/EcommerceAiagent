@@ -7,6 +7,7 @@
  */
 
 import logger from "../../utils/logger.mjs";
+import { isResumeIntent } from "../../utils/language.utils.mjs";
 
 /**
  * Validates and normalizes the Decision Object to guarantee it has the expected schema.
@@ -130,17 +131,24 @@ export function validateDecision(decision) {
  * 
  * @param {object} culOutput - Output from understandConversation()
  * @param {string|null} deliveryState - Current VCSM delivery state
+ * @param {object|null} conversationState - User conversation state
+ * @param {string} message - Original user message
  * @returns {object} Standardized & validated Decision Object
  */
-export function buildDecision(culOutput, deliveryState, conversationState = null) {
+export function buildDecision(culOutput, deliveryState, conversationState = null, message = "") {
   try {
     const rawIntent = culOutput.intent || "general_chat";
     let stage = culOutput.conversation_stage || "browsing";
     let active_flow = "general_chat";
 
     if (conversationState && conversationState.activeFlow) {
-      active_flow = conversationState.activeFlow.type || active_flow;
-      stage = conversationState.activeFlow.currentStep || stage;
+      if (rawIntent === "general_chat" && !isResumeIntent(message)) {
+        // Do not inherit the active flow if it's just a general greeting
+        // Let it remain general_chat
+      } else {
+        active_flow = conversationState.activeFlow.type || active_flow;
+        stage = conversationState.activeFlow.currentStep || stage;
+      }
     } else {
       // active_flow resolution
       if (rawIntent === "search_products" || rawIntent === "get_product_details") {

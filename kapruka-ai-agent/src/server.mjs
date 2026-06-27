@@ -24,143 +24,95 @@ import {
   printHealthFooter,
   askProceedDespiteFailures,
   printServerReady,
+  printOperationsConsole,
   logInfo,
   logWarn,
   logError,
   logBackground,
 } from "./utils/velora.console.mjs";
+import { runStartupChecks } from "./services/core/startupHealthService.mjs";
+import { initializePromptCache } from "./agent/core/promptCache.mjs";
+import { getPromptInformation } from "./agent/core/promptLoader.mjs";
+
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STARTUP WIZARD
+// STARTUP WIZARD & DIAGNOSTICS
 // ─────────────────────────────────────────────────────────────────────────────
 
 printBanner();
 
-// Ask Production or Development (Bypass interactive prompt to avoid hangs on restart)
 const chosenMode = process.env.AI_MODE || "development";
 process.env.AI_MODE = chosenMode;
 setRuntimeMode(chosenMode);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// HEALTH CHECKS
-// ─────────────────────────────────────────────────────────────────────────────
-
-printHealthHeader();
-
-let criticalFailures = 0;
-
-// ── 1. MongoDB ─────────────────────────────────────────────────────────────────
-let mongoStatus = "fail", mongoLatency = null;
+// Initialize DB and Cache before diagnostics
 try {
-  const t0 = Date.now();
   await connectDB();
-  if (mongoose.connection.readyState === 1) {
-    await mongoose.connection.db.admin().ping();
-    mongoLatency = Date.now() - t0;
-    mongoStatus = "ok";
-  }
 } catch (err) {
-  criticalFailures++;
+  logError("STARTUP", `MongoDB connect error: ${err.message}`);
 }
-printHealthRow("MongoDB Database", mongoStatus, mongoLatency, mongoStatus === "fail" ? "Cannot connect" : "");
 
-// ── 2. Cache (Redis / Memory) ──────────────────────────────────────────────────
-let cacheStatus = "fail", cacheLatency = null, cacheLabel = "Cache";
 try {
-  const t0 = Date.now();
   await initCache();
-  if (cacheService.isConnected()) {
-    await cacheService.ping();
-    cacheLatency = Date.now() - t0;
-    cacheStatus = "ok";
-    cacheLabel = cacheService.isRedisActive() ? "Upstash Redis" : "In-Memory Cache";
-  }
-} catch {
-  cacheStatus = "warn"; // Cache is non-critical
-  cacheLabel = "Cache";
-}
-printHealthRow(cacheLabel, cacheStatus, cacheLatency, cacheStatus === "warn" ? "Falling back to memory" : "");
-
-// ── 3. Gemini / Vertex AI ──────────────────────────────────────────────────────
-let geminiStatus = "fail", geminiLatency = null;
-const gcpProject = process.env.GOOGLE_CLOUD_PROJECT;
-if (!gcpProject) {
-  geminiStatus = "fail";
-  criticalFailures++;
-  printHealthRow("Gemini 2.5 Flash", geminiStatus, null, "GOOGLE_CLOUD_PROJECT not set");
-} else {
-  try {
-    const { getGeminiClient } = await import("./services/ai/modelRouter.mjs");
-    const geminiClient = getGeminiClient();
-    const t0 = Date.now();
-    await geminiClient.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [{ role: "user", parts: [{ text: "ping" }] }],
-      config: { maxOutputTokens: 5, temperature: 0 },
-    });
-    geminiLatency = Date.now() - t0;
-    geminiStatus = "ok";
-  } catch (err) {
-    const msg = err?.message || "";
-    if (msg.includes("429") || msg.includes("RESOURCE_EXHAUSTED")) {
-      geminiStatus = "warn";
-      geminiLatency = null;
-      printHealthRow("Gemini 2.5 Flash", "warn", null, "Quota limit hit");
-    } else {
-      geminiStatus = "fail";
-      criticalFailures++;
-      printHealthRow("Gemini 2.5 Flash", geminiStatus, null, msg.slice(0, 45));
-    }
-  }
-  if (geminiStatus !== "warn") printHealthRow("Gemini 2.5 Flash", geminiStatus, geminiLatency);
+} catch (err) {
+  logError("STARTUP", `Cache init error: ${err.message}`);
 }
 
-// ── 5. Kapruka MCP ─────────────────────────────────────────────────────────────
-let mcpStatus = "fail", mcpLatency = null;
 try {
-  const t0 = Date.now();
-  const mcpClient = await getMcpClient();
-  if (mcpClient) { mcpLatency = Date.now() - t0; mcpStatus = "ok"; }
-} catch { criticalFailures++; }
-printHealthRow("Kapruka MCP", mcpStatus, mcpLatency, mcpStatus === "fail" ? "MCP server unreachable" : "");
-
-// ── 6. Kapruka Website ─────────────────────────────────────────────────────────
-let extStatus = "warn", extLatency = null;
-try {
-  const t0 = Date.now();
-  const ctrl = new AbortController();
-  const timeout = setTimeout(() => ctrl.abort(), 4000);
-  const r = await fetch("https://www.kapruka.com", { signal: ctrl.signal });
-  clearTimeout(timeout);
-  extLatency = Date.now() - t0;
-  extStatus = r.ok ? "ok" : "warn";
-} catch { extStatus = "warn"; }
-printHealthRow("Kapruka Website", extStatus, extLatency, extStatus === "warn" ? "May affect product data" : "");
-
-// ── 7. ElevenLabs Voice ────────────────────────────────────────────────────────
-let voiceStatus = "skip";
-if (process.env.ELEVENLABS_API_KEY) {
-  try {
-    const { ElevenLabsClient } = await import("elevenlabs");
-    const el = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
-    await el.voices.getAll();
-    voiceStatus = "ok";
-  } catch { voiceStatus = "warn"; }
-  printHealthRow("ElevenLabs Voice", voiceStatus, null);
-} else {
-  printHealthRow("ElevenLabs Voice", "skip", null, "ELEVENLABS_API_KEY not set");
+  initializePromptCache();
+} catch (err) {
+  logError("STARTUP", `Prompt Cache init error: ${err.message}`);
 }
 
-printHealthFooter(criticalFailures === 0);
+// Run modular diagnostic checks
+const diagnostics = await runStartupChecks();
 
-// ── Ask to proceed if failures ─────────────────────────────────────────────────
-if (criticalFailures > 0) {
-  const proceed = await askProceedDespiteFailures();
-  if (!proceed) {
-    logError("STARTUP", "Aborted by user. Fix the failed services and restart.");
-    process.exit(1);
+// Check critical failures and warnings
+if (diagnostics.criticalFailures > 0) {
+  printOperationsConsole(diagnostics);
+  
+  // Log the reasons for the critical failures
+  if (diagnostics.env.status === "FAIL") {
+    diagnostics.env.errors.forEach(err => logError("STARTUP - ENV", err));
   }
+  if (diagnostics.mongoDB.status === "FAIL") {
+    logError("STARTUP - MONGODB", diagnostics.mongoDB.error || "Failed to connect to MongoDB.");
+  }
+  if (diagnostics.gemini.status === "FAIL") {
+    logError("STARTUP - GEMINI", diagnostics.gemini.error || "Gemini authentication failed.");
+  }
+  if (diagnostics.mcp.status === "FAIL") {
+    logError("STARTUP - MCP", diagnostics.mcp.error || "Kapruka MCP server is offline.");
+  }
+  const resLibFailed = Object.values(diagnostics.responseLibrary.status).some(s => s === "FAIL");
+  if (resLibFailed) {
+    diagnostics.responseLibrary.errors.forEach(err => logError("STARTUP - RESPONSE LIBRARY", err));
+  }
+  if (diagnostics.conversationPipeline.status === "FAILED") {
+    logError("STARTUP - PIPELINE", "One or more conversation pipeline modules failed validation");
+  }
+  if (diagnostics.commerceEngine.status === "FAILED") {
+    logError("STARTUP - COMMERCE", "One or more commerce engine modules failed validation");
+  }
+
+  logError("STARTUP", "Critical components failed validation. Startup aborted.");
+  process.exit(1);
 }
+
+// Log warnings for optional component failures
+if (diagnostics.cache.status === "WARNING" || diagnostics.cache.status === "FAIL") {
+  logWarn("STARTUP - CACHE", diagnostics.cache.detail || "Redis cache offline, falling back to memory.");
+}
+if (diagnostics.googleSpeech.status === "WARNING" || diagnostics.googleSpeech.status === "FAIL") {
+  logWarn("STARTUP - SPEECH", diagnostics.googleSpeech.error || "Google Speech credentials not set.");
+}
+if (diagnostics.elevenLabs.status === "WARNING") {
+  logWarn("STARTUP - ELEVENLABS", diagnostics.elevenLabs.error || "ElevenLabs Voice authentication failed.");
+}
+if (diagnostics.env.warnings.length > 0) {
+  diagnostics.env.warnings.forEach(warn => logWarn("STARTUP - ENV", warn));
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOAD PERSISTED AI MODE FROM MONGODB (admin override)
@@ -264,5 +216,19 @@ const PORT = process.env.PORT || 5000;
 const aiEnv = getEnvironmentSummary();
 
 app.listen(PORT, "0.0.0.0", () => {
-  printServerReady(PORT, process.env.NODE_ENV || "development", chosenMode);
+  printOperationsConsole(diagnostics);
+
+  const promptInfo = getPromptInformation();
+  console.log(`
+══════════════════════════════════════════════════════════════════════════════
+                      PROMPT OPERATING SYSTEM DIAGNOSTICS
+══════════════════════════════════════════════════════════════════════════════
+   Prompt Operating System : ${promptInfo.name}
+   Version                 : ${promptInfo.version}
+   Modules                 : ${promptInfo.promptModules}
+   Runtime Modules         : ${promptInfo.runtimeModules}
+   Status                  : Production
+   Prompt Cache            : READY
+══════════════════════════════════════════════════════════════════════════════
+`);
 });

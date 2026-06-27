@@ -1,6 +1,6 @@
-// src/services/ai/llm.service.mjs
-
-import { SYSTEM_PROMPT } from "../../agent/systemPrompt.mjs";
+import { buildSystemPrompt } from "../../agent/system/buildSystemPrompt.mjs";
+import { validatePrompt } from "../../agent/validators/promptValidator.mjs";
+import { compressPrompt } from "../../agent/validators/promptCompressor.mjs";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
 import fs from "fs";
@@ -47,11 +47,70 @@ export const chatWithLLM = async ({
   history = [],
   memory = {},
   memoryContext = "",
+  runtimeContext = null,
 }) => {
   const { client: activeClient, model: selectedModel, provider, displayName } =
     getGeneralChatModel();
 
-  const systemContent = `${SYSTEM_PROMPT}\n\nCustomer Context:\n${JSON.stringify(memory, null, 2)}`;
+  let systemContent;
+  if (runtimeContext) {
+    systemContent = buildSystemPrompt(runtimeContext);
+  } else {
+    // Fallback/legacy compatibility:
+    // Let's create a minimal runtimeContext from legacy arguments
+    const fallbackRuntimeContext = {
+      decision: memory?.decision || {},
+      conversationState: memory?.conversationState || {},
+      customer: {
+        name: memory?.customerName || memory?.customer?.name || "Unknown",
+        preferredLanguage: memory?.language || "en",
+        city: memory?.city || null,
+        shoppingStyle: memory?.shoppingStyle || "standard"
+      },
+      memory: memory || {},
+      commerce: {
+        searchQuery: memory?.searchQuery || null,
+        category: memory?.category || null,
+        deliveryRequired: false,
+        checkoutStarted: false,
+        paymentCompleted: false
+      },
+      products: [],
+      cart: {
+        items: memory?.cart || [],
+        total: memory?.cart?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0,
+        deliveryAddress: memory?.deliveryAddress || null
+      },
+      order: {},
+      tracking: {},
+      response: {
+        type: memory?.response?.type || "conversation",
+        mode: memory?.response?.mode || "dynamic",
+        searchProducts: false,
+        recommendProducts: false,
+        askClarification: false,
+        useMemory: true
+      },
+      settings: {
+        streaming: true,
+        voiceMode: false,
+        model: selectedModel,
+        environment: process.env.NODE_ENV || "development"
+      },
+      latestMessage: message
+    };
+    systemContent = buildSystemPrompt(fallbackRuntimeContext);
+  }
+
+  // Validate System Prompt
+  const validation = validatePrompt(systemContent);
+  if (!validation.valid) {
+    logger.error("[Prompt OS] Prompt validation failed:", validation.errors);
+    throw new Error(`Prompt OS Validation Failed: ${validation.errors.join("; ")}`);
+  }
+
+  // Compress System Prompt
+  const compressedSystemPrompt = compressPrompt(systemContent);
 
   // Build user message (prepend memory context when present)
   let userContent = message;
@@ -69,8 +128,8 @@ export const chatWithLLM = async ({
       { name: displayName, score: 100 },
     ];
     t.prompt.version = "2.0.0";
-    t.prompt.length = SYSTEM_PROMPT.length;
-    t.prompt.activeSystemPrompt = SYSTEM_PROMPT;
+    t.prompt.length = compressedSystemPrompt.length;
+    t.prompt.activeSystemPrompt = compressedSystemPrompt;
     t.workflow.modelSelected = true;
   }
 
@@ -78,7 +137,7 @@ export const chatWithLLM = async ({
 
   try {
     // We only use Gemini now.
-    const responseText = await callGemini(activeClient, selectedModel, systemContent, history, userContent);
+    const responseText = await callGemini(activeClient, selectedModel, compressedSystemPrompt, history, userContent);
 
     const latencyMs = Date.now() - llmCallStart;
 
@@ -132,7 +191,7 @@ export const chatWithLLM = async ({
 };
 
 // ── Conversation summarisation (background task) ──────────────────────────────
-export const generateSummaryWithNemotron = async (messages) => {
+export const generateSummaryWithGemini = async (messages) => {
   const { client: activeClient, model, provider } = getSummaryModel();
 
   // Limit to the most recent 40 messages to keep the prompt size manageable.
@@ -165,7 +224,7 @@ Ensure all JSON is correctly formatted and all strings are properly closed.`;
 };
 
 // ── Shopping intelligence insights (background task) ──────────────────────────
-export const generateInsightsWithNemotron = async (profile, currentSummary, interactionScores) => {
+export const generateInsightsWithGemini = async (profile, currentSummary, interactionScores) => {
   const { client: activeClient, model, provider } = getSummaryModel();
 
   const profileBlock = JSON.stringify({
@@ -205,6 +264,10 @@ Rules:
     maxOutputTokens: 300,
   });
 };
+
+// Compatibility stubs
+export const generateSummaryWithNemotron = generateSummaryWithGemini;
+export const generateInsightsWithNemotron = generateInsightsWithGemini;
 
 // ── Legacy model selection (kept for backward compat) ─────────────────────────
 export async function selectModel(message, detectedLang = "en") {

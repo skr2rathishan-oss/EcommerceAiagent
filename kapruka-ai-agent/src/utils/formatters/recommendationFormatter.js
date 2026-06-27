@@ -40,25 +40,10 @@ Please generate a response following these rules strictly:
   try {
     const { client, model, provider } = getRecommendationModel();
     
-    let text;
-    if (provider === "gemini") {
-      text = await callGeminiSingleTurn(client, model, systemPrompt, prompt, {
-        temperature: 0.7,
-        maxOutputTokens: 1000
-      });
-    } else {
-      // Fallback OpenAI provider style
-      const completion = await client.chat.completions.create({
-        model: model,
-        temperature: 0.7,
-        max_tokens: 1000,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: prompt }
-        ]
-      });
-      text = completion.choices[0].message.content;
-    }
+    const text = await callGeminiSingleTurn(client, model, systemPrompt, prompt, {
+      temperature: 0.7,
+      maxOutputTokens: 1000
+    });
 
     return text.trim();
   } catch (error) {

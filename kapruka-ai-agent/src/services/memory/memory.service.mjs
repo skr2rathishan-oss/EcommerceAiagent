@@ -1,7 +1,7 @@
 import MemorySummary from "../../database/MemorySummary.mjs";
 import UserProfile from "../../database/UserProfile.mjs";
 import { getConversation } from "../memory/conversation.service.mjs";
-import { generateSummaryWithNemotron } from "../ai/llm.service.mjs";
+import { generateSummaryWithGemini } from "../ai/llm.service.mjs";
 import { generateUserInsights } from "../analytics/insights.service.mjs";
 import logger from "../../utils/logger.mjs";
 
@@ -149,8 +149,8 @@ async function runBackgroundSummarization(sessionId, messageCount, summaryDoc) {
       return;
     }
 
-    // 2. Call Nemotron for insights
-    const rawContent = await generateSummaryWithNemotron(convo.messages);
+    // 2. Call Gemini for insights
+    const rawContent = await generateSummaryWithGemini(convo.messages);
     let insights;
     try {
       insights = extractJson(rawContent);

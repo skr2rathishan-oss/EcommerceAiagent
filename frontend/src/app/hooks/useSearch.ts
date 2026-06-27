@@ -35,6 +35,7 @@ export const useSearch = () => {
     setPhase,
     pendingConfirmProduct,
     pendingConfirmVariants,
+    voiceDashboardOpen,
   } = useApp();
 
   const { cartItems } = useCart();
@@ -334,7 +335,7 @@ export const useSearch = () => {
           { role: "ai" as const, text: initialText, streaming: true }
         ]);
       }
-    })
+    }, voiceDashboardOpen)
       .then((data) => {
         setActivityExpanded(false);
         streamDoneRef.current = true;

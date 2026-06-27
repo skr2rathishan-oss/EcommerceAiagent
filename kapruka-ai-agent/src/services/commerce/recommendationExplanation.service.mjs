@@ -12,7 +12,7 @@ export function generateRecommendationReasons(product, profile) {
   const reasons = [];
   if (!product || !profile) return reasons;
 
-  const rawCat = product.category || "";
+  const rawCat = typeof product.category === "string" ? product.category : String(product.category || "");
   const cat = rawCat.trim().toLowerCase().replace(/\s+/g, "_");
 
   // 1. Gifting occasion preference
@@ -28,7 +28,7 @@ export function generateRecommendationReasons(product, profile) {
   // 3. Affinity purchase/view counts
   if (cat && profile.affinityScores && profile.affinityScores[cat]) {
     const scores = profile.affinityScores[cat];
-    const categoryLabel = product.category ? product.category.toLowerCase() : "this category";
+    const categoryLabel = (product.category && typeof product.category === "string") ? product.category.toLowerCase() : "this category";
     if (scores.purchase > 0) {
       reasons.push(`Frequently purchased ${categoryLabel}`);
     } else if (scores.view > 0) {

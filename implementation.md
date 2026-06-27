@@ -1,510 +1,543 @@
-# Velora AI Agent – AI-Driven Conversation Understanding Pipeline Refactor
+# Implementation Plan – Fix Conversation State & Resume Flow
 
-You are a Senior AI Architect, Senior Node.js Engineer, NLP Specialist, and Software Refactoring Engineer.
+## Objective
 
-Your task is to refactor the existing Conversation Understanding pipeline of the Velora AI Shopping Assistant.
+Investigate and resolve incorrect conversation state restoration and shopping session continuation.
 
-This is NOT a new feature.
+The goal is to make Velora behave like a premium shopping concierge by restoring previous shopping sessions **only when the user intends to continue them**.
 
-This is an architectural upgrade that replaces fragmented local language detection with a centralized AI-driven Conversation Understanding pipeline.
+Current behavior incorrectly resumes previous shopping sessions for unrelated greetings and loses previous search context during continuation.
 
-The objective is to simplify the architecture, eliminate duplicate analysis logic, and make the LLM the primary source of conversational understanding.
-
----
-
-# PRIMARY GOAL
-
-Refactor the Conversation Understanding pipeline so that a single AI request determines:
-
-* Language
-* Intent
-* Emotion
-* Variables
-* Conversation Stage
-* Confidence
-
-The Conversation Understanding Layer becomes the single intelligence layer of Velora.
-
-All downstream components must consume its structured output.
+This is a Conversation State Manager and Response Engine improvement, **not a Prompt OS change**.
 
 ---
 
-# CURRENT PROBLEM
+# Critical Requirements
 
-The current architecture performs language detection separately using keyword matching.
+## Preserve Existing Features
 
-This causes:
+Do NOT remove or rewrite:
 
-• incorrect language detection
+* Conversation Understanding Layer
+* Decision Builder
+* Conversation State Manager
+* Response Engine
+* Response Library
+* Memory System
+* MCP Product Search
+* Shopping Flow
+* Delivery Flow
+* Checkout Flow
+* Orders
+* Tracking
+* Voice Mode
+* Streaming
+* Prompt Operating System
 
-• duplicated logic
-
-• inconsistent Decision Objects
-
-• mixed responsibilities
-
-• poor handling of Sri Lankan mixed-language conversations
-
-Examples
-
-"Machan show me laptops"
-
-"Anna compare this phone"
-
-"Mama meka order karanna oni"
-
-"Super, idha deliver pannunga"
-
-Keyword detection cannot reliably classify these conversations.
+Maintain full backward compatibility.
 
 ---
 
-# TARGET ARCHITECTURE
+# Current Problems
 
-User Message
+## Issue 1 — Greeting incorrectly restores shopping context
 
-↓
+Example:
 
-Conversation State Manager
+User:
 
-↓
+```
+Vanakkam
+```
 
-Conversation Understanding (LLM)
+Current Response:
 
-↓
+```
+Vanakkam!
 
-Structured Conversation Object
+We were just looking at chocolates...
+```
 
-↓
+Expected:
 
-Decision Builder
+```
+Vanakkam!
 
-↓
+Welcome to Kapruka.
 
-Response Engine
+How can I help you today?
+```
 
-↓
-
-Response Library
-
-↓
-
-Streaming Controller
-
-↓
-
-Frontend
-
-There should be only one conversational analysis pipeline.
+Greeting alone should **never** automatically resume an old shopping session.
 
 ---
 
-# RULE 1 — ANALYZE THE EXISTING PROJECT FIRST
+## Issue 2 — Previous search context is lost
 
-Before writing any code:
+Current:
 
-Analyze the entire backend.
+```
+We were already looking at earlier.
+```
 
-Locate:
+Expected:
 
-Conversation Understanding
+```
+We were already looking at smartwatches.
 
-Language Detection
+Would you like to continue?
+```
 
-Intent Detection
+The Response Engine is attempting to use previous shopping context, but the required variable is empty or missing.
 
-Emotion Detection
-
-Decision Builder
-
-Conversation State Manager
-
-Response Engine
-
-Response Library
-
-Streaming Controllers
-
-Chat Controllers
-
-Determine how conversational analysis currently flows through the project.
-
-Reuse existing implementations whenever possible.
+Investigate why the previous search query is not being stored or restored correctly.
 
 ---
 
-# RULE 2 — REMOVE DUPLICATE ANALYSIS
+## Issue 3 — Continue Search uses an empty query
 
-Do NOT create another language detector.
+Conversation:
 
-Do NOT create another intent detector.
+```
+User:
+Show me smartwatches
 
-Do NOT create another emotion detector.
+↓
 
-Instead,
+AI:
+Continue previous search?
 
-merge the responsibilities into the existing Conversation Understanding Layer.
+↓
 
-Conversation Understanding becomes the only AI analysis component.
+User:
+A
+
+↓
+
+AI:
+No products found.
+```
+
+Expected:
+
+```
+Continue Previous Search
+
+↓
+
+Retrieve previous query
+
+↓
+
+Search MCP
+
+↓
+
+Return products
+```
+
+Current implementation appears to call MCP using an empty or invalid query.
 
 ---
 
-# RULE 3 — PRESERVE BACKWARD COMPATIBILITY
+# Investigation Phase
 
-Do NOT break:
+## Step 1 — Analyze Conversation State Manager
 
-Shopping
+Inspect:
 
-Delivery
+* Active Shopping Session
+* Previous Search Query
+* Shopping Context
+* Session Memory
+* Current Stage
 
-Orders
+Determine:
 
-Voice Mode
-
-Streaming
-
-Response Library
-
-Controllers
-
-MCP Tools
-
-Existing APIs
-
-All existing functionality must continue working.
+* When sessions are created
+* When sessions expire
+* When sessions are resumed
 
 ---
 
-# NEW RESPONSIBILITIES OF THE CONVERSATION UNDERSTANDING LAYER
+## Step 2 — Analyze Resume Logic
 
-For every user message,
+Identify the current resume decision.
 
-the Conversation Understanding Layer must determine:
+Determine why:
 
-Language
+```
+Greeting
+
+↓
+
+Resume Shopping
+```
+
+is occurring.
+
+Resume should only happen when the user explicitly intends to continue.
+
+---
+
+## Step 3 — Add Resume Intent Detection
+
+Introduce a dedicated decision before restoring shopping state.
+
+Expected logic:
+
+```
+Incoming Message
+
+↓
+
+Greeting?
+
+↓
+
+YES
+
+↓
+
+Does user explicitly reference previous shopping?
+
+Examples:
+
+continue
+
+same
+
+previous
+
+those
+
+again
+
+last one
+
+resume
+
+↓
+
+YES
+
+Resume Session
+
+↓
+
+NO
+
+Fresh Greeting
+```
+
+This decision should occur before the Conversation State Manager restores shopping context.
+
+---
+
+## Step 4 — Analyze Shopping Session Storage
+
+Verify that the following values are correctly stored:
+
+* Previous Search Query
+* Product Category
+* Filters
+* Recipient
+* Budget
+* Occasion
+* Last MCP Query
+* Search Timestamp
+
+Ensure they remain available for continuation.
+
+---
+
+## Step 5 — Analyze Continue Search Flow
+
+Current:
+
+```
+Continue Search
+
+↓
+
+Empty Query
+
+↓
+
+MCP
+
+↓
+
+0 Products
+```
+
+Expected:
+
+```
+Continue Search
+
+↓
+
+Restore Previous Query
+
+↓
+
+Validate Query
+
+↓
+
+Search MCP
+
+↓
+
+Products
+```
+
+---
+
+## Step 6 — Validate Shopping Context
+
+Before calling MCP verify:
+
+* Previous Search exists
+* Query is not empty
+* Query is valid
+* Shopping session is active
+
+If validation fails:
+
+Do not call MCP.
+
+Instead gracefully ask the customer what they would like to search for.
+
+---
+
+## Step 7 — Session Expiration
+
+Introduce session rules.
+
+Example:
+
+Resume only if:
+
+* Active session exists
+* Session not expired
+* User intends to continue
+
+Otherwise:
+
+Create a fresh shopping flow.
+
+---
+
+## Step 8 — Greeting Rules
+
+Greeting messages should never automatically restore shopping.
+
+Greeting should:
+
+* Welcome customer
+* Introduce Velora
+* Offer shopping assistance
+
+Only restore shopping if Resume Intent Detection returns TRUE.
+
+---
+
+## Step 9 — Logging
+
+Temporarily log:
+
+```
+Incoming Message
+
+↓
 
 Intent
 
-Emotion
+↓
 
-Variables
+Resume Intent
 
-Conversation Stage
+↓
 
-Confidence
+Conversation State
 
-using one AI request.
+↓
 
----
+Previous Search
 
-# STRUCTURED OUTPUT
+↓
 
-The Conversation Understanding Layer should return a standardized object.
+Shopping Context
 
-Example
+↓
 
-{
-"language": {
-"detected": "tamil_mix",
-"confidence": 0.98
-},
+Decision
 
-"intent": {
-"value": "search_product",
-"confidence": 0.97
-},
+↓
 
-"emotion": "friendly",
+MCP Query
 
-"conversationStage": "shopping",
+↓
 
-"variables": {
-"product": "Laptop"
-},
+Gemini Response
+```
 
-"analysisConfidence": 0.96
-}
-
-Every downstream service should consume this object.
+This should clearly show where incorrect state restoration occurs.
 
 ---
 
-# LANGUAGE DETECTION
+# Expected Conversation
 
-Language must no longer rely primarily on keyword matching.
+Example 1
 
-The AI should determine:
+```
+User:
+Vanakkam
 
-english
+↓
 
-sinhala_mix
+Greeting
 
-tamil_mix
+↓
 
-based on the complete conversational context.
+Fresh Greeting
 
-It must correctly understand:
+↓
 
-Romanized Sinhala
-
-Romanized Tamil
-
-Mixed English + Sinhala
-
-Mixed English + Tamil
-
-Natural Sri Lankan conversation styles.
+Welcome Message
+```
 
 ---
 
-# CONVERSATION STATE INTEGRATION
+Example 2
 
-The Conversation State Manager should provide context to the AI.
+```
+User:
+Show me smartwatches
 
-Examples
+↓
 
-Current Flow
+Shopping Search
 
-Current Step
+↓
 
-Previous Language
+MCP
 
-Paused Flows
+↓
 
-Recent Conversation History
-
-This allows the AI to make better language and intent decisions.
-
----
-
-# LANGUAGE PREFERENCE
-
-Persist the detected language inside the Conversation State Manager.
-
-Example
-
-preferences:
-
-preferredLanguage
-
-languageConfidence
-
-lastDetectedLanguage
-
-Future responses should reuse this information.
-
-Do not unnecessarily switch languages during a conversation.
+Products
+```
 
 ---
 
-# LLM FALLBACK STRATEGY
+Example 3
 
-The AI becomes the primary language detector.
+```
+User:
+Continue
 
-However,
+↓
 
-if the AI request fails:
+Resume Intent
 
-network error
+↓
 
-timeout
+Restore Previous Search
 
-quota exceeded
+↓
 
-invalid JSON
+Search MCP
 
-fallback to the existing lightweight keyword detector.
+↓
 
-Do NOT remove the existing detector immediately.
-
-Downgrade it into a fallback mechanism.
-
----
-
-# DECISION BUILDER
-
-The Decision Builder must consume:
-
-language
-
-intent
-
-emotion
-
-variables
-
-conversationStage
-
-directly from the Conversation Understanding Layer.
-
-It should never perform additional conversational analysis.
+Products
+```
 
 ---
 
-# RESPONSE ENGINE
+Example 4
 
-The Response Engine should consume only:
+```
+User:
+Show me flowers
 
-decision.language.detected
+↓
 
-No language detection logic should exist inside the Response Engine.
+New Search
 
----
+↓
 
-# RESPONSE LIBRARY
+Replace Previous Search
 
-The Response Library continues working exactly as before.
+↓
 
-Only the language source changes.
+MCP
 
-The Response Engine should automatically load:
+↓
 
-english
+Products
+```
 
-sinhala_mix
-
-tamil_mix
-
-based on the AI result.
-
----
-
-# STREAMING COMPATIBILITY
-
-Streaming should remain unchanged.
-
-Conversation Understanding completes first.
-
-Streaming begins only after the structured analysis has been produced.
+The new search should replace the previous shopping context instead of continuing an unrelated one.
 
 ---
 
-# FILE CREATION POLICY
-
-Before creating any new files:
-
-Search the project.
-
-Reuse:
-
-Conversation Understanding
-
-Language Utilities
-
-Decision Builder
-
-Response Engine
-
-Conversation State Manager
-
-If obsolete language utilities become unnecessary,
-
-remove them safely.
-
-Never leave duplicate conversational analysis logic inside the project.
-
----
-
-# CODE QUALITY
-
-Reuse:
-
-Existing logging
-
-Existing error handling
-
-Existing folder structure
-
-Existing naming conventions
-
-Existing helper utilities
-
-Follow the project's architecture.
-
-Maintain single responsibility for every service.
-
----
-
-# VALIDATION PLAN
+# Validation
 
 Verify:
 
-✓ English conversations detect correctly
+✓ Greeting
 
-✓ Sinhala Mixed conversations detect correctly
+✓ Small Talk
 
-✓ Tamil Mixed conversations detect correctly
+✓ New Shopping Search
 
-✓ Romanized Sinhala works
+✓ Continue Shopping
 
-✓ Romanized Tamil works
+✓ Previous Search
 
-✓ Mixed-language conversations work
+✓ Session Expiration
 
-✓ Preferred language persists
+✓ Resume Intent
 
-✓ Response Library loads correct language
+✓ MCP Search
 
-✓ Streaming still works
+✓ Response Engine
 
-✓ Delivery flow still works
+✓ Conversation State
 
-✓ Shopping flow still works
+✓ Memory
 
-✓ Order flow still works
+✓ Streaming
 
-✓ No duplicate language detection remains
-
-✓ Existing APIs remain unchanged
+✓ Voice Mode
 
 ---
 
-# TEST SCENARIOS
+# Completion Criteria
 
-Test using realistic Sri Lankan conversations.
+The task is complete only if:
 
-Examples
-
-"Machan show me birthday cakes."
-
-"Anna compare this laptop."
-
-"Mama meka order karanna oni."
-
-"Seri, intha address ku anuppunga."
-
-"Hari, tomorrow deliver karanna."
-
-"Super, thanks machan."
-
-Ensure the AI consistently returns the correct language and the Response Engine loads the appropriate localized response.
+* Greetings no longer resume old shopping sessions.
+* Resume occurs only when the user explicitly intends it.
+* Previous shopping query is correctly stored and restored.
+* Continue Search always uses the correct previous query.
+* MCP never receives an empty search query.
+* New shopping requests replace previous shopping context appropriately.
+* No existing shopping, delivery, checkout, tracking, or voice functionality is broken.
 
 ---
 
-# FINAL OUTPUT
+# Deliverables
 
-Before implementing any changes provide:
+Produce a final report containing:
 
-1. Current architecture analysis
-
-2. Existing conversational analysis pipeline
-
-3. Existing files reused
-
-4. Files modified
-
-5. New files created (only if absolutely necessary)
-
-6. Obsolete files safely removed
-
-7. Updated architecture diagram
-
-8. Migration plan
-
-9. Validation strategy
-
-10. Rollback strategy
-
-Only after completing the analysis should implementation begin.
-
-The final architecture must make the Conversation Understanding Layer the single source of truth for conversational analysis while preserving backward compatibility and minimizing duplicate logic.
+* Root cause
+* Conversation state changes
+* Resume logic improvements
+* Files modified
+* Validation results
+* Regression test results
+* Confirmation that all existing features remain functional

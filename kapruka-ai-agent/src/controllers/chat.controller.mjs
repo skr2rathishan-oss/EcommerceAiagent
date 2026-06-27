@@ -1,5 +1,6 @@
 import { chatWithLLM } from "../services/ai/llm.service.mjs";
 import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
+import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
 import {
   recordIntentDetection,
   recordMemoryLoad,
@@ -15,13 +16,10 @@ import { getShoppingContext, updateMemory, getMemory } from "../agent/memoryMana
 import { saveMessage } from "../services/memory/conversation.service.mjs";
 import { checkAndTriggerSummarization } from "../services/memory/memory.service.mjs";
 import { buildPersonalizedContext, shouldUseMemory, getMessageIntent } from "../memory/contextEngine.mjs";
-import { memoryExtractor } from "../memory/memoryExtractor.mjs";
 import { mergeToProfile, getDeliverySession, updateDeliverySession } from "../memory/memoryStore.mjs";
 import { shouldBypassQwen, getFastPathType } from "../agent/fastPathRouter.mjs";
 import { getContext } from "../services/core/logger.service.mjs";
 import { cacheService } from "../cache/cacheService.mjs";
-import { extractContext as localExtractContext } from "../ai/context/contextExtractor.mjs";
-import { localDetectLanguage } from "../utils/language.utils.mjs";
 import {
   loadConversationState,
   saveConversationState,
@@ -117,24 +115,7 @@ export const chat = async (req, res) => {
       updateMemory(sessionId, memoryUpdates);
     }
 
-    // ── Step 1: Log incoming message ───────────────────────────────────────────
-    const logLang = localDetectLanguage(message);
-    logIncomingMessage(sessionId, message, logLang);
-    logStepDone("Language detected", logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English");
-
-    // ── Step 2: Persist user message (background) ─────────────────────────────
-    saveMessage(sessionId, "user", message).catch(() => { });
-    addMessage(sessionId, "user", message).catch(() => { });
-
-    // ── Step 3: Memory extraction (background) ────────────────────────────────
-    const extracted = memoryExtractor.extractFromText(message);
-    const hasEntities = extracted.recipients.length || extracted.occasions.length ||
-      extracted.budget !== null || extracted.categories.length;
-    if (hasEntities) {
-      mergeToProfile(sessionId, extracted).catch(() => { });
-    }
-
-    // ── VCSM Priority Routing and Interception ───────────────────────────────
+    // ── Load Conversation State and History first for CUL ───────────────────
     const userState = await loadConversationState(sessionId);
     const history = await getRecentHistory(sessionId);
     const activeDeliveryId = userState?.active_delivery_session || userState?.pending_order;
@@ -144,18 +125,40 @@ export const chat = async (req, res) => {
     let deliverySession = activeDeliveryId ? await getDeliverySession(activeDeliveryId).catch(() => null) : null;
     let deliveryState = deliverySession?.state;
 
-    // ── Step 4: Run Conversation Understanding Layer (CUL) ───────────────────
+    // ── Run Conversation Understanding Layer (CUL) ──
     logStepStart("Conversation Understanding");
     const culOutput = await understandConversation({
       message,
       deliveryState: deliveryState || null,
       conversationState: userState,
       history,
+      voiceMode: !!voiceMode,
     });
-    const decision = buildDecision(culOutput, deliveryState || null, userState);
+    const decision = buildDecision(culOutput, deliveryState || null, userState, message);
     const currentLang = decision.language.code;
     const lowerMsg = message.toLowerCase().trim();
     const memory = getMemory(sessionId);
+
+    // ── Log incoming message using CUL's resolved language ──
+    logIncomingMessage(sessionId, message, currentLang);
+    logStepDone("Language detected", currentLang === "si" ? "Sinhala" : currentLang === "ta" ? "Tamil" : "English");
+
+    // ── Persist user message (background) ──
+    saveMessage(sessionId, "user", message).catch(() => { });
+    addMessage(sessionId, "user", message).catch(() => { });
+
+    // ── Memory extraction using CUL variables (background) ──
+    const extracted = {
+      recipients: decision.variables.recipient ? [decision.variables.recipient] : [],
+      occasions: decision.variables.occasion ? [decision.variables.occasion] : [],
+      budget: decision.variables.price ? parseFloat(decision.variables.price) || null : null,
+      categories: decision.variables.category ? [decision.variables.category] : []
+    };
+    const hasEntities = extracted.recipients.length || extracted.occasions.length ||
+      extracted.budget !== null || extracted.categories.length;
+    if (hasEntities) {
+      mergeToProfile(sessionId, extracted).catch(() => { });
+    }
 
     // Build compatibility parsedIntent and extractedContext structures for existing VCSM logic
     let parsedIntent = {
@@ -431,7 +434,55 @@ export const chat = async (req, res) => {
           ...getShoppingContext(sessionId),
           ...(memory || {})
         };
-        const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "" });
+        const runtimeContext = {
+          decision,
+          conversationState: userState,
+          customer: {
+            name: decision.variables?.customer_name || userState?.customerName,
+            preferredLanguage: decision.language?.code || userState?.language,
+            city: decision.variables?.city || userState?.city,
+            shoppingStyle: memory?.shoppingStyle || "standard"
+          },
+          memory: memoryState,
+          commerce: {
+            searchQuery: decision.variables?.product_name || memory?.searchQuery,
+            category: decision.variables?.category || memory?.category,
+            deliveryRequired: userState?.activeFlow === "delivery",
+            checkoutStarted: userState?.activeFlow === "checkout",
+            paymentCompleted: deliverySession?.state === "COMPLETED"
+          },
+          products: [],
+          cart: {
+            items: memory?.cart || [],
+            total: memory?.cart?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0,
+            deliveryAddress: deliverySession?.delivery_address
+          },
+          order: {
+            orderNumber: pendingOrder || deliverySession?.orderNumber || deliverySession?.id
+          },
+          tracking: {
+            status: deliverySession?.state
+          },
+          response: {
+            type: decision.response?.type || "conversation",
+            templateId: decision.response?.templateId,
+            templateName: decision.response?.templateName,
+            mode: decision.response?.mode || "dynamic",
+            searchProducts: decision.response?.searchProducts,
+            recommendProducts: decision.response?.recommendProducts,
+            askClarification: decision.response?.askClarification,
+            useMemory: decision.response?.useMemory !== false,
+            template: decision.response?.templateId
+          },
+          settings: {
+            streaming: !voiceMode,
+            voiceMode: voiceMode,
+            model: null,
+            environment: process.env.NODE_ENV || "development"
+          },
+          latestMessage: message
+        };
+        const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "", runtimeContext });
         
         let promptText = "";
         if (deliveryState === "WAITING_FOR_ADDRESS") {
@@ -594,8 +645,19 @@ export const chat = async (req, res) => {
         ...(extractedContext || {})
       };
 
+      const runtimeContext = constructRuntimeData({
+        decision,
+        userState,
+        memory,
+        memoryState,
+        deliverySession,
+        pendingOrder,
+        voiceMode,
+        message
+      });
+
       const llmStart = Date.now();
-      result = await chatWithLLM({ message, history, memory: memoryState, memoryContext });
+      result = await chatWithLLM({ message, history, memory: memoryState, memoryContext, runtimeContext });
       const llmMs = Date.now() - llmStart;
 
       if (typeof result === "string") {
@@ -630,9 +692,9 @@ export const chat = async (req, res) => {
       const history = await getRecentHistory(sessionId);
       let text;
       if (isFastPath) {
-        if (logLang === "si") {
+        if (currentLang === "si") {
           text = "ඔබගේ ඉල්ලීමට ගැලපෙන හොඳම නිෂ්පාදන කිහිපයක් මා සොයාගත්තා! පහතින් බලන්න 😊";
-        } else if (logLang === "ta") {
+        } else if (currentLang === "ta") {
           text = "உங்கள் கோரிக்கைக்குப் பொருத்தமான சில சிறந்த தயாரிப்புகளை நான் கண்டறிந்துள்ளேன்! கீழே பாருங்கள் 😊";
         } else {
           text = "I found some great options matching your request! Take a look below 😊";
@@ -693,6 +755,21 @@ export const chat = async (req, res) => {
           }
         })
         .catch(() => { });
+    }
+
+    // Populate request telemetry
+    const ctx = getContext();
+    if (ctx && ctx.telemetry) {
+      ctx.telemetry.detectedLanguage = (typeof decision !== "undefined" && decision?.language?.detected) || (typeof logLang !== "undefined" ? (logLang === "si" ? "Sinhala" : logLang === "ta" ? "Tamil" : "English") : "English");
+      ctx.telemetry.intent = (typeof decision !== "undefined" && decision?.intent?.value) || intentLabel || "general_chat";
+      ctx.telemetry.conversationStage = (typeof decision !== "undefined" && decision?.conversation_stage) || "browsing";
+      ctx.telemetry.activeFlow = (typeof decision !== "undefined" && decision?.active_flow) || "general_chat";
+      ctx.telemetry.decisionBuilder = "READY";
+      ctx.telemetry.responseEngine = providerUsed === "response_library" ? "Response Library" : "LLM Generator";
+      ctx.telemetry.responseLibraryModule = providerUsed === "response_library" ? `${decision?.response?.module || decision?.module}/${decision?.response?.category || decision?.category}` : "N/A";
+      ctx.telemetry.streamingStatus = providerUsed === "response_library" ? "DISABLED" : "ENABLED";
+      ctx.telemetry.commerceResults = finalPayload ? (finalPayload.type === "product_grid" ? `${finalPayload.products?.length || 0} products` : "Text") : "N/A";
+      ctx.telemetry.geminiResponseTime = providerUsed === "gemini" ? `${Date.now() - requestStart}ms` : "0ms";
     }
 
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);

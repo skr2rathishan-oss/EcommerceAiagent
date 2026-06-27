@@ -25,7 +25,7 @@ export function getGeminiClient() {
   const project = process.env.GOOGLE_CLOUD_PROJECT;
   if (!project) {
     throw new Error(
-      "[ModelRouter] GOOGLE_CLOUD_PROJECT is not set. Required when AI_MODE is staging or production."
+      "[ModelRouter] GOOGLE_CLOUD_PROJECT is not set. Required for Gemini AI."
     );
   }
 

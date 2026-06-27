@@ -201,6 +201,120 @@ export function runHeuristicDetection(normalizedText) {
  * @param {Function} [callLLMFallbackFn] - Async function calling LLM fallback
  * @returns {Promise<{language: string, confidence: number, reason: string}>}
  */
+/**
+ * Applies consecutive counts, language preference stickiness, and switch logic.
+ * Updates the sessionState (conversationState) object with the updated values.
+ *
+ * @param {string} detectedLang - Raw language detected by LLM or fallback ("english" | "sinhala_mix" | "tamil_mix" | "sinhala" | "tamil")
+ * @param {number} detectedConf - Confidence of detection
+ * @param {string} text - Raw user message content
+ * @param {Array} history - Message history
+ * @param {Object} sessionState - Conversation state object
+ * @returns {{language: string, confidence: number, reason: string}} - Final resolved language
+ */
+export function applyLanguagePreferenceStickiness(detectedLang, detectedConf, text, history, sessionState) {
+  let langLabel = detectedLang;
+  let langConf = detectedConf;
+  let reason = "detection_direct";
+
+  if (langLabel === "sinhala") langLabel = "sinhala_mix";
+  if (langLabel === "tamil") langLabel = "tamil_mix";
+
+  const normalized = normalizeText(text);
+  const isShort = isShortMessage(normalized);
+
+  let preferredLanguage = sessionState?.preferredLanguage || "english";
+  let consecutiveCount = sessionState?.consecutiveMessagesInSameLanguage || 0;
+
+  // Initialize if not set or if it's the default and consecutiveCount is 0
+  if (!preferredLanguage || (preferredLanguage === "english" && consecutiveCount === 0)) {
+    preferredLanguage = langLabel;
+    consecutiveCount = 1;
+    reason = "preference_initialized";
+  }
+
+  if (langLabel !== preferredLanguage) {
+    if (isShort) {
+      // Short messages stick to the preferred language
+      langLabel = preferredLanguage;
+      langConf = 0.95;
+      reason = "sticky_preferred_language";
+    } else {
+      // Substantive switch: require 3 consecutive user messages in the same language to shift preferredLanguage
+      const userHistory = history.filter(m => m.role === "user");
+      const requiredConsecutive = 3;
+      let matchesHistory = true;
+
+      // Exclude the current message if it is already present in history
+      let previousUserMsgs = userHistory;
+      if (userHistory.length > 0 && userHistory[userHistory.length - 1].content === text) {
+        previousUserMsgs = userHistory.slice(0, -1);
+      }
+
+      const recentUserMsgs = previousUserMsgs.slice(-(requiredConsecutive - 1));
+
+      if (recentUserMsgs.length === requiredConsecutive - 1) {
+        for (const msg of recentUserMsgs) {
+          const histNorm = normalizeText(msg.content);
+          const histHeur = runHeuristicDetection(histNorm);
+          
+          const histLang = (histHeur.language === "sinhala" || histHeur.language === "sinhala_mix") ? "sinhala_mix" : 
+                           (histHeur.language === "tamil" || histHeur.language === "tamil_mix") ? "tamil_mix" : 
+                           "english";
+          
+          const targetLang = (langLabel === "sinhala" || langLabel === "sinhala_mix") ? "sinhala_mix" :
+                             (langLabel === "tamil" || langLabel === "tamil_mix") ? "tamil_mix" :
+                             "english";
+
+          if (histLang !== targetLang) {
+            matchesHistory = false;
+            break;
+          }
+        }
+      } else {
+        matchesHistory = false;
+      }
+
+      if (matchesHistory) {
+        preferredLanguage = langLabel;
+        consecutiveCount = 1;
+        reason = "history_consistent_switch";
+      } else {
+        // Keep preferred language for this message's target response language
+        langLabel = preferredLanguage;
+        reason = "preference_retained";
+      }
+    }
+  } else {
+    consecutiveCount = consecutiveCount + 1;
+    reason = "preference_maintained";
+  }
+
+  // Update session state object fields
+  if (sessionState) {
+    sessionState.preferredLanguage = preferredLanguage;
+    sessionState.consecutiveMessagesInSameLanguage = consecutiveCount;
+    sessionState.lastDetectedLanguage = langLabel;
+    sessionState.languageConfidence = langConf;
+  }
+
+  return {
+    language: langLabel,
+    confidence: langConf,
+    reason
+  };
+}
+
+/**
+ * Stateful language detection taking into account conversation history,
+ * preference learning, short message stickiness, and gradual switches.
+ * 
+ * @param {string} text - Raw user message
+ * @param {Array} history - Message history array
+ * @param {object} sessionState - Current VCSM session state object (DB doc)
+ * @param {Function} [callLLMFallbackFn] - Async function calling LLM fallback
+ * @returns {Promise<{language: string, confidence: number, reason: string}>}
+ */
 export async function detectLanguageExtended(text, history = [], sessionState = {}, callLLMFallbackFn = null) {
   if (sessionState && sessionState._languageProcessed) {
     return {
@@ -244,81 +358,20 @@ export async function detectLanguageExtended(text, history = [], sessionState = 
     }
   }
 
-  // State integration
-  let preferredLanguage = sessionState.preferredLanguage;
-  let consecutiveCount = sessionState.consecutiveMessagesInSameLanguage || 0;
-
-  // Initialize if not set or if it's the default and consecutiveCount is 0
-  if (!preferredLanguage || (preferredLanguage === "english" && consecutiveCount === 0)) {
-    preferredLanguage = finalLanguage;
-    consecutiveCount = 1;
+  const stickinessResult = applyLanguagePreferenceStickiness(finalLanguage, finalConfidence, text, history, sessionState);
+  
+  // Override reason only if it matches fallback or preference retaining/initialized cases
+  let returnedReason = stickinessResult.reason;
+  if (finalReason === "llm_fallback" && stickinessResult.reason !== "sticky_preferred_language") {
+    returnedReason = "llm_fallback";
+  } else if (stickinessResult.reason === "preference_maintained" || stickinessResult.reason === "detection_direct") {
+    returnedReason = finalReason;
   }
-
-  if (finalLanguage !== preferredLanguage) {
-    if (isShort) {
-      // Short messages stick to the preferred language
-      finalLanguage = preferredLanguage;
-      finalConfidence = 0.95;
-      finalReason = "sticky_preferred_language";
-    } else {
-      // Substantive switch: require 3 consecutive user messages in the same language to shift preferredLanguage
-      const userHistory = history.filter(m => m.role === "user");
-      const requiredConsecutive = 3;
-      let matchesHistory = true;
-
-      // Exclude the current message if it is already present in history
-      let previousUserMsgs = userHistory;
-      if (userHistory.length > 0 && userHistory[userHistory.length - 1].content === text) {
-        previousUserMsgs = userHistory.slice(0, -1);
-      }
-
-      const recentUserMsgs = previousUserMsgs.slice(-(requiredConsecutive - 1));
-
-      if (recentUserMsgs.length === requiredConsecutive - 1) {
-        for (const msg of recentUserMsgs) {
-          const histNorm = normalizeText(msg.content);
-          const histHeur = runHeuristicDetection(histNorm);
-          
-          const histLang = (histHeur.language === "sinhala" || histHeur.language === "sinhala_mix") ? "sinhala_mix" : 
-                           (histHeur.language === "tamil" || histHeur.language === "tamil_mix") ? "tamil_mix" : 
-                           "english";
-          
-          const targetLang = (finalLanguage === "sinhala" || finalLanguage === "sinhala_mix") ? "sinhala_mix" :
-                             (finalLanguage === "tamil" || finalLanguage === "tamil_mix") ? "tamil_mix" :
-                             "english";
-
-          if (histLang !== targetLang) {
-            matchesHistory = false;
-            break;
-          }
-        }
-      } else {
-        matchesHistory = false;
-      }
-
-      if (matchesHistory) {
-        preferredLanguage = finalLanguage;
-        consecutiveCount = 1;
-        finalReason = "history_consistent_switch";
-      } else {
-        // Keep preferred language for this message's target response language
-        finalLanguage = preferredLanguage;
-      }
-    }
-  } else {
-    consecutiveCount = consecutiveCount + 1;
-  }
-
-  // Update session state object
-  sessionState.preferredLanguage = preferredLanguage;
-  sessionState.consecutiveMessagesInSameLanguage = consecutiveCount;
-  sessionState.lastDetectedLanguage = finalLanguage;
-  sessionState.languageConfidence = finalConfidence;
-
+  
   return {
-    language: finalLanguage,
-    confidence: finalConfidence,
-    reason: finalReason
+    language: stickinessResult.language,
+    confidence: stickinessResult.confidence,
+    reason: returnedReason
   };
 }
 
@@ -355,4 +408,27 @@ export function detectLanguageFromHistory(history) {
     }
   }
   return "en";
+}
+
+/**
+ * Detects if the user explicitly intends to resume a previous shopping context.
+ * Matches keywords indicating continuation.
+ * @param {string} message 
+ * @returns {boolean}
+ */
+export function isResumeIntent(message) {
+  if (!message) return false;
+  const lowerMsg = normalizeText(message);
+  
+  const resumeKeywords = [
+    "continue", "resume", "same", "previous", "those", "again", "last one",
+    "keep going", "yes continue", "go ahead", "a"
+  ];
+  
+  // Exact matches or starts/ends with
+  return resumeKeywords.some(keyword => {
+    // strict word boundary match
+    const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+    return regex.test(lowerMsg);
+  });
 }

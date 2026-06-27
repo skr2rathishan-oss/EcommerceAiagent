@@ -117,12 +117,14 @@ export const sendMessage = async (
     message: string,
     onProgress?: (payload: any) => void,
     commerceState?: any,
-    onChunk?: (text: string) => void
+    onChunk?: (text: string) => void,
+    voiceMode?: boolean
 ) => {
     return fetchStream({
         message,
         sessionId: getSessionId(),
         commerceState,
+        voiceMode,
     }, onProgress, onChunk);
 };
 
@@ -132,7 +134,8 @@ export const sendIntentMessage = async (
     parameters: any,
     onProgress?: (payload: any) => void,
     commerceState?: any,
-    onChunk?: (text: string) => void
+    onChunk?: (text: string) => void,
+    voiceMode?: boolean
 ) => {
     return fetchStream({
         message,
@@ -140,6 +143,7 @@ export const sendIntentMessage = async (
         intent,
         parameters,
         commerceState,
+        voiceMode,
     }, onProgress, onChunk);
 };
 

@@ -17,12 +17,12 @@ export const getMcpClient = async () => {
         },
         kapruka_get_product: {
           // Return error when product_id starts with "invalid"
-          ...(args.params?.product_id?.startsWith("invalid")
+          ...(args.product_id?.startsWith("invalid")
             ? { error: { message: "product_not_found" } }
             : {
                 structuredContent: {
                   result: JSON.stringify({
-                    product_id: args.params?.product_id ?? "unknown",
+                    product_id: args.product_id ?? "unknown",
                     name: "Mock Product",
                   }),
                 },
@@ -36,7 +36,7 @@ export const getMcpClient = async () => {
         },
         kapruka_check_delivery: {
           // Return error for invalid city (contains "Invalid")
-          ...(args.params?.city?.includes("Invalid")
+          ...(args.city?.includes("Invalid")
             ? { error: { message: "city_not_supported" } }
             : {
                 structuredContent: {
@@ -49,8 +49,8 @@ export const getMcpClient = async () => {
               }),
         },
         kapruka_create_order: (() => {
-          const missingField = !args.params?.recipient || !args.params?.delivery;
-          const hasInvalidProduct = (args.params?.cart ?? []).some(
+          const missingField = !args.recipient || !args.delivery;
+          const hasInvalidProduct = (args.cart ?? []).some(
             item => item.product_id?.startsWith("invalid")
           );
 
@@ -81,7 +81,7 @@ export const getMcpClient = async () => {
           };
         })(),
         kapruka_track_order: {
-          error: { message: "order_not_found", order_number: args.params?.order_number },
+          error: { message: "order_not_found", order_number: args.order_number },
         },
       };
 

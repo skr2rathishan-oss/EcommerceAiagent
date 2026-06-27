@@ -122,6 +122,14 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 searchQuery = proactiveFallback;
             }
 
+            if (!searchQuery || searchQuery.trim().length < 3) {
+                logger.info(`[SEARCH PRODUCTS] Query is empty or too short: "${searchQuery}". Requesting clarification.`);
+                return {
+                    error: true,
+                    message: "What kind of products are you looking for? You can search for cakes, flowers, electronics, or anything else!"
+                };
+            }
+
             let results;
             try {
                 results = await searchProducts(searchQuery);

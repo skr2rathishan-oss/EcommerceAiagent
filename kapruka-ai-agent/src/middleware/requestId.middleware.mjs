@@ -33,23 +33,21 @@ export const requestIdMiddleware = (req, res, next) => {
       },
       router: {
         scores: [
-          { name: "Llama 3.1 8B", score: 62 },
-          { name: "openai/gpt-oss-20b", score: 74 },
-          { name: "qwen/qwen3.5-122b-a10b", score: 98 }
+          { name: "Gemini 2.5 Flash", score: 100 }
         ],
-        selectedModel: "qwen/qwen3.5-122b-a10b",
-        reason: "Shopping/Regional conversation detected."
+        selectedModel: "gemini-2.5-flash",
+        reason: "Environment-routed: generalChat role."
       },
       prompt: {
-        version: "1.0.0",
+        version: "2.0.0",
         length: 0,
         activeSystemPrompt: "",
         memoryContextLength: 0,
         retrievedSummaryLength: 0
       },
       llm: {
-        provider: "NVIDIA NIM",
-        model: "",
+        provider: "Google Vertex AI",
+        model: "gemini-2.5-flash",
         ttft: 0,
         completionTime: 0,
         promptTokens: 0,

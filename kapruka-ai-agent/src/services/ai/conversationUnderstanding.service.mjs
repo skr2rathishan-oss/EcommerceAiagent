@@ -9,7 +9,7 @@
 
 import { CONVERSATION_UNDERSTANDING_PROMPT } from "../../agent/conversationUnderstandingPrompt.mjs";
 import { getIntentModel, callGeminiSingleTurn } from "./modelRouter.mjs";
-import { normalizeText, isShortMessage, runHeuristicDetection } from "../../utils/language.utils.mjs";
+import { normalizeText, isShortMessage, runHeuristicDetection, applyLanguagePreferenceStickiness } from "../../utils/language.utils.mjs";
 import { detectEmotion } from "../../ai/context/emotionDetector.mjs";
 import { detectSituation } from "../../ai/context/situationDetector.mjs";
 import { saveConversationState } from "../commerce/conversationStateService.mjs";
@@ -304,6 +304,7 @@ export async function understandConversation({
   deliveryState    = null,
   conversationState = null,
   history          = [],
+  voiceMode        = false,
 }) {
   let result = null;
   let isFallback = false;
@@ -351,71 +352,11 @@ export async function understandConversation({
   if (langLabel === "sinhala") langLabel = "sinhala_mix";
   if (langLabel === "tamil") langLabel = "tamil_mix";
 
-  // Run the stateful stickiness checks on top of Gemini's detection
+  // Run the stateful stickiness checks on top of Gemini's/fallback detection
   if (!isFallback) {
-    let preferredLanguage = conversationState?.preferredLanguage || "english";
-    let consecutiveCountVal = conversationState?.consecutiveMessagesInSameLanguage || 0;
-
-    const normalized = normalizeText(message);
-    const isShort = isShortMessage(normalized);
-
-    if (!preferredLanguage || (preferredLanguage === "english" && consecutiveCountVal === 0)) {
-      preferredLanguage = langLabel;
-      consecutiveCountVal = 1;
-    }
-
-    if (langLabel !== preferredLanguage) {
-      if (isShort) {
-        langLabel = preferredLanguage;
-        langConf = 0.95;
-      } else {
-        const userHistory = history.filter(m => m.role === "user");
-        const requiredConsecutive = 3;
-        let matchesHistory = true;
-
-        let previousUserMsgs = userHistory;
-        if (userHistory.length > 0 && userHistory[userHistory.length - 1].content === message) {
-          previousUserMsgs = userHistory.slice(0, -1);
-        }
-
-        const recentUserMsgs = previousUserMsgs.slice(-(requiredConsecutive - 1));
-
-        if (recentUserMsgs.length === requiredConsecutive - 1) {
-          for (const msg of recentUserMsgs) {
-            const histNorm = normalizeText(msg.content);
-            const histHeur = runHeuristicDetection(histNorm);
-            const histLang = (histHeur.language === "sinhala" || histHeur.language === "sinhala_mix") ? "sinhala_mix" :
-                             (histHeur.language === "tamil" || histHeur.language === "tamil_mix") ? "tamil_mix" :
-                             "english";
-            const targetLang = (langLabel === "sinhala" || langLabel === "sinhala_mix") ? "sinhala_mix" :
-                               (langLabel === "tamil" || langLabel === "tamil_mix") ? "tamil_mix" :
-                               "english";
-            if (histLang !== targetLang) {
-              matchesHistory = false;
-              break;
-            }
-          }
-        } else {
-          matchesHistory = false;
-        }
-
-        if (matchesHistory) {
-          preferredLanguage = langLabel;
-          consecutiveCountVal = 1;
-        } else {
-          langLabel = preferredLanguage;
-        }
-      }
-    } else {
-      consecutiveCountVal = consecutiveCountVal + 1;
-    }
-
-    if (conversationState) {
-      conversationState.preferredLanguage = preferredLanguage;
-      conversationState.consecutiveMessagesInSameLanguage = consecutiveCountVal;
-      conversationState.lastDetectedLanguage = langLabel;
-      conversationState.languageConfidence = langConf;
-    }
+    const stickinessResult = applyLanguagePreferenceStickiness(langLabel, langConf, message, history, conversationState);
+    langLabel = stickinessResult.language;
+    langConf = stickinessResult.confidence;
   }
 
   const langCode = (langLabel === "sinhala_mix") ? "si" :
@@ -475,7 +416,7 @@ export async function understandConversation({
     module,
     category,
     variables,
-    llm_response,
+    llm_response: true,
     _raw: {
       emotionLabel: emotion,
       situation,

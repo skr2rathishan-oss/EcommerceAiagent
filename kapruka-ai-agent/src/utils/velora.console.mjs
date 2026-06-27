@@ -6,6 +6,7 @@
 
 import chalk from "chalk";
 import readline from "readline";
+import { getContext } from "../services/core/logger.service.mjs";
 
 // ── ANSI helpers ──────────────────────────────────────────────────────────────
 const c = {
@@ -63,13 +64,7 @@ function stripAnsi(str) {
 // ─────────────────────────────────────────────────────────────────────────────
 export function printBanner() {
   console.clear();
-  console.log(c.cyan(`
-  ██╗   ██╗███████╗██╗      ██████╗ ██████╗  █████╗ 
-  ██║   ██║██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗
-  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝███████║
-  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔══██╗██╔══██║
-   ╚████╔╝ ███████╗███████╗╚██████╔╝██║  ██║██║  ██║
-    ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝`));
+  console.log(c.cyan());
   console.log(c.gray("                  AI Shopping Agent — Operations Console"));
   console.log(c.gray("                  " + new Date().toLocaleString("en-US", { timeZone: "Asia/Colombo", hour12: true })));
   console.log();
@@ -79,44 +74,11 @@ export function printBanner() {
 // SECTION 2: Interactive Mode Selection
 // ─────────────────────────────────────────────────────────────────────────────
 export async function askStartupMode() {
-  // ── Non-interactive bypass: set AI_MODE=production or AI_MODE=development ──
-  const envMode = process.env.AI_MODE;
-  if (envMode === "production" || envMode === "development") {
-    const label = envMode === "production"
-      ? chalk.bold.green("  ✔ Production mode (from AI_MODE env var) — Gemini AI enabled\n")
-      : chalk.bold.yellow("  ✔ Development mode (from AI_MODE env var) — NVIDIA NIM enabled\n");
-    console.log(label);
-    return envMode;
-  }
-
-  return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-    console.log(chalk.bold.cyan("  ┌─ STARTUP CONFIGURATION " + "─".repeat(45) + "┐"));
-    console.log(chalk.cyan("  │"));
-    console.log(chalk.cyan("  │  ") + chalk.bold("Select Operating Mode:"));
-    console.log(chalk.cyan("  │"));
-    console.log(chalk.cyan("  │  ") + chalk.bold.green("  [1]") + chalk.green("  Production  ") + chalk.gray("— Gemini 2.5 Flash · Minimal logging · Live users"));
-    console.log(chalk.cyan("  │  ") + chalk.bold.yellow("  [2]") + chalk.yellow("  Development ") + chalk.gray("— NVIDIA NIM      · Verbose logging  · Testing"));
-    console.log(chalk.cyan("  │"));
-    console.log(chalk.bold.cyan("  └" + "─".repeat(70) + "┘"));
-    console.log();
-
-    const prompt = chalk.bold.cyan("  ▶ Enter choice [1/2]: ");
-    rl.question(prompt, (answer) => {
-      const choice = answer.trim();
-      rl.close();
-      if (choice === "1") {
-        console.log(chalk.bold.green("\n  ✔ Production mode selected — Gemini AI enabled\n"));
-        resolve("production");
-      } else {
-        console.log(chalk.bold.yellow("\n  ✔ Development mode selected — NVIDIA NIM enabled\n"));
-        resolve("development");
-      }
-    });
-  });
+  const envMode = process.env.AI_MODE || "development";
+  const label = chalk.bold.green("  ✔ Development mode (from AI_MODE env var) — Gemini AI enabled\n");
+  console.log(label);
+  return "development";
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECTION 3: Health Check Display
@@ -130,13 +92,13 @@ export function printHealthRow(name, status, latencyMs = null, detail = "") {
   const colName = pad(name, 30);
   let statusStr, icon;
 
-  if (status === "ok") {
-    icon = chalk.green("✔");
+  if (status === "ok" || status === "CONNECTED") {
+    icon = chalk.green("✓");
     statusStr = chalk.green(pad("OK", 12));
-  } else if (status === "warn") {
+  } else if (status === "warn" || status === "WARNING") {
     icon = chalk.yellow("⚠");
     statusStr = chalk.yellow(pad("DEGRADED", 12));
-  } else if (status === "skip") {
+  } else if (status === "skip" || status === "SKIPPED") {
     icon = chalk.gray("─");
     statusStr = chalk.gray(pad("SKIPPED", 12));
   } else {
@@ -184,10 +146,8 @@ export async function askProceedDespiteFailures() {
 // SECTION 5: Server Ready Banner
 // ─────────────────────────────────────────────────────────────────────────────
 export function printServerReady(port, mode, aiMode) {
-  const modeColor = aiMode === "production" ? c.redB : c.yellowB;
-  const modeLabel = aiMode === "production"
-    ? "Gemini 2.5 Flash (Vertex AI)"
-    : "NVIDIA NIM (Development)";
+  const modeColor = c.greenB;
+  const modeLabel = "Gemini 2.5 Flash (Vertex AI)";
 
   console.log(chalk.bold.green("  ╔" + "═".repeat(70) + "╗"));
   console.log(chalk.bold.green("  ║") + chalk.bold.white(pad("                  🚀  VELORA AI SERVER READY", 70)) + chalk.bold.green("║"));
@@ -204,7 +164,190 @@ export function printServerReady(port, mode, aiMode) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 6: Per-Request Live Logging
+// SECTION 6: Operations Console Renderer
+// ─────────────────────────────────────────────────────────────────────────────
+export function printOperationsConsole(data) {
+  console.clear();
+  
+  // 1. ASCII BANNER
+  console.log(chalk.cyan(`
+  ██╗   ██╗███████╗██╗      ██████╗ ██████╗  █████╗ 
+  ██║   ██║██╔════╝██║     ██╔═══██╗██╔══██╗██╔══██╗
+  ██║   ██║█████╗  ██║     ██║   ██║██████╔╝███████║
+  ╚██╗ ██╔╝██╔══╝  ██║     ██║   ██║██╔══██╗██╔══██║
+   ╚████╔╝ ███████╗███████╗╚██████╔╝██║  ██║██║  ██║
+    ╚═══╝  ╚══════╝╚══════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝`));
+  console.log(chalk.cyan("                 Premium AI Shopping Assistant • Sri Lanka\n"));
+  
+  console.log(chalk.cyan(`╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                      🛍️  VELORA AI OPERATIONS CONSOLE                         ║
+║                 Premium AI Shopping Assistant - Sri Lanka                    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝`));
+
+  const divider = chalk.gray("──────────────────────────────────────────────────────────────────────────────");
+  const boldHeader = (title) => chalk.bold.white(title);
+  const padLabel = (lbl) => String(lbl).padEnd(28);
+
+  // 2. SYSTEM INFORMATION
+  console.log(`\n${boldHeader("SYSTEM INFORMATION")}\n${divider}`);
+  console.log(` ${padLabel("Environment")} ${data.systemInfo.env === "production" ? chalk.bold.red("Production") : chalk.bold.yellow("Development")}`);
+  console.log(` ${padLabel("Version")} ${data.systemInfo.version}`);
+  console.log(` ${padLabel("Node.js")} ${data.systemInfo.nodeVersion}`);
+  console.log(` ${padLabel("Platform")} ${data.systemInfo.platform}`);
+  console.log(` ${padLabel("Server Port")} ${data.systemInfo.port}`);
+  console.log(` ${padLabel("Process ID")} ${data.systemInfo.pid}`);
+  console.log(` ${padLabel("Startup Time")} ${data.systemInfo.startTime.replace("T", " ").substring(0, 19)}`);
+  console.log(` ${padLabel("Uptime")} ${Math.floor(process.uptime())}s`);
+  console.log(divider);
+
+  // 3. AI ENGINE
+  console.log(`\n${boldHeader("AI ENGINE")}\n${divider}`);
+  console.log(` ${padLabel("AI Provider")} Google Gemini`);
+  console.log(` ${padLabel("Model")} Gemini 2.5 Flash`);
+  console.log(` ${padLabel("Streaming")} ${process.env.STREAMING !== "false" ? chalk.green("ENABLED") : chalk.red("DISABLED")}`);
+  console.log(` ${padLabel("JSON Responses")} ${chalk.green("ENABLED")}`);
+  console.log(` ${padLabel("Conversation AI")} ${data.conversationPipeline.status === "READY" ? chalk.green("READY") : chalk.red("FAILED")}`);
+  console.log(` ${padLabel("Prompt Manager")} ${chalk.green("READY")}`);
+  console.log(divider);
+
+  // 4. CONVERSATION PIPELINE
+  console.log(`\n${boldHeader("CONVERSATION PIPELINE")}\n${divider}`);
+  const printPipelineRow = (label, ok) => {
+    const icon = ok ? chalk.green("✓") : chalk.red("✗");
+    console.log(`  ${icon} ${label}`);
+  };
+  const pipe = data.conversationPipeline.details;
+  printPipelineRow("Conversation Understanding", pipe.understanding);
+  printPipelineRow("Decision Builder", pipe.decisionBuilder);
+  printPipelineRow("Response Engine", pipe.responseEngine);
+  printPipelineRow("Response Library", pipe.responseEngine);
+  printPipelineRow("Conversation State Manager", pipe.stateManager);
+  printPipelineRow("Memory Manager", pipe.memoryManager);
+  printPipelineRow("Streaming Engine", pipe.streamingEngine);
+  printPipelineRow("Voice Pipeline", pipe.voicePipeline);
+  console.log(divider);
+
+  // 5. COMMERCE ENGINE
+  console.log(`\n${boldHeader("COMMERCE ENGINE")}\n${divider}`);
+  const comm = data.commerceEngine.details;
+  printPipelineRow("Product Search", comm.productSearch);
+  printPipelineRow("Delivery Flow", comm.deliveryFlow);
+  printPipelineRow("Address Service", comm.addressService);
+  printPipelineRow("Order Flow", comm.orderFlow);
+  printPipelineRow("Checkout Flow", comm.checkoutFlow);
+  printPipelineRow("Recovery Engine", comm.recoveryEngine);
+  printPipelineRow("Interruption Manager", comm.interruptionManager);
+  console.log(divider);
+
+  // 6. RESPONSE LIBRARY
+  console.log(`\n${boldHeader("RESPONSE LIBRARY")}\n${divider}`);
+  const rlib = data.responseLibrary.status;
+  const printRlibRow = (label, statusVal) => {
+    const icon = statusVal === "PASS" ? chalk.green("✓") : chalk.red("✗");
+    const stStr = statusVal === "PASS" ? chalk.green("PASS") : chalk.red("FAILED");
+    console.log(`  ${icon} ${padLabel(label)} ${stStr}`);
+  };
+  printRlibRow("Common Responses", rlib.common);
+  printRlibRow("Shopping Responses", rlib.shopping);
+  printRlibRow("Delivery Responses", rlib.delivery);
+  printRlibRow("Order Responses", rlib.order);
+  printRlibRow("Recovery Responses", rlib.recovery);
+  printRlibRow("Interruption Responses", rlib.interruption);
+  printRlibRow("Language Templates", rlib.languageTemplates);
+  console.log(divider);
+
+  // 7. SERVICE HEALTH
+  console.log(`\n${boldHeader("SERVICE HEALTH")}\n${divider}`);
+  const printHealthItem = (label, statusVal, latency) => {
+    let statusStr = "";
+    if (statusVal === "CONNECTED" || statusVal === "ok") {
+      statusStr = chalk.green("CONNECTED");
+    } else if (statusVal === "WARNING" || statusVal === "warn") {
+      statusStr = chalk.yellow("WARNING");
+    } else if (statusVal === "SKIPPED" || statusVal === "skip") {
+      statusStr = chalk.gray("SKIPPED");
+    } else {
+      statusStr = chalk.red("FAILED");
+    }
+    const latStr = latency !== null ? `${latency}ms` : "";
+    console.log(`  ${padLabel(label)} ${statusStr.padEnd(20)} ${chalk.gray(latStr)}`);
+  };
+  printHealthItem("MongoDB", data.mongoDB.status, data.mongoDB.latency);
+  printHealthItem("Redis", data.cache.status, data.cache.latency);
+  printHealthItem("Gemini API", data.gemini.status, data.gemini.latency);
+  printHealthItem("Google Speech", data.googleSpeech.status, null);
+  printHealthItem("ElevenLabs", data.elevenLabs.status, null);
+  printHealthItem("Kapruka MCP", data.mcp.status, data.mcp.latency);
+  console.log(divider);
+
+  // 8. STARTUP VALIDATION
+  console.log(`\n${boldHeader("STARTUP VALIDATION")}\n${divider}`);
+  const printValidationItem = (label, ok) => {
+    const icon = ok ? chalk.green("✓") : chalk.red("✗");
+    console.log(`  ${icon} ${label}`);
+  };
+  printValidationItem("Environment Variables", data.env.status === "PASS");
+  printValidationItem("MongoDB Connection", data.mongoDB.status === "CONNECTED");
+  printValidationItem("Gemini Authentication", data.gemini.status === "CONNECTED");
+  printValidationItem("Response Library Loaded", !Object.values(data.responseLibrary.status).some(s => s === "FAIL"));
+  printValidationItem("Conversation Pipeline", data.conversationPipeline.status === "READY");
+  printValidationItem("Voice Configuration", data.googleSpeech.status !== "FAIL");
+  printValidationItem("MCP Connection", data.mcp.status === "CONNECTED");
+  printValidationItem("Cache Initialized", data.cache.status !== "FAIL");
+  printValidationItem("Streaming Ready", process.env.STREAMING !== "false");
+  console.log(divider);
+
+  // 9. RUNTIME CONFIGURATION
+  console.log(`\n${boldHeader("RUNTIME CONFIGURATION")}\n${divider}`);
+  const printConfigRow = (label, enabled) => {
+    console.log(`  ${padLabel(label)} ${enabled ? chalk.green("ENABLED") : chalk.red("DISABLED")}`);
+  };
+  printConfigRow("Response Cache", true);
+  printConfigRow("Session Memory", true);
+  printConfigRow("Voice Mode", data.elevenLabs.status === "CONNECTED");
+  printConfigRow("Streaming", process.env.STREAMING !== "false");
+  printConfigRow("Auto Deployment", true);
+  printConfigRow("Debug Logging", process.env.LOG_LEVEL === "DEBUG");
+  console.log(divider);
+
+  // 10. READY BANNER
+  if (data.criticalFailures === 0) {
+    console.log(chalk.green(`
+══════════════════════════════════════════════════════════════════════════════
+
+                          🚀 VELORA AI AGENT READY
+
+   Status          ACCEPTING REQUESTS
+
+   Backend         http://localhost:${data.systemInfo.port}
+
+   API             http://localhost:${data.systemInfo.port}/api
+
+   Environment     ${data.systemInfo.env}
+
+══════════════════════════════════════════════════════════════════════════════
+`));
+  } else {
+    console.log(chalk.red(`
+══════════════════════════════════════════════════════════════════════════════
+
+                          ✘ VELORA AI STARTUP FAILED
+
+   Status          CRITICAL ERROR OCCURRED
+
+   Failures        ${data.criticalFailures} component(s) failed validation
+
+   Environment     ${data.systemInfo.env}
+
+══════════════════════════════════════════════════════════════════════════════
+`));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION 7: Per-Request Live Logging
 // ─────────────────────────────────────────────────────────────────────────────
 
 let _requestCounter = 0;
@@ -269,14 +412,42 @@ export function logContextExtracted(ctx) {
 }
 
 export function logRequestFooter(intentType, totalMs, provider) {
-  const providerLabel = provider?.includes("gemini") ? "Gemini" :
-                        provider ? "NVIDIA NIM" : "—";
+  const ctx = getContext();
+  const tel = ctx?.telemetry || {};
+
+  const sessId = ctx?.sessionId ? ctx.sessionId.slice(-8) : "default";
+  const lang = tel.detectedLanguage || tel.language?.detected || "English";
+  const intent = intentType || tel.intent?.type || "general_chat";
+  const stage = tel.conversationStage || "browsing";
+  const flow = tel.activeFlow || "general_chat";
+  const decBuilder = tel.decisionBuilder || "READY";
+  const respEngine = tel.responseEngine || (provider === "response_library" ? "Response Library" : "LLM Generator");
+  const respLibMod = tel.responseLibraryModule || "N/A";
+  const streamingStr = tel.streamingStatus || (provider === "response_library" ? "DISABLED" : "ENABLED");
+  const commerceRes = tel.commerceResults || "N/A";
+  const geminiTime = tel.geminiResponseTime || (provider === "gemini" ? `${totalMs}ms` : "0ms");
+
   console.log(chalk.cyan("  │  ") + chalk.gray("─".repeat(60)));
-  console.log(chalk.cyan("  │  ") +
-    chalk.gray("Intent: ") + chalk.white(pad(intentType || "—", 22)) +
-    chalk.gray("Provider: ") + chalk.white(pad(providerLabel, 14)) +
-    chalk.gray("Total: ") + chalk.bold.white(totalMs + "ms")
-  );
+  console.log(chalk.cyan("  │  ") + chalk.bold.white("REQUEST TELEMETRY SUMMARY"));
+  console.log(chalk.cyan("  │  ") + chalk.gray("─".repeat(60)));
+  
+  const printLine = (lbl, val) => {
+    console.log(chalk.cyan("  │  ") + chalk.gray(lbl.padEnd(25)) + chalk.white(val));
+  };
+
+  printLine("Session ID", sessId);
+  printLine("Detected Language", lang);
+  printLine("Intent", intent);
+  printLine("Conversation Stage", stage);
+  printLine("Active Flow", flow);
+  printLine("Decision Builder", decBuilder);
+  printLine("Response Engine", respEngine);
+  printLine("Response Library Module", respLibMod);
+  printLine("Streaming Status", streamingStr);
+  printLine("Commerce Results", commerceRes);
+  printLine("Gemini Response Time", geminiTime);
+  printLine("Total Processing Time", `${totalMs}ms`);
+
   console.log(chalk.bold.cyan("  └" + "─".repeat(70) + "┘\n"));
 }
 
@@ -289,7 +460,7 @@ export function logCacheHit(key) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 7: Background process labels (analytics, summarization etc.)
+// SECTION 8: Background process labels (analytics, summarization etc.)
 // ─────────────────────────────────────────────────────────────────────────────
 export function logBackground(label, detail = "") {
   const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -297,7 +468,7 @@ export function logBackground(label, detail = "") {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SECTION 8: Error logging
+// SECTION 9: Error logging
 // ─────────────────────────────────────────────────────────────────────────────
 export function logError(context, message) {
   const ts = new Date().toLocaleTimeString("en-US", { hour12: false });
