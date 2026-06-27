@@ -7,6 +7,30 @@ import logger from "../../utils/logger.mjs";
  * Synchronizes legacy fields and new flow fields both ways to guarantee 100% backward compatibility.
  */
 function syncLegacyFields(stateDoc, updates = {}) {
+  // Ensure workflowContext exists
+  if (!stateDoc.workflowContext) {
+    stateDoc.workflowContext = {
+      currentWorkflow: "idle",
+      previousWorkflow: "idle",
+      lastTransition: null,
+      workflowStartedAt: new Date(),
+      awaitingConfirmation: false,
+      waitingForPhoneNumber: false,
+      waitingForDelivery: false,
+      waitingForPayment: false,
+      resumeSearch: false,
+      previousSearchQuery: null,
+      canInterrupt: true,
+      canResume: false,
+      lastResetAt: null
+    };
+  }
+
+  // Sync current workflow from activeFlow
+  if (stateDoc.activeFlow?.type) {
+    stateDoc.workflowContext.currentWorkflow = stateDoc.activeFlow.type;
+  }
+
   // 1. Inverse Sync: Legacy inputs update the new Flow state
   if (updates.active_delivery_session !== undefined) {
     if (updates.active_delivery_session) {
@@ -80,6 +104,27 @@ function syncLegacyFields(stateDoc, updates = {}) {
 
   stateDoc.pending_order = stateDoc.order?.pendingOrderId || null;
 
+  // Flatten workflowContext values onto root of stateDoc for validator and legacy compatibility
+  const fieldsToSync = [
+    "currentWorkflow",
+    "previousWorkflow",
+    "lastTransition",
+    "workflowStartedAt",
+    "awaitingConfirmation",
+    "waitingForPhoneNumber",
+    "waitingForDelivery",
+    "waitingForPayment",
+    "resumeSearch",
+    "previousSearchQuery",
+    "canInterrupt",
+    "canResume"
+  ];
+  for (const field of fieldsToSync) {
+    if (stateDoc.workflowContext[field] !== undefined) {
+      stateDoc[field] = stateDoc.workflowContext[field];
+    }
+  }
+
   // Mark all Mixed fields modified to ensure mongoose saves them
   if (stateDoc && typeof stateDoc.markModified === "function") {
     stateDoc.markModified("activeFlow");
@@ -87,6 +132,7 @@ function syncLegacyFields(stateDoc, updates = {}) {
     stateDoc.markModified("shopping");
     stateDoc.markModified("delivery");
     stateDoc.markModified("order");
+    stateDoc.markModified("workflowContext");
   }
 }
 
@@ -326,7 +372,22 @@ export async function clearConversationState(sessionId) {
       pausedFlows: [],
       shopping: {},
       delivery: {},
-      order: {}
+      order: {},
+      workflowContext: {
+        currentWorkflow: "greeting",
+        previousWorkflow: "idle",
+        lastTransition: "idle_to_greeting",
+        workflowStartedAt: new Date(),
+        awaitingConfirmation: false,
+        waitingForPhoneNumber: false,
+        waitingForDelivery: false,
+        waitingForPayment: false,
+        resumeSearch: false,
+        previousSearchQuery: "",
+        canInterrupt: true,
+        canResume: true,
+        lastResetAt: new Date()
+      }
     });
   } catch (err) {
     logger.error(`[ConversationState] clearConversationState failed: ${err.message}`);

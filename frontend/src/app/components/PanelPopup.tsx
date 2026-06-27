@@ -2,11 +2,19 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   X, MessageSquare, Moon, Bell, Shield, Coins, MapPin, CheckCircle,
-  FileText, HelpCircle, Mail, Phone, ChevronRight, User, Camera, LogOut
+  FileText, HelpCircle, Mail, Phone, ChevronRight, User, Camera, LogOut,
+  DollarSign, Euro, PoundSterling, IndianRupee
 } from "lucide-react";
 import { useApp, type PanelId, type AnchorPos } from "../contexts/AppContext";
-import { CURRENCIES } from "./TopNavbar";
 import { formatUIPrice } from "../services/mapping";
+
+export const CURRENCIES = [
+  { code: "USD", symbol: "$", label: "USD – US Dollar", icon: DollarSign },
+  { code: "EUR", symbol: "€", label: "EUR – Euro", icon: Euro },
+  { code: "GBP", symbol: "£", label: "GBP – British Pound", icon: PoundSterling },
+  { code: "LKR", symbol: "Rs", label: "LKR – Sri Lankan Rupee", icon: Coins },
+  { code: "INR", symbol: "₹", label: "INR – Indian Rupee", icon: IndianRupee },
+];
 
 const POPUP_W = 340;
 const POPUP_MAX_H = 480;

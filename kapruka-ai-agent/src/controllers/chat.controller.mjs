@@ -1,5 +1,6 @@
 import { chatWithLLM } from "../services/ai/llm.service.mjs";
 import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
+import manageWorkflow from "../agent/workflow/05_workflowManager.mjs";
 import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
 import {
   recordIntentDetection,
@@ -10,7 +11,7 @@ import {
   recordTotal
 } from "../services/core/performance.service.mjs";
 import { routeIntent } from "../agent/intentRouter.mjs";
-import { getRecentHistory, addMessage } from "../services/memory/chatMemory.service.mjs";
+import { getRecentHistory, addMessage, clearConversation } from "../services/memory/chatMemory.service.mjs";
 import { formatRecommendations } from "../utils/formatters/recommendationFormatter.js";
 import { getShoppingContext, updateMemory, getMemory } from "../agent/memoryManager.mjs";
 import { saveMessage } from "../services/memory/conversation.service.mjs";
@@ -116,8 +117,26 @@ export const chat = async (req, res) => {
     }
 
     // ── Load Conversation State and History first for CUL ───────────────────
-    const userState = await loadConversationState(sessionId);
-    const history = await getRecentHistory(sessionId);
+    let userState = await loadConversationState(sessionId);
+    
+    const lowerMsg = message.toLowerCase().trim();
+    const isResumeHistory = ["resume previous chat", "resume my previous chat", "continue my last chat", "continue previous chat", "load previous chat", "load my previous chat", "resume previous chatting", "resume chat"].some(
+      phrase => lowerMsg.includes(phrase)
+    );
+
+    if (isResumeHistory && userState?.workflowContext?.lastResetAt) {
+      logStepStart("Resume previous chat history");
+      userState = await saveConversationState(sessionId, {
+        workflowContext: {
+          ...(userState.workflowContext || {}),
+          lastResetAt: null
+        }
+      });
+      logStepDone("Resume previous chat history", "Cleared lastResetAt to restore history");
+    }
+
+    const lastResetAt = userState?.workflowContext?.lastResetAt;
+    const history = await getRecentHistory(sessionId, lastResetAt);
     const activeDeliveryId = userState?.active_delivery_session || userState?.pending_order;
     const pendingOrder = userState?.pending_order;
 
@@ -136,8 +155,78 @@ export const chat = async (req, res) => {
     });
     const decision = buildDecision(culOutput, deliveryState || null, userState, message);
     const currentLang = decision.language.code;
-    const lowerMsg = message.toLowerCase().trim();
     const memory = getMemory(sessionId);
+
+    // ── Run Workflow Manager ──
+    logStepStart("Workflow Manager validation");
+    const workflowDecision = manageWorkflow({
+      message,
+      intent: decision.intent.value,
+      decision,
+      conversationState: userState,
+      memory
+    });
+
+    if (!workflowDecision.success || workflowDecision.action === "clarify") {
+      logStepDone("Workflow Manager", `Validation failed: ${workflowDecision.reason}`);
+      const responsePayload = selectResponse(decision, decision.variables, sessionId, workflowDecision);
+      let finalPayload = responsePayload;
+      if (!finalPayload) {
+        finalPayload = { type: "text", text: workflowDecision.reason || "I'm sorry, I'm a bit confused. Can you please clarify what you would like to do?" };
+      }
+      setSSEHeaders(res);
+      if (finalPayload.text) {
+        saveMessage(sessionId, "assistant", finalPayload.text).catch(() => {});
+      }
+      return sendCompleteAndEnd(res, finalPayload);
+    }
+
+    logStepDone("Workflow Manager", `Transition allowed to: ${workflowDecision.workflow}`);
+
+    // If reset is triggered, clear conversation state
+    if (workflowDecision.action === "reset" || workflowDecision.resetWorkflow) {
+      userState = await clearConversationState(sessionId);
+      
+      // Reset the temporary memory context
+      if (memory) {
+        delete memory.waitingForResumeChoice;
+        delete memory.resumableContextId;
+        delete memory.pendingSearchQuery;
+        delete memory.hasRemindedPendingOrder;
+        if (memory.shoppingContext) {
+          memory.shoppingContext.lastSearchResults = [];
+          memory.shoppingContext.selectedProduct = null;
+        }
+        updateMemory(sessionId, memory);
+      }
+    } else {
+      // Save state before response generation
+      const previousWorkflow = userState?.workflowContext?.currentWorkflow || "idle";
+      const updatedWorkflowContext = {
+        ...(userState.workflowContext || {}),
+        currentWorkflow: workflowDecision.workflow,
+        previousWorkflow: previousWorkflow,
+        lastTransition: `${previousWorkflow}_to_${workflowDecision.workflow}`,
+        workflowStartedAt: userState?.workflowContext?.workflowStartedAt || new Date(),
+        awaitingConfirmation: workflowDecision.workflow === "checkout" || (deliverySession && ["WAITING_FOR_CONFIRMATION", "WAITING_FOR_FINAL_ORDER_CONFIRMATION"].includes(deliverySession.state)),
+        waitingForPhoneNumber: deliverySession && deliverySession.state === "WAITING_FOR_CONTACT_PHONE",
+        waitingForDelivery: deliverySession && ["WAITING_FOR_ADDRESS", "WAITING_FOR_DATE"].includes(deliverySession.state),
+        waitingForPayment: deliverySession && deliverySession.state === "PAYMENT_PENDING",
+        resumeSearch: workflowDecision.workflow === "product_search" && !!userState?.workflowContext?.previousSearchQuery,
+        previousSearchQuery: workflowDecision.workflow === "product_search" ? (userState?.workflowContext?.previousSearchQuery || decision.variables.product_name) : userState?.workflowContext?.previousSearchQuery,
+        canInterrupt: true,
+        canResume: true
+      };
+
+      userState = await saveConversationState(sessionId, {
+        activeFlow: {
+          type: workflowDecision.workflow,
+          status: "active",
+          currentStep: decision.conversation_stage
+        },
+        workflowContext: updatedWorkflowContext
+      });
+    }
 
     // ── Log incoming message using CUL's resolved language ──
     logIncomingMessage(sessionId, message, currentLang);
@@ -205,12 +294,10 @@ export const chat = async (req, res) => {
 
 
 
-    // CSM Resume Flow Check: If user explicitly asks to continue or resume their order/delivery
-    const isResumeRequest = ["continue my order", "resume order", "continue order", "continue my laptop order", "laptop order", "resume my order", "go back to my order"].some(
-      phrase => lowerMsg.includes(phrase)
-    );
-    if (isResumeRequest && userState?.pausedFlows?.some(f => f.type === "delivery")) {
-      logStepDone("Interception", "VCSM: Resuming Paused Delivery Flow");
+    // CSM Resume Flow Check using Workflow Engine
+    const shouldResumeDelivery = workflowDecision.workflow === "delivery" && userState?.pausedFlows?.some(f => f.type === "delivery");
+    if (shouldResumeDelivery) {
+      logStepDone("Interception", "VCSM: Resuming Paused Delivery Flow via Workflow Engine");
       await resumeFlow(sessionId, "delivery");
       
       // Reload delivery session details
@@ -670,6 +757,20 @@ export const chat = async (req, res) => {
       }
 
     } else {
+      // Phase 8: MCP Validation
+      if (parsedIntent.intent === "search_products") {
+        const query = parsedIntent.parameters?.query || parsedIntent.parameters?.q;
+        const currentWorkflow = workflowDecision.workflow;
+
+        // Prevent empty query or invalid workflow/shopping context
+        if (!query || query.trim() === "" || currentWorkflow !== "product_search") {
+          logStepDone("MCP Validation", "Blocked invalid or empty product search query");
+          const clarifyText = "What products are you looking for? Please let me know what item you want to find! 😊";
+          saveMessage(sessionId, "assistant", clarifyText).catch(() => {});
+          return sendCompleteAndEnd(res, { type: "text", text: clarifyText });
+        }
+      }
+
       logStepStart("Routing intent", parsedIntent.intent);
       try {
         result = await routeIntent(parsedIntent.intent, parsedIntent.parameters, sessionId, updateProgress);
@@ -741,9 +842,6 @@ export const chat = async (req, res) => {
 
     updateProgress("READY", "completed");
 
-    // Persist final state transition based on the decision
-    await transitionTo(sessionId, decision.active_flow, decision.conversation_stage);
-
     // ── Step 11: Persist assistant response (background) ──────────────────────
     const assistantText = extractText(finalPayload);
     if (assistantText) {
@@ -771,6 +869,23 @@ export const chat = async (req, res) => {
       ctx.telemetry.commerceResults = finalPayload ? (finalPayload.type === "product_grid" ? `${finalPayload.products?.length || 0} products` : "Text") : "N/A";
       ctx.telemetry.geminiResponseTime = providerUsed === "gemini" ? `${Date.now() - requestStart}ms` : "0ms";
     }
+
+    // Phase 10: Temporarily add structured integration trace logging
+    console.log(`
+══════════════════════════════════════
+Incoming Message         : ${message}
+Intent                   : ${parsedIntent?.intent || "N/A"}
+Decision                 : ${JSON.stringify(decision || {})}
+Conversation State (Load): ${JSON.stringify(userState || {})}
+Workflow Decision        : ${JSON.stringify(workflowDecision || {})}
+Conversation State (Saved): ${JSON.stringify(userState || {})}
+Response Engine Input    : ${JSON.stringify({ decision, workflowDecision })}
+Runtime Builder Input    : ${JSON.stringify({ decision, userState })}
+Prompt Builder Input     : ${JSON.stringify({ decision, userState })}
+Gemini Request           : ${providerUsed === "gemini" ? "YES (Gemini API called)" : "NO (Response Library or Fast Path)"}
+Streaming Status         : ${!voiceMode ? "ENABLED" : "DISABLED"}
+══════════════════════════════════════
+    `);
 
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);
     return sendCompleteAndEnd(res, finalPayload);
