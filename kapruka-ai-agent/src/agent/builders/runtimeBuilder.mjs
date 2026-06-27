@@ -39,7 +39,6 @@ import buildSystemRuntime from "../runtime/system.runtime.mjs";
 /* =============================================================================
  * Runtime Builder
  * ========================================================================== */
-
 export function buildRuntimeContext(runtimeContext = {}) {
 
     const conversation = buildConversationRuntime(runtimeContext);
@@ -54,6 +53,25 @@ export function buildRuntimeContext(runtimeContext = {}) {
 
     const system = buildSystemRuntime(runtimeContext);
 
+    const workflowData = runtimeContext.workflow || {};
+    const workflowPrompt = `
+===============================================================================
+WORKFLOW RUNTIME
+===============================================================================
+
+Current Workflow      : ${workflowData.currentWorkflow || "idle"}
+Previous Workflow     : ${workflowData.previousWorkflow || "idle"}
+Last Transition       : ${workflowData.lastTransition || "none"}
+Awaiting Confirmation : ${workflowData.awaitingConfirmation ? "Yes" : "No"}
+Waiting For Phone     : ${workflowData.waitingForPhoneNumber ? "Yes" : "No"}
+Waiting For Delivery  : ${workflowData.waitingForDelivery ? "Yes" : "No"}
+Waiting For Payment   : ${workflowData.waitingForPayment ? "Yes" : "No"}
+Resume Search         : ${workflowData.resumeSearch ? "Yes" : "No"}
+Previous Search Query : ${workflowData.previousSearchQuery || "none"}
+
+===============================================================================
+`.trim();
+
     return {
 
         data: {
@@ -62,13 +80,15 @@ export function buildRuntimeContext(runtimeContext = {}) {
 
             customer: customer.data,
 
-            commerce: commerce.data,
+            shopping: commerce.data,
+
+            delivery: runtimeContext.delivery || {},
 
             memory: memory.data,
 
             response: response.data,
 
-            system: system.data
+            workflow: workflowData
 
         },
 
@@ -84,6 +104,8 @@ export function buildRuntimeContext(runtimeContext = {}) {
             customer.prompt,
             "",
             commerce.prompt,
+            "",
+            workflowPrompt,
             "",
             memory.prompt,
             "",
@@ -107,7 +129,7 @@ export const RUNTIME_BUILDER_INFO = Object.freeze({
 
     version: "1.0.0",
 
-    modules: 6,
+    modules: 7,
 
     runtime: [
 
@@ -121,7 +143,9 @@ export const RUNTIME_BUILDER_INFO = Object.freeze({
 
         "Response",
 
-        "System"
+        "System",
+
+        "Workflow"
 
     ]
 
@@ -151,24 +175,30 @@ export function constructRuntimeData({
             shoppingStyle: memory?.shoppingStyle || "standard"
         },
         memory: memoryState,
-        commerce: {
+        shopping: {
             searchQuery: decision?.variables?.product_name || memory?.searchQuery,
             category: decision?.variables?.category || memory?.category,
+            activeContextId: userState?.active_shopping_context
+        },
+        delivery: {
             deliveryRequired: userState?.activeFlow === "delivery",
-            checkoutStarted: userState?.activeFlow === "checkout",
-            paymentCompleted: deliverySession?.state === "COMPLETED"
+            deliveryAddress: deliverySession?.delivery_address || null,
+            deliveryDate: deliverySession?.delivery_date || null,
+            status: deliverySession?.state || null
         },
-        products: [],
-        cart: {
-            items: memory?.cart || [],
-            total: memory?.cart?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0) || 0,
-            deliveryAddress: deliverySession?.delivery_address
-        },
-        order: {
-            orderNumber: pendingOrder || deliverySession?.orderNumber || deliverySession?.id
-        },
-        tracking: {
-            status: deliverySession?.state
+        workflow: userState?.workflowContext || {
+            currentWorkflow: userState?.activeFlow?.type || "idle",
+            previousWorkflow: "idle",
+            lastTransition: null,
+            workflowStartedAt: null,
+            awaitingConfirmation: false,
+            waitingForPhoneNumber: false,
+            waitingForDelivery: false,
+            waitingForPayment: false,
+            resumeSearch: false,
+            previousSearchQuery: null,
+            canInterrupt: true,
+            canResume: false
         },
         response: {
             type: decision?.response?.type || "conversation",

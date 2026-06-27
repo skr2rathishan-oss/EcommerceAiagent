@@ -111,14 +111,74 @@ const lastReturnedResponses = new Map();
  * @param {string|null} [sessionId] - Optional session ID for duplicate prevention
  * @returns {object|null} - A response object, or null if no library match.
  */
-export function selectResponse(decision, variables = {}, sessionId = null) {
-  if (!decision) return null;
+export function selectResponse(decision, variables = {}, sessionId = null, workflowDecision = null) {
+  let resolvedDecision = decision;
+
+  if (workflowDecision) {
+    let module = "common";
+    let category = "small_talk";
+    let llm_response = false;
+
+    if (workflowDecision.action === "clarify") {
+      module = "common";
+      category = "confused";
+    } else {
+      switch (workflowDecision.workflow) {
+        case "greeting":
+          module = "common";
+          category = "greeting";
+          break;
+        case "product_search":
+          module = "shopping";
+          category = "search";
+          llm_response = true;
+          break;
+        case "product_details":
+          module = "shopping";
+          category = "product_details";
+          llm_response = true;
+          break;
+        case "delivery":
+          module = "delivery";
+          category = "ask_delivery_address";
+          break;
+        case "checkout":
+          module = "order";
+          category = "payment";
+          break;
+        case "order_tracking":
+          module = "order";
+          category = "order_confirmation";
+          llm_response = true;
+          break;
+        case "recovery":
+          module = "recovery";
+          category = "recovery";
+          llm_response = true;
+          break;
+        default:
+          module = "common";
+          category = "small_talk";
+          llm_response = true;
+      }
+    }
+
+    resolvedDecision = {
+      ...decision,
+      module,
+      category,
+      llm_response: (decision && typeof decision.llm_response === "boolean") ? decision.llm_response : llm_response,
+      response: { module, category }
+    };
+  }
+
+  if (!resolvedDecision) return null;
 
   // If Decision Object says LLM should respond, don't use the library.
-  if (decision.llm_response === true) return null;
+  if (resolvedDecision.llm_response === true) return null;
 
-  const module = decision.response?.module || decision.module;
-  const category = decision.response?.category || decision.category;
+  const module = resolvedDecision.response?.module || resolvedDecision.module;
+  const category = resolvedDecision.response?.category || resolvedDecision.category;
   if (!module || !category) return null;
 
   const language = decision.language;

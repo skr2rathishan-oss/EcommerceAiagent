@@ -71,3 +71,19 @@ export async function getConversation(sessionId) {
     return null;
   }
 }
+
+/**
+ * Clears the conversation history for a session from MongoDB.
+ *
+ * @param {string} sessionId
+ * @returns {Promise<boolean>}
+ */
+export async function clearConversationMessages(sessionId) {
+  try {
+    await Conversation.deleteOne({ sessionId });
+    return true;
+  } catch (error) {
+    console.error(`[Conversation Service Error] Failed to clear conversation messages for session "${sessionId}":`, error);
+    return false;
+  }
+}
