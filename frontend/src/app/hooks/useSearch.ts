@@ -281,6 +281,7 @@ export const useSearch = () => {
     };
 
     sendMessage(trimmed, (payload) => {
+      if (firstChunkSeenRef.current) return;
       setActivity({
         currentStep: payload.step,
         currentMessage: payload.message,

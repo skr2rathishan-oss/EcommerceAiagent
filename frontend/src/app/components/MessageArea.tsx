@@ -61,6 +61,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastScrolledProductIdRef = useRef<string | null>(null);
+  const lastMessagesLengthRef = useRef(messages.length);
 
   const [voiceStates, setVoiceStates] = useState<Record<number, 'idle' | 'generating' | 'playing' | 'error'>>({});
   const [voiceErrors, setVoiceErrors] = useState<Record<number, string>>({});
@@ -154,8 +155,15 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
       }
       const el = scrollRef.current;
       if (!el) return;
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+
+      const isNewUserMessage = messages.length > lastMessagesLengthRef.current && messages[messages.length - 1]?.role === "user";
+      const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+
+      if (isAtBottom || isNewUserMessage) {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      }
     }
+    lastMessagesLengthRef.current = messages.length;
   }, [messages, selectedIds]);
 
   return (
