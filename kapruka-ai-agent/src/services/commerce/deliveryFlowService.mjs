@@ -758,7 +758,7 @@ export async function confirmAndCreateOrder(session, lang = "en") {
 
     await saveConversationState(session.sessionId, { 
       active_delivery_session: session.sessionId, 
-      pending_order: null,
+      pending_order: session.sessionId,
       active_shopping_context: null
     });
 

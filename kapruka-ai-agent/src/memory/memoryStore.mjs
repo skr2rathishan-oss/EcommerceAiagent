@@ -154,7 +154,13 @@ export async function updateDeliverySession(sessionId, updates, currentVersion) 
               status: flowStatus,
               currentStep: step
             },
-            active_delivery_session: (flowStatus === "active") ? sessionId : null
+            active_delivery_session: (flowStatus === "active") ? sessionId : null,
+            currentWorkflow: (flowStatus === "active") ? "delivery" : "idle",
+            "workflowContext.currentWorkflow": (flowStatus === "active") ? "delivery" : "idle",
+            "workflowContext.waitingForPhoneNumber": updates.state === "WAITING_FOR_CONTACT_PHONE",
+            "workflowContext.awaitingConfirmation": ["WAITING_FOR_CONFIRMATION", "WAITING_FOR_FINAL_ORDER_CONFIRMATION"].includes(updates.state),
+            "workflowContext.waitingForDelivery": ["WAITING_FOR_ADDRESS", "WAITING_FOR_ADDRESS_CONFIRMATION", "WAITING_FOR_DATE", "WAITING_FOR_CONTACT_NAME", "WAITING_FOR_CONTACT_PHONE"].includes(updates.state),
+            "workflowContext.waitingForPayment": updates.state === "PAYMENT_PENDING"
           }
         },
         { upsert: true }

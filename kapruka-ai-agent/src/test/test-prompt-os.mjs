@@ -87,7 +87,7 @@ async function runTest() {
     console.log("\n--- Test 6: Prompt Loader ---");
     const loaderInfo = getPromptInformation();
     assert(loaderInfo.version === "2.0.0", "Prompt Loader returns version 2.0.0");
-    assert(loaderInfo.promptModules === 19, "Prompt Loader returns total of 19 prompt modules");
+    assert(loaderInfo.promptModules === 20, "Prompt Loader returns total of 20 prompt modules");
     assert(loaderInfo.runtimeModules === 6, "Prompt Loader returns total of 6 runtime modules");
 
     console.log(`\n==================================================`);

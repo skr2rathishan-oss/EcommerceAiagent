@@ -111,7 +111,81 @@ const lastReturnedResponses = new Map();
  * @param {string|null} [sessionId] - Optional session ID for duplicate prevention
  * @returns {object|null} - A response object, or null if no library match.
  */
+function logExit({ category, template, fallbackUsed, llmUsed, streaming, duration }) {
+  console.log(`
+=========================
+RESPONSE ENGINE EXIT
+=========================
+
+Response Category: ${category || "N/A"}
+
+Template: ${template || "None"}
+
+Fallback Used: ${fallbackUsed ? "yes" : "no"}
+
+LLM Used: ${llmUsed ? "yes" : "no"}
+
+Streaming: ${streaming ? "yes" : "no"}
+
+Duration: ${duration}ms
+
+=========================
+  `.trim());
+}
+
 export function selectResponse(decision, variables = {}, sessionId = null, workflowDecision = null) {
+  const startTime = Date.now();
+  const stack = new Error().stack || "";
+  const isStream = stack.includes("chatStream");
+  const controller = isStream ? "chatStream.controller" : "chat.controller";
+  const intent = decision?.intent?.value || "N/A";
+  const workflow = workflowDecision?.workflow || decision?.response?.module || "N/A";
+  const reference = decision?.variables?.product_id || decision?.variables?.product_name || "N/A";
+
+  console.log(`
+=========================
+RESPONSE ENGINE ENTRY
+=========================
+
+Endpoint:
+/api/chat
+
+Controller:
+${controller}
+
+Intent:
+${intent}
+
+Workflow:
+${workflow}
+
+Reference:
+${reference}
+
+Calling Response Engine...
+
+=========================
+  `.trim());
+
+  const result = _selectResponseInternal(decision, variables, sessionId, workflowDecision);
+
+  const duration = Date.now() - startTime;
+  const isLlm = decision?.llm_response === true || (result === null && decision?.llm_response !== false);
+  const isFallback = result === null;
+
+  logExit({
+    category: result ? result.category : (decision?.category || "N/A"),
+    template: result ? result.text : null,
+    fallbackUsed: isFallback && !isLlm,
+    llmUsed: isLlm,
+    streaming: isStream,
+    duration
+  });
+
+  return result;
+}
+
+function _selectResponseInternal(decision, variables = {}, sessionId = null, workflowDecision = null) {
   let resolvedDecision = decision;
 
   if (workflowDecision) {

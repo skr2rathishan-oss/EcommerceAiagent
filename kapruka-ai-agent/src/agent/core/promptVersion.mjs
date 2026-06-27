@@ -58,13 +58,13 @@ export const PROMPT_VERSION = Object.freeze({
 
         core: 5,
 
-        intelligence: 5,
+        intelligence: 6,
 
         commerce: 5,
 
         communication: 4,
 
-        total: 19
+        total: 20
 
     },
 

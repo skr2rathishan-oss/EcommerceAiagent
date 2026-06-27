@@ -1,6 +1,7 @@
 import { INTENTS } from "../config/intents.mjs";
 import { searchProducts, getProductDetails } from "../services/integration/mcp.service.mjs";
 import { getShoppingContext, updateShoppingContext, getMemory, updateMemory } from "./memoryManager.mjs";
+import { rememberSearchResults } from "./reference/05_referenceManager.mjs";
 import { formatProductDetails } from "../utils/productDetailsFormatter.mjs";
 import { applyFilters, getSuggestions } from "../utils/filterEngine.mjs";
 import { trackInteraction } from "../services/commerce/productInteraction.service.mjs";
@@ -141,6 +142,11 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                         searchQuery = fallback;
                         results = await searchProducts(searchQuery);
                     }
+                }
+
+                // Save product search results after every successful MCP search
+                if (Array.isArray(results)) {
+                    rememberSearchResults(sessionId, results);
                 }
             } catch (err) {
                 logger.error("[SEARCH PRODUCTS] MCP Search failed:", err.message);

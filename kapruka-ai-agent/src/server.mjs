@@ -1,4 +1,10 @@
 import "./config/loadEnv.mjs";
+if (process.stdout._handle && typeof process.stdout._handle.setBlocking === "function") {
+  process.stdout._handle.setBlocking(true);
+}
+if (process.stderr._handle && typeof process.stderr._handle.setBlocking === "function") {
+  process.stderr._handle.setBlocking(true);
+}
 import express    from "express";
 import cors       from "cors";
 import mongoose   from "mongoose";

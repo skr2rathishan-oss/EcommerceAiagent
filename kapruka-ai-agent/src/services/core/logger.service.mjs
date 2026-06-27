@@ -62,7 +62,7 @@ const writeLog = (levelName, msg, meta = null) => {
   if (targetLevel < currentThreshold) return;
 
   // Only show WARN and ERROR in the terminal (INFO is shown via velora.console.mjs step logs)
-  if (targetLevel < LOG_LEVELS.WARN) return;
+  // if (targetLevel < LOG_LEVELS.WARN) return;
 
   const timestamp = chalk.gray(`[${getTimestamp()}]`);
   

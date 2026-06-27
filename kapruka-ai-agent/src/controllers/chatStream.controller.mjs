@@ -1,6 +1,7 @@
 import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
 import manageWorkflow from "../agent/workflow/05_workflowManager.mjs";
 import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
+import { handleReference } from "../agent/reference/05_referenceManager.mjs";
 import {
   chatWithLLMStream,
   formatRecommendationsStream
@@ -71,7 +72,7 @@ export const chatStream = async (req, res) => {
   let providerUsed = "";
 
   try {
-    const { message, commerceState, voiceMode } = req.body;
+    const { message, commerceState, voiceMode, intent: bodyIntent, parameters: bodyParams } = req.body;
     const sessionId = req.headers["x-session-id"] || req.body.sessionId || "default";
 
     // ── Validate ─────────────────────────────────────────────────────────────
@@ -142,8 +143,119 @@ export const chatStream = async (req, res) => {
     });
     // Construct final decision based on intent and VCSM state
     const decision = buildDecision(culOutput, deliveryState || null, userState, message);
+    if (bodyIntent) {
+      decision.intent.value = bodyIntent;
+    }
     const currentLang = decision.language.code;
     const memory = getMemory(sessionId);
+
+    // Resolve conversational reference before any product detail/compare/cart operation
+    const refResult = handleReference(sessionId, message);
+    let resolvedReference = null;
+
+    if (refResult.handled) {
+      // Smart bypass: If reference is generic and not product-specific intent, do not intercept
+      const isProductSpecificIntent = ["get_product_details", "select_product", "check_delivery"].includes(decision.intent.value);
+      const isExplicitRef = refResult.parsed && refResult.parsed.type !== "generic";
+      if (!isExplicitRef && !isProductSpecificIntent) {
+        refResult.handled = false;
+      }
+    }
+
+    if (refResult.handled) {
+      if (!refResult.success) {
+        logStepError("Reference Engine", refResult.reason);
+        setSSEHeaders(res);
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: "chunk", text: refResult.response })}\n\n`);
+        }
+        saveMessage(sessionId, "assistant", refResult.response).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: refResult.response });
+      } else {
+        logStepDone("Reference Engine", `Resolved reference: ${refResult.action}`);
+        resolvedReference = refResult;
+        
+        if (refResult.action === "PRODUCT_SELECTED" && refResult.internalProduct) {
+          decision.variables = decision.variables || {};
+          decision.variables.product_id = refResult.internalProduct.id;
+          decision.variables.product_name = refResult.internalProduct.name;
+          
+          if (decision.intent.value === "general_chat") {
+            const lowerMsg = message.toLowerCase();
+            if (["detail", "info", "spec", "about", "describe", "show"].some(word => lowerMsg.includes(word))) {
+              decision.intent.value = "get_product_details";
+            } else {
+              decision.intent.value = "select_product";
+            }
+          }
+        } else if (refResult.action === "COMPARE_PRODUCTS" && refResult.internalProducts) {
+          decision.intent.value = "general_chat";
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // PRE-WORKFLOW INTERCEPTIONS
+    // These must run BEFORE the workflow manager to avoid transition errors
+    // when the user is confirming/cancelling/blocked by an active order.
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // Reuse the existing normalized message from earlier in the handler.
+
+    // ── Early Cancellation Check ──────────────────────────────────────────────
+    const cancellationPhrases = ["cancel order", "don't place it", "never mind", "don't place", "cancel my order", "stop order", "cancel"];
+    const isEarlyCancellation = cancellationPhrases.some(phrase => lowerMsg.includes(phrase));
+    if (isEarlyCancellation && (pendingOrder || deliverySession)) {
+      logStepDone("Interception", "PRE-WF: Order Cancellation");
+      await saveConversationState(sessionId, { active_delivery_session: null, pending_order: null });
+      if (deliverySession) {
+        await updateDeliverySession(deliverySession.sessionId, { state: "CANCELLED" }, deliverySession.session_version);
+      }
+      saveMessage(sessionId, "user", message).catch(() => {});
+      addMessage(sessionId, "user", message).catch(() => {});
+      setSSEHeaders(res);
+      const cancelText = "😊 No worries. I've cancelled your pending order. What would you like to do next?";
+      saveMessage(sessionId, "assistant", cancelText).catch(() => {});
+      return sendCompleteAndEnd(res, { type: "text", text: cancelText });
+    }
+
+    // ── Early Payment Pending / Creating Order Block ──────────────────────────
+    if (deliverySession && (deliveryState === "CREATING_ORDER" || deliveryState === "PAYMENT_PENDING")) {
+      logStepDone("Interception", `PRE-WF: Order Processing Block. State: ${deliveryState}`);
+      saveMessage(sessionId, "user", message).catch(() => {});
+      addMessage(sessionId, "user", message).catch(() => {});
+      setSSEHeaders(res);
+      let msgText = "😊 We are currently processing your order. Please finish that first.";
+      if (deliveryState === "PAYMENT_PENDING") {
+        msgText = `😊 Your order is currently processing (payment pending). Please complete the payment using the checkout link first. If you would like to cancel this order to do something else, just tell me "cancel".`;
+      } else if (deliveryState === "CREATING_ORDER") {
+        msgText = "😊 We are currently creating your order. Please wait a moment.";
+      }
+      saveMessage(sessionId, "assistant", msgText).catch(() => {});
+      return sendCompleteAndEnd(res, { type: "text", text: msgText });
+    }
+
+    // ── Early Pending Order Confirmation ("Yes" / "Confirm") ──────────────────
+    const isYesEarly = ["yes", "y", "hari", "ow", "yes machan", "confirm", "place the order", "place order", "confirm the order", "yes, place", "yes please", "ok", "okay"].some(
+      word => lowerMsg === word || lowerMsg.startsWith(word + " ") || lowerMsg.endsWith(" " + word) || lowerMsg.includes("yes ") || lowerMsg.includes("confirm ") || lowerMsg.includes("place ")
+    );
+    if (pendingOrder && isYesEarly && deliverySession && (deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION" || deliveryState === "WAITING_FOR_CONFIRMATION")) {
+      logStepDone("Interception", "PRE-WF: Pending Order Confirmation");
+      const memory = getMemory(sessionId);
+      delete memory.hasRemindedPendingOrder;
+      updateMemory(sessionId, memory);
+      saveMessage(sessionId, "user", message).catch(() => {});
+      addMessage(sessionId, "user", message).catch(() => {});
+      setSSEHeaders(res);
+      const serviceResult = await handleFinalOrderConfirmation(deliverySession, message, decision.language.code);
+      if (serviceResult) {
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: "chunk", text: serviceResult.text })}\\n\\n`);
+        }
+        saveMessage(sessionId, "assistant", serviceResult.text || "").catch(() => {});
+      }
+      return sendCompleteAndEnd(res, serviceResult);
+    }
 
     // ── Run Workflow Manager ──
     logStepStart("Workflow Manager validation");
@@ -257,6 +369,17 @@ export const chatStream = async (req, res) => {
         }
       }
     };
+
+    // Inject resolved reference parameters
+    if (resolvedReference) {
+      if (resolvedReference.action === "PRODUCT_SELECTED" && resolvedReference.internalProduct) {
+        parsedIntent.parameters.productId = resolvedReference.internalProduct.id;
+        parsedIntent.parameters.product_id = resolvedReference.internalProduct.id;
+        parsedIntent.parameters.product = resolvedReference.internalProduct;
+      } else if (resolvedReference.action === "COMPARE_PRODUCTS" && resolvedReference.internalProducts) {
+        parsedIntent.parameters.compareProducts = resolvedReference.internalProducts;
+      }
+    }
     if (req.body.intent) {
       parsedIntent.intent = req.body.intent;
       parsedIntent.parameters = {
@@ -325,6 +448,7 @@ export const chatStream = async (req, res) => {
       "WAITING_FOR_RECOVERY_CHOICE",
       "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
       "WAITING_FOR_CONFIRMATION",
+      "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
       "WAITING_FOR_CONTACT_NAME",
       "WAITING_FOR_CONTACT_PHONE",
       "WAITING_FOR_CANCEL_CHOICE"
@@ -378,7 +502,6 @@ export const chatStream = async (req, res) => {
     }
 
     // Priority 13: Order Cancellation ("cancel", "don't place it", "never mind", "cancel order", "stop order")
-    const cancellationPhrases = ["cancel order", "don't place it", "never mind", "don't place", "cancel my order", "stop order", "cancel"];
     const isCancellation = cancellationPhrases.some(phrase => lowerMsg.includes(phrase)) || (deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION" && lowerMsg === "no");
     if (isCancellation && (pendingOrder || deliverySession)) {
       logStepDone("Interception", "VCSM: Order Cancellation");
@@ -520,7 +643,7 @@ export const chatStream = async (req, res) => {
     }
 
     // Priority 2: Active Delivery Session & Delivery Protection
-    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+    if (deliverySession && activeCollectingStates.includes(deliveryState) && deliveryState !== "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
       if (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details") {
         logStepDone("Interception", "VCSM: Delivery Protection Triggered");
         setSSEHeaders(res);
@@ -530,7 +653,7 @@ export const chatStream = async (req, res) => {
       }
     }
 
-    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+    if (deliverySession && activeCollectingStates.includes(deliveryState) && (parsedIntent.intent === "delivery_flow_input" || parsedIntent.intent === "general_chat" || deliveryState !== "WAITING_FOR_FINAL_ORDER_CONFIRMATION")) {
       logStepDone("Interception", `VCSM Active Delivery Session state: ${deliveryState}`);
 
       if (parsedIntent.intent === "general_chat") {
@@ -641,7 +764,7 @@ export const chatStream = async (req, res) => {
         serviceResult = await handleRecoveryChoice(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION") {
         serviceResult = await handleCancelOptions(deliverySession, message, currentLang);
-      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION" || deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
         serviceResult = await handleCheckoutConfirmation(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
         serviceResult = await handleContactNameInput(deliverySession, message, currentLang);
@@ -658,76 +781,15 @@ export const chatStream = async (req, res) => {
       }
 
       if (serviceResult) {
-        logStepDone("Interception", "VCSM: State machine processed. Passing to LLM Response Engine.");
-        
-        const updatedUserState = await loadConversationState(sessionId);
-        const updatedDeliverySession = activeDeliveryId ? await getDeliverySession(activeDeliveryId).catch(() => null) : null;
-        const updatedHistory = await getRecentHistory(sessionId);
-        
-        const runtimeContext = {
-          decision: {
-            ...decision,
-            response: { ...decision.response, type: "conversation", mode: "dynamic" }
-          },
-          conversationState: updatedUserState,
-          customer: {
-            name: decision.variables?.customer_name || updatedUserState?.customerName,
-            preferredLanguage: decision.language?.code || updatedUserState?.language,
-            city: decision.variables?.city || updatedUserState?.city
-          },
-          commerce: {
-            deliveryRequired: true
-          },
-          cart: {
-            items: memory?.cart || [],
-            deliveryAddress: updatedDeliverySession?.delivery_address
-          },
-          tracking: {
-            status: updatedDeliverySession?.state
-          },
-          response: {
-            type: "conversation",
-            mode: "dynamic",
-            useMemory: false
-          },
-          settings: {
-            streaming: !voiceMode,
-            voiceMode: !!voiceMode,
-            model: null,
-            environment: process.env.NODE_ENV || "development"
-          },
-          latestMessage: message
-        };
-
-        const llmStart = Date.now();
-        const llmResult = await chatWithLLMStream({
-          message,
-          history: updatedHistory,
-          memory: memory || {},
-          memoryContext: "",
-          runtimeContext,
-          onChunk: (chunk) => {
-            if (!res.writableEnded && !voiceMode) {
-              res.write(`data: ${JSON.stringify({ type: "chunk", text: chunk })}\n\n`);
-            }
-          }
-        });
-        const llmMs = Date.now() - llmStart;
-        logStepDone("LLM generation stream", `${llmMs}ms`);
-
-        if (typeof llmResult === "string") {
-          await addMessage(sessionId, "assistant", llmResult);
-          if (voiceMode && !res.writableEnded) {
-            res.write(`data: ${JSON.stringify({ type: "chunk", text: llmResult })}\n\n`);
-          }
-          return sendCompleteAndEnd(res, { 
-            ...serviceResult,
-            type: "text", 
-            text: llmResult 
-          });
+        logStepDone("Interception", "VCSM: State machine processed. Returning direct response.");
+        if (!res.writableEnded) {
+          res.write(`data: ${JSON.stringify({ type: "chunk", text: serviceResult.text })}\n\n`);
         }
+        if (serviceResult.text) {
+          saveMessage(sessionId, "assistant", serviceResult.text).catch(() => {});
+        }
+        return sendCompleteAndEnd(res, serviceResult);
       }
-      return sendCompleteAndEnd(res, serviceResult);
     }
 
     // Priority 3: Shopping Context Resume Detection
@@ -873,7 +935,8 @@ export const chatStream = async (req, res) => {
           deliverySession,
           pendingOrder,
           voiceMode,
-          message
+          message,
+          resolvedReference
         });
 
         const llmStart = Date.now();
