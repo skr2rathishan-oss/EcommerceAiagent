@@ -143,6 +143,7 @@ export async function loadConversationState(sessionId) {
       state = await ConversationState.create({ sessionId });
       state = state.toObject();
     }
+    logger.info(`[MongoDB] LOADED conversation state for ${sessionId}. currentWorkflow: ${state.workflowContext?.currentWorkflow}, activeFlow: ${state.activeFlow?.type}`);
     return state;
   } catch (err) {
     logger.error(`[ConversationState] loadConversationState failed: ${err.message}`);
@@ -165,6 +166,7 @@ export async function saveConversationState(sessionId, updates) {
     // Sync legacy/flow structures
     syncLegacyFields(stateDoc, updates);
 
+    logger.info(`[MongoDB] PRE-SAVE conversation state for ${sessionId}. currentWorkflow: ${stateDoc.workflowContext?.currentWorkflow}, activeFlow: ${stateDoc.activeFlow?.type}`);
     await stateDoc.save();
     return stateDoc.toObject();
   } catch (err) {
@@ -209,6 +211,7 @@ export async function transitionTo(sessionId, flowType, step, status = "active")
 
     syncLegacyFields(stateDoc);
 
+    logger.info(`[MongoDB] PRE-SAVE (transition) conversation state for ${sessionId}. currentWorkflow: ${stateDoc.workflowContext?.currentWorkflow}, activeFlow: ${stateDoc.activeFlow?.type}`);
     await stateDoc.save();
     return stateDoc.toObject();
   } catch (err) {
@@ -244,6 +247,7 @@ export async function pauseCurrentFlow(sessionId, reason = "user_interruption") 
       };
 
       syncLegacyFields(stateDoc);
+      logger.info(`[MongoDB] PRE-SAVE (pause) conversation state for ${sessionId}. currentWorkflow: ${stateDoc.workflowContext?.currentWorkflow}, activeFlow: ${stateDoc.activeFlow?.type}`);
       await stateDoc.save();
     }
     return stateDoc.toObject();
@@ -291,6 +295,7 @@ export async function resumeFlow(sessionId, flowType) {
       stateDoc[flowType] = pausedFlow.state || {};
 
       syncLegacyFields(stateDoc);
+      logger.info(`[MongoDB] PRE-SAVE (resume) conversation state for ${sessionId}. currentWorkflow: ${stateDoc.workflowContext?.currentWorkflow}, activeFlow: ${stateDoc.activeFlow?.type}`);
       await stateDoc.save();
     }
     return stateDoc.toObject();

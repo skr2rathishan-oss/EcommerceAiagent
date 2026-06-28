@@ -1,7 +1,8 @@
 import { chatWithLLM } from "../services/ai/llm.service.mjs";
-import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
+import { understandConversation, selectResponse, selectResponseWithFallback, buildDecision } from "../services/responseService.mjs";
 import manageWorkflow from "../agent/workflow/05_workflowManager.mjs";
 import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
+import { handleReference } from "../agent/reference/05_referenceManager.mjs";
 import {
   recordIntentDetection,
   recordMemoryLoad,
@@ -73,6 +74,7 @@ import {
   logCacheHit,
   logBackground,
   logError,
+  logWorkflowTrace
 } from "../utils/velora.console.mjs";
 
 export const chat = async (req, res) => {
@@ -120,6 +122,20 @@ export const chat = async (req, res) => {
     let userState = await loadConversationState(sessionId);
     
     const lowerMsg = message.toLowerCase().trim();
+
+    const activeCollectingStates = [
+      "WAITING_FOR_ADDRESS",
+      "WAITING_FOR_ADDRESS_CONFIRMATION",
+      "WAITING_FOR_DATE",
+      "CHECKING_DELIVERY",
+      "WAITING_FOR_RECOVERY_CHOICE",
+      "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
+      "WAITING_FOR_CONFIRMATION",
+      "WAITING_FOR_FINAL_ORDER_CONFIRMATION",
+      "WAITING_FOR_CONTACT_NAME",
+      "WAITING_FOR_CONTACT_PHONE",
+      "WAITING_FOR_CANCEL_CHOICE"
+    ];
     const isResumeHistory = ["resume previous chat", "resume my previous chat", "continue my last chat", "continue previous chat", "load previous chat", "load my previous chat", "resume previous chatting", "resume chat"].some(
       phrase => lowerMsg.includes(phrase)
     );
@@ -154,8 +170,102 @@ export const chat = async (req, res) => {
       voiceMode: !!voiceMode,
     });
     const decision = buildDecision(culOutput, deliveryState || null, userState, message);
+    if (bodyIntent) {
+      decision.intent.value = bodyIntent;
+    }
     const currentLang = decision.language.code;
     const memory = getMemory(sessionId);
+
+    // Resolve conversational reference before any product detail/compare/cart operation
+    const refResult = handleReference(sessionId, message);
+    let resolvedReference = null;
+
+    if (refResult.handled) {
+      // Smart bypass: If reference is generic and not product-specific intent, do not intercept
+      const isProductSpecificIntent = ["get_product_details", "select_product", "check_delivery"].includes(decision.intent.value);
+      const isExplicitRef = refResult.parsed && refResult.parsed.type !== "generic";
+      if (!isExplicitRef && !isProductSpecificIntent) {
+        refResult.handled = false;
+      }
+    }
+
+    if (refResult.handled) {
+      if (!refResult.success) {
+        logStepError("Reference Engine", refResult.reason);
+        setSSEHeaders(res);
+        saveMessage(sessionId, "assistant", refResult.response).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: refResult.response });
+      } else {
+        logStepDone("Reference Engine", `Resolved reference: ${refResult.action}`);
+        resolvedReference = refResult;
+        
+        if (refResult.action === "PRODUCT_SELECTED" && refResult.internalProduct) {
+          decision.variables = decision.variables || {};
+          decision.variables.product_id = refResult.internalProduct.id;
+          decision.variables.product_name = refResult.internalProduct.name;
+          
+          if (decision.intent.value === "general_chat") {
+            const lowerMsg = message.toLowerCase();
+            if (["detail", "info", "spec", "about", "describe", "show"].some(word => lowerMsg.includes(word))) {
+              decision.intent.value = "get_product_details";
+            } else {
+              decision.intent.value = "select_product";
+            }
+          }
+        } else if (refResult.action === "COMPARE_PRODUCTS" && refResult.internalProducts) {
+          decision.intent.value = "general_chat";
+        }
+      }
+    }
+
+    // If active delivery flow is ongoing, check if the input is a valid flow response.
+    // If so, override intent to prevent it being intercepted or rejected by validator.
+
+
+    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+      const isChoiceInput = ["a", "b", "c", "1", "2", "3", "yes", "no", "y", "n", "hari", "ow", "na", "epa", "confirm", "cancel", "edit"].some(
+        opt => lowerMsg === opt || lowerMsg.startsWith(opt + " ") || lowerMsg.includes("use this") || lowerMsg.includes("start over")
+      );
+
+      let isFlowInput = false;
+      if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION" || 
+          deliveryState === "WAITING_FOR_RECOVERY_CHOICE" || 
+          deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION" || 
+          deliveryState === "WAITING_FOR_CONFIRMATION" || 
+          deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
+        if (isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_DATE") {
+        const dateKeywords = ["today", "tomorrow", "next", "day after", "ada", "heta", "anidda", "indru", "naalai", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+        const hasDateKeyword = dateKeywords.some(kw => lowerMsg.includes(kw));
+        const hasDigits = /\d+/.test(lowerMsg);
+        if (hasDateKeyword || hasDigits || isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+        const hasDigits = lowerMsg.replace(/[^0-9]/g, "").length >= 7;
+        if (hasDigits || isChoiceInput) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+        const wordCount = lowerMsg.split(/\s+/).length;
+        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
+        if (wordCount <= 3 && !isQuestion) {
+          isFlowInput = true;
+        }
+      } else if (deliveryState === "WAITING_FOR_ADDRESS") {
+        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
+        const wordCount = lowerMsg.split(/\s+/).length;
+        if (wordCount >= 2 && !isQuestion) {
+          isFlowInput = true;
+        }
+      }
+
+      if (isFlowInput) {
+        decision.intent.value = "delivery_flow_input";
+      }
+    }
 
     // ── Run Workflow Manager ──
     logStepStart("Workflow Manager validation");
@@ -167,12 +277,18 @@ export const chat = async (req, res) => {
       memory
     });
 
-    if (!workflowDecision.success || workflowDecision.action === "clarify") {
+    if (!workflowDecision.success || workflowDecision.action === "REQUIRE_USER_INPUT") {
       logStepDone("Workflow Manager", `Validation failed: ${workflowDecision.reason}`);
       const responsePayload = selectResponse(decision, decision.variables, sessionId, workflowDecision);
       let finalPayload = responsePayload;
       if (!finalPayload) {
-        finalPayload = { type: "text", text: workflowDecision.reason || "I'm sorry, I'm a bit confused. Can you please clarify what you would like to do?" };
+        // Use Response Engine with confused category as fallback
+        const confusedDecision = {
+          ...decision,
+          response: { module: "common", category: "confused" },
+          llm_response: false
+        };
+        finalPayload = selectResponseWithFallback(confusedDecision, decision.variables, sessionId);
       }
       setSSEHeaders(res);
       if (finalPayload.text) {
@@ -184,7 +300,7 @@ export const chat = async (req, res) => {
     logStepDone("Workflow Manager", `Transition allowed to: ${workflowDecision.workflow}`);
 
     // If reset is triggered, clear conversation state
-    if (workflowDecision.action === "reset" || workflowDecision.resetWorkflow) {
+    if (workflowDecision.action === "START_NEW_WORKFLOW" || workflowDecision.resetWorkflow) {
       userState = await clearConversationState(sessionId);
       
       // Reset the temporary memory context
@@ -199,6 +315,9 @@ export const chat = async (req, res) => {
         }
         updateMemory(sessionId, memory);
       }
+    } else if (workflowDecision.action === "INTERRUPT_WORKFLOW") {
+      logStepDone("Workflow Manager", "Global Interrupt - Pausing current flow");
+      userState = await pauseCurrentFlow(sessionId, "user_interruption") || userState;
     } else {
       // Save state before response generation
       const previousWorkflow = userState?.workflowContext?.currentWorkflow || "idle";
@@ -265,6 +384,17 @@ export const chat = async (req, res) => {
         }
       }
     };
+
+    // Inject resolved reference parameters
+    if (resolvedReference) {
+      if (resolvedReference.action === "PRODUCT_SELECTED" && resolvedReference.internalProduct) {
+        parsedIntent.parameters.productId = resolvedReference.internalProduct.id;
+        parsedIntent.parameters.product_id = resolvedReference.internalProduct.id;
+        parsedIntent.parameters.product = resolvedReference.internalProduct;
+      } else if (resolvedReference.action === "COMPARE_PRODUCTS" && resolvedReference.internalProducts) {
+        parsedIntent.parameters.compareProducts = resolvedReference.internalProducts;
+      }
+    }
     if (req.body.intent) {
       parsedIntent.intent = req.body.intent;
       parsedIntent.parameters = {
@@ -304,18 +434,29 @@ export const chat = async (req, res) => {
       deliverySession = await getDeliverySession(sessionId);
       deliveryState = deliverySession?.state;
 
-      let promptText = "Welcome back to your order! 😊 Let's continue.";
+      let category = "continue_delivery_flow";
+      let module = "delivery";
       if (deliveryState === "WAITING_FOR_ADDRESS") {
-        promptText = "Welcome back! 😊 To check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+        category = "ask_delivery_address";
       } else if (deliveryState === "WAITING_FOR_DATE") {
-        promptText = "Welcome back! 😊 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+        category = "ask_delivery_date";
       } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
-        promptText = "Welcome back! 😊 Now I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+        category = "ask_contact_name";
       } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
-        promptText = "Welcome back! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
-      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
-        promptText = "Welcome back! 😊 Please confirm your order details to place it.";
+        category = "ask_contact_phone";
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION" || deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
+        category = "confirm_order";
       }
+
+      const resumeDecision = {
+        ...decision,
+        module,
+        category,
+        response: { module, category },
+        llm_response: false
+      };
+      const resumeRes = selectResponse(resumeDecision, {}, sessionId);
+      let promptText = "Welcome back! 😊 " + (resumeRes?.text || "");
 
       setSSEHeaders(res);
       if (!res.writableEnded) {
@@ -323,66 +464,6 @@ export const chat = async (req, res) => {
       }
       saveMessage(sessionId, "assistant", promptText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: promptText });
-    }
-
-    const activeCollectingStates = [
-      "WAITING_FOR_ADDRESS",
-      "WAITING_FOR_ADDRESS_CONFIRMATION",
-      "WAITING_FOR_DATE",
-      "CHECKING_DELIVERY",
-      "WAITING_FOR_RECOVERY_CHOICE",
-      "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION",
-      "WAITING_FOR_CONFIRMATION",
-      "WAITING_FOR_CONTACT_NAME",
-      "WAITING_FOR_CONTACT_PHONE",
-      "WAITING_FOR_CANCEL_CHOICE"
-    ];
-
-    // If active delivery flow is ongoing, check if the input is a valid flow response.
-    // If so, override general_chat to prevent it being intercepted as small talk.
-    if (deliverySession && activeCollectingStates.includes(deliveryState) && parsedIntent.intent === "general_chat") {
-      const isChoiceInput = ["a", "b", "c", "1", "2", "3", "yes", "no", "y", "n", "hari", "ow", "na", "epa", "confirm", "cancel", "edit"].some(
-        opt => lowerMsg === opt || lowerMsg.startsWith(opt + " ") || lowerMsg.includes("use this") || lowerMsg.includes("start over")
-      );
-
-      let isFlowInput = false;
-      if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION" || 
-          deliveryState === "WAITING_FOR_RECOVERY_CHOICE" || 
-          deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION" || 
-          deliveryState === "WAITING_FOR_CONFIRMATION" || 
-          deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
-        if (isChoiceInput) {
-          isFlowInput = true;
-        }
-      } else if (deliveryState === "WAITING_FOR_DATE") {
-        const dateKeywords = ["today", "tomorrow", "next", "day after", "ada", "heta", "anidda", "indru", "naalai", "mon", "tue", "wed", "thu", "fri", "sat", "sun", "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-        const hasDateKeyword = dateKeywords.some(kw => lowerMsg.includes(kw));
-        const hasDigits = /\d+/.test(lowerMsg);
-        if (hasDateKeyword || hasDigits || isChoiceInput) {
-          isFlowInput = true;
-        }
-      } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
-        const hasDigits = lowerMsg.replace(/[^0-9]/g, "").length >= 7;
-        if (hasDigits || isChoiceInput) {
-          isFlowInput = true;
-        }
-      } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
-        const wordCount = lowerMsg.split(/\s+/).length;
-        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
-        if (wordCount <= 3 && !isQuestion) {
-          isFlowInput = true;
-        }
-      } else if (deliveryState === "WAITING_FOR_ADDRESS") {
-        const isQuestion = lowerMsg.includes("?") || ["what", "how", "who", "why", "where", "can you", "hi", "hello"].some(q => lowerMsg.startsWith(q));
-        const wordCount = lowerMsg.split(/\s+/).length;
-        if (wordCount >= 2 && !isQuestion) {
-          isFlowInput = true;
-        }
-      }
-
-      if (isFlowInput) {
-        parsedIntent.intent = "delivery_flow_input";
-      }
     }
 
     // Priority 13: Order Cancellation ("cancel", "don't place it", "never mind", "cancel order", "stop order")
@@ -394,8 +475,15 @@ export const chat = async (req, res) => {
       if (deliverySession) {
         await updateDeliverySession(deliverySession.sessionId, { state: "CANCELLED" }, deliverySession.session_version);
       }
-      setSSEHeaders(res);
-      const cancelText = "😊 No worries. I've cancelled your pending order. What would you like to do next?";
+      const cancelDecision = {
+        ...decision,
+        module: "order",
+        category: "order_cancelled",
+        response: { module: "order", category: "order_cancelled" },
+        llm_response: false
+      };
+      const cancelRes = selectResponse(cancelDecision, {}, sessionId);
+      const cancelText = cancelRes?.text || "";
       saveMessage(sessionId, "assistant", cancelText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: cancelText });
     }
@@ -403,12 +491,37 @@ export const chat = async (req, res) => {
     // Block operations if order is currently being created or payment is pending
     if (deliverySession && (deliveryState === "CREATING_ORDER" || deliveryState === "PAYMENT_PENDING")) {
       logStepDone("Interception", `VCSM Order Processing Block. State: ${deliveryState}`);
-      setSSEHeaders(res);
-      let msgText = "😊 We are currently processing your order. Please finish that first.";
+      let msgText = "";
       if (deliveryState === "PAYMENT_PENDING") {
-        msgText = `😊 Your order is currently processing (payment pending). Please complete the payment using the checkout link first. If you would like to cancel this order to do something else, just tell me "cancel".`;
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "payment_pending_block",
+          response: { module: "interruption", category: "payment_pending_block" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       } else if (deliveryState === "CREATING_ORDER") {
-        msgText = "😊 We are currently creating your order. Please wait a moment.";
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
+      } else {
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       }
       saveMessage(sessionId, "assistant", msgText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: msgText });
@@ -474,7 +587,15 @@ export const chat = async (req, res) => {
         // Continue regular search routing
       } else {
         setSSEHeaders(res);
-        const promptText = "Please reply with **A** to continue the previous search or **B** to start a new search.";
+        const resumeDecision = {
+          ...decision,
+          module: "common",
+          category: "resume_previous_search_options",
+          response: { module: "common", category: "resume_previous_search_options" },
+          llm_response: false
+        };
+        const resumeRes = selectResponse(resumeDecision, { search_query: memory.pendingSearchQuery || "your previous search" }, sessionId);
+        const promptText = resumeRes?.text || "";
         saveMessage(sessionId, "assistant", promptText).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: promptText });
       }
@@ -494,23 +615,116 @@ export const chat = async (req, res) => {
       setSSEHeaders(res);
       const serviceResult = await handleFinalOrderConfirmation(deliverySession, message, currentLang);
       if (serviceResult) {
+        if (serviceResult.status) {
+          let textResponse = "";
+          let prefix = "";
+          if (serviceResult.prefixStatus) {
+            const prefixDecision = {
+              ...decision,
+              module: serviceResult.prefixModule || "delivery",
+              category: serviceResult.prefixStatus,
+              response: { module: serviceResult.prefixModule || "delivery", category: serviceResult.prefixStatus },
+              llm_response: false
+            };
+            const prefixRes = selectResponse(prefixDecision, serviceResult.prefixContext || {}, sessionId);
+            prefix = prefixRes?.text ? prefixRes.text + "\n\n" : "";
+          }
+
+          const serviceDecision = {
+            ...decision,
+            module: serviceResult.module || "delivery",
+            category: serviceResult.status,
+            response: { module: serviceResult.module || "delivery", category: serviceResult.status },
+            llm_response: false
+          };
+          const mainRes = selectResponse(serviceDecision, serviceResult.context || {}, sessionId);
+          let mainText = mainRes?.text || "";
+
+          let perishableWarning = "";
+          if (serviceResult.perishableStatus) {
+            const perishableDecision = {
+              ...decision,
+              module: serviceResult.perishableModule || "delivery",
+              category: serviceResult.perishableStatus,
+              response: { module: serviceResult.perishableModule || "delivery", category: serviceResult.perishableStatus },
+              llm_response: false
+            };
+            const perishableRes = selectResponse(perishableDecision, serviceResult.perishableContext || {}, sessionId);
+            perishableWarning = perishableRes?.text ? "\n\n" + perishableRes.text : "";
+          }
+
+          let nextPrompt = "";
+          if (serviceResult.nextPromptStatus) {
+            const nextDecision = {
+              ...decision,
+              module: serviceResult.nextPromptModule || "delivery",
+              category: serviceResult.nextPromptStatus,
+              response: { module: serviceResult.nextPromptModule || "delivery", category: serviceResult.nextPromptStatus },
+              llm_response: false
+            };
+            const nextRes = selectResponse(nextDecision, serviceResult.nextPromptContext || {}, sessionId);
+            nextPrompt = nextRes?.text ? "\n\n" + nextRes.text : "";
+          }
+
+          let detailsText = "";
+          if (serviceResult.detailsText) {
+            detailsText = "\n\n" + serviceResult.detailsText;
+          }
+
+          let confirmPrompt = "";
+          if (serviceResult.confirmStatus) {
+            const confirmDecision = {
+              ...decision,
+              module: serviceResult.confirmModule || "delivery",
+              category: serviceResult.confirmStatus,
+              response: { module: serviceResult.confirmModule || "delivery", category: serviceResult.confirmStatus },
+              llm_response: false
+            };
+            const confirmRes = selectResponse(confirmDecision, serviceResult.confirmContext || {}, sessionId);
+            confirmPrompt = confirmRes?.text ? "\n\n" + confirmRes.text : "";
+          }
+
+          let paymentPrompt = "";
+          if (serviceResult.paymentStatus) {
+            const paymentDecision = {
+              ...decision,
+              module: serviceResult.paymentModule || "delivery",
+              category: serviceResult.paymentStatus,
+              response: { module: serviceResult.paymentModule || "delivery", category: serviceResult.paymentStatus },
+              llm_response: false
+            };
+            const paymentRes = selectResponse(paymentDecision, serviceResult.paymentContext || {}, sessionId);
+            paymentPrompt = paymentRes?.text ? "\n\n" + paymentRes.text : "";
+          }
+
+          textResponse = prefix + mainText + perishableWarning + detailsText + confirmPrompt + nextPrompt + paymentPrompt;
+          serviceResult.text = textResponse;
+        }
+
         saveMessage(sessionId, "assistant", serviceResult.text || "").catch(() => {});
       }
       return sendCompleteAndEnd(res, serviceResult);
     }
 
     // Priority 2: Active Delivery Session & Delivery Protection
-    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+    if (deliverySession && activeCollectingStates.includes(deliveryState) && deliveryState !== "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
       if (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details") {
         logStepDone("Interception", "VCSM: Delivery Protection Triggered");
-        setSSEHeaders(res);
-        const protectMsg = "😊 We're almost done with your current order. Let's finish this first. If you'd like to cancel it, just let me know and I'll help you search for something else.";
+        const protectDecision = {
+          ...decision,
+          module: "interruption",
+          category: "checkout_in_progress",
+          response: { module: "interruption", category: "checkout_in_progress" },
+          llm_response: false
+        };
+        const protectRes = selectResponse(protectDecision, {}, sessionId);
+        const protectMsg = protectRes?.text || "";
         saveMessage(sessionId, "assistant", protectMsg).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: protectMsg });
       }
     }
 
-    if (deliverySession && activeCollectingStates.includes(deliveryState)) {
+    if (deliverySession && activeCollectingStates.includes(deliveryState) && (parsedIntent.intent === "delivery_flow_input" || parsedIntent.intent === "general_chat" || deliveryState !== "WAITING_FOR_FINAL_ORDER_CONFIRMATION")) {
       logStepDone("Interception", `VCSM Active Delivery Session state: ${deliveryState}`);
 
       // Small Talk / General Chat in Active Delivery
@@ -567,22 +781,25 @@ export const chat = async (req, res) => {
             model: null,
             environment: process.env.NODE_ENV || "development"
           },
-          latestMessage: message
+          latestMessage: message,
+          resolvedReference: resolvedReference || null
         };
         const chatResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "", runtimeContext });
         
         let promptText = "";
+        let promptResponse = null;
         if (deliveryState === "WAITING_FOR_ADDRESS") {
-          promptText = "\n\nTo check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_delivery_address", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_DATE") {
-          promptText = "\n\nGot it 👍 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_delivery_date", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
-          promptText = "\n\nNow I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+          promptResponse = selectResponse({ module: "order", category: "ask_contact_name", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
-          promptText = "\n\nPerfect! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_contact_phone", language: { detected: currentLang } }, {}, sessionId);
         } else {
-          promptText = "\n\nPlease continue with your delivery flow.";
+          promptResponse = selectResponse({ module: "delivery", category: "continue_delivery_flow", language: { detected: currentLang } }, {}, sessionId);
         }
+        promptText = "\n\n" + (promptResponse?.text || "");
 
         const combinedText = (typeof chatResult === "string" ? chatResult : chatResult.text || "") + promptText;
         saveMessage(sessionId, "assistant", combinedText).catch(() => {});
@@ -603,7 +820,7 @@ export const chat = async (req, res) => {
         serviceResult = await handleRecoveryChoice(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION") {
         serviceResult = await handleCancelOptions(deliverySession, message, currentLang);
-      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION" || deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
         serviceResult = await handleCheckoutConfirmation(deliverySession, message, currentLang);
       } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
         serviceResult = await handleContactNameInput(deliverySession, message, currentLang);
@@ -614,12 +831,109 @@ export const chat = async (req, res) => {
       }
 
       if (serviceResult === null) {
-        const staleMsg = "Sorry, there was a brief conflict. Please try again.";
-        saveMessage(sessionId, "assistant", staleMsg).catch(() => {});
-        return sendCompleteAndEnd(res, { type: "text", text: staleMsg });
+        // Use Response Engine with temporary_error category from recovery module
+        const errorDecision = {
+          ...decision,
+          response: { module: "recovery", category: "temporary_error" },
+          llm_response: false
+        };
+        const errorResponse = selectResponseWithFallback(errorDecision, decision.variables, sessionId);
+        const errorMsg = errorResponse?.text;
+        saveMessage(sessionId, "assistant", errorMsg).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: errorMsg });
       }
-      if (serviceResult.text) saveMessage(sessionId, "assistant", serviceResult.text).catch(() => {});
-      return sendCompleteAndEnd(res, serviceResult);
+       if (serviceResult) {
+        logStepDone("Interception", "VCSM: State machine processed. Returning direct response.");
+        
+        let textResponse = "";
+        if (serviceResult.status) {
+          let prefix = "";
+          if (serviceResult.prefixStatus) {
+            const prefixDecision = {
+              ...decision,
+              module: serviceResult.prefixModule || "delivery",
+              category: serviceResult.prefixStatus,
+              response: { module: serviceResult.prefixModule || "delivery", category: serviceResult.prefixStatus },
+              llm_response: false
+            };
+            const prefixRes = selectResponse(prefixDecision, serviceResult.prefixContext || {}, sessionId);
+            prefix = prefixRes?.text ? prefixRes.text + "\n\n" : "";
+          }
+
+          const serviceDecision = {
+            ...decision,
+            module: serviceResult.module || "delivery",
+            category: serviceResult.status,
+            response: { module: serviceResult.module || "delivery", category: serviceResult.status },
+            llm_response: false
+          };
+          const mainRes = selectResponse(serviceDecision, serviceResult.context || {}, sessionId);
+          let mainText = mainRes?.text || "";
+
+          let perishableWarning = "";
+          if (serviceResult.perishableStatus) {
+            const perishableDecision = {
+              ...decision,
+              module: serviceResult.perishableModule || "delivery",
+              category: serviceResult.perishableStatus,
+              response: { module: serviceResult.perishableModule || "delivery", category: serviceResult.perishableStatus },
+              llm_response: false
+            };
+            const perishableRes = selectResponse(perishableDecision, serviceResult.perishableContext || {}, sessionId);
+            perishableWarning = perishableRes?.text ? "\n\n" + perishableRes.text : "";
+          }
+
+          let nextPrompt = "";
+          if (serviceResult.nextPromptStatus) {
+            const nextDecision = {
+              ...decision,
+              module: serviceResult.nextPromptModule || "delivery",
+              category: serviceResult.nextPromptStatus,
+              response: { module: serviceResult.nextPromptModule || "delivery", category: serviceResult.nextPromptStatus },
+              llm_response: false
+            };
+            const nextRes = selectResponse(nextDecision, serviceResult.nextPromptContext || {}, sessionId);
+            nextPrompt = nextRes?.text ? "\n\n" + nextRes.text : "";
+          }
+
+          let detailsText = "";
+          if (serviceResult.detailsText) {
+            detailsText = "\n\n" + serviceResult.detailsText;
+          }
+
+          let confirmPrompt = "";
+          if (serviceResult.confirmStatus) {
+            const confirmDecision = {
+              ...decision,
+              module: serviceResult.confirmModule || "delivery",
+              category: serviceResult.confirmStatus,
+              response: { module: serviceResult.confirmModule || "delivery", category: serviceResult.confirmStatus },
+              llm_response: false
+            };
+            const confirmRes = selectResponse(confirmDecision, serviceResult.confirmContext || {}, sessionId);
+            confirmPrompt = confirmRes?.text ? "\n\n" + confirmRes.text : "";
+          }
+
+          let paymentPrompt = "";
+          if (serviceResult.paymentStatus) {
+            const paymentDecision = {
+              ...decision,
+              module: serviceResult.paymentModule || "delivery",
+              category: serviceResult.paymentStatus,
+              response: { module: serviceResult.paymentModule || "delivery", category: serviceResult.paymentStatus },
+              llm_response: false
+            };
+            const paymentRes = selectResponse(paymentDecision, serviceResult.paymentContext || {}, sessionId);
+            paymentPrompt = paymentRes?.text ? "\n\n" + paymentRes.text : "";
+          }
+
+          textResponse = prefix + mainText + perishableWarning + detailsText + confirmPrompt + nextPrompt + paymentPrompt;
+          serviceResult.text = textResponse;
+        }
+
+        if (serviceResult.text) saveMessage(sessionId, "assistant", serviceResult.text).catch(() => {});
+        return sendCompleteAndEnd(res, serviceResult);
+      }
     }
 
     // Priority 3: Shopping Context Resume Detection
@@ -634,8 +948,15 @@ export const chat = async (req, res) => {
           memory.pendingSearchQuery = searchQuery;
           updateMemory(sessionId, memory);
 
-          setSSEHeaders(res);
-          const resumePrompt = `😊 Welcome back!\n\nWe were already looking at ${matchingCtx.searchQuery} earlier.\n\nWould you like to:\n\n**A.** Continue the previous search\n**B.** Start a new search`;
+          const resumeDecision = {
+            ...decision,
+            module: "common",
+            category: "resume_previous_search_options",
+            response: { module: "common", category: "resume_previous_search_options" },
+            llm_response: false
+          };
+          const resumeRes = selectResponse(resumeDecision, { search_query: matchingCtx.searchQuery }, sessionId);
+          const resumePrompt = resumeRes?.text || "";
           saveMessage(sessionId, "assistant", resumePrompt).catch(() => {});
           return sendCompleteAndEnd(res, { type: "text", text: resumePrompt });
         }
@@ -652,7 +973,15 @@ export const chat = async (req, res) => {
         
         const pendingSession = await getDeliverySession(pendingOrder).catch(() => null);
         const pendingProduct = pendingSession?.selected_product?.product_name || "item";
-        reminderText = `😊 By the way, your **${pendingProduct}** order is still waiting for confirmation. Whenever you're ready, simply type **Yes** and I'll place the order.\n\n`;
+        const reminderDecision = {
+          ...decision,
+          module: "order",
+          category: "pending_order_reminder",
+          response: { module: "order", category: "pending_order_reminder" },
+          llm_response: false
+        };
+        const reminderRes = selectResponse(reminderDecision, { product_name: pendingProduct }, sessionId);
+        reminderText = (reminderRes?.text || "") + "\n\n";
         shouldAddReminder = true;
       }
     }
@@ -740,7 +1069,8 @@ export const chat = async (req, res) => {
         deliverySession,
         pendingOrder,
         voiceMode,
-        message
+        message,
+        resolvedReference
       });
 
       const llmStart = Date.now();
@@ -765,7 +1095,15 @@ export const chat = async (req, res) => {
         // Prevent empty query or invalid workflow/shopping context
         if (!query || query.trim() === "" || currentWorkflow !== "product_search") {
           logStepDone("MCP Validation", "Blocked invalid or empty product search query");
-          const clarifyText = "What products are you looking for? Please let me know what item you want to find! 😊";
+          const confusedDecision = {
+            ...decision,
+            module: "common",
+            category: "confused",
+            response: { module: "common", category: "confused" },
+            llm_response: false
+          };
+          const confusedRes = selectResponse(confusedDecision, {}, sessionId);
+          const clarifyText = confusedRes?.text || "What products are you looking for? 😊";
           saveMessage(sessionId, "assistant", clarifyText).catch(() => {});
           return sendCompleteAndEnd(res, { type: "text", text: clarifyText });
         }
@@ -870,22 +1208,18 @@ export const chat = async (req, res) => {
       ctx.telemetry.geminiResponseTime = providerUsed === "gemini" ? `${Date.now() - requestStart}ms` : "0ms";
     }
 
-    // Phase 10: Temporarily add structured integration trace logging
-    console.log(`
-══════════════════════════════════════
-Incoming Message         : ${message}
-Intent                   : ${parsedIntent?.intent || "N/A"}
-Decision                 : ${JSON.stringify(decision || {})}
-Conversation State (Load): ${JSON.stringify(userState || {})}
-Workflow Decision        : ${JSON.stringify(workflowDecision || {})}
-Conversation State (Saved): ${JSON.stringify(userState || {})}
-Response Engine Input    : ${JSON.stringify({ decision, workflowDecision })}
-Runtime Builder Input    : ${JSON.stringify({ decision, userState })}
-Prompt Builder Input     : ${JSON.stringify({ decision, userState })}
-Gemini Request           : ${providerUsed === "gemini" ? "YES (Gemini API called)" : "NO (Response Library or Fast Path)"}
-Streaming Status         : ${!voiceMode ? "ENABLED" : "DISABLED"}
-══════════════════════════════════════
-    `);
+    // Phase 10: Structured transition logging
+    logWorkflowTrace({
+      sessionId,
+      message,
+      currentWorkflow: userState?.workflowContext?.previousWorkflow || "idle",
+      workflowStep: userState?.activeFlow?.currentStep || "browsing",
+      intent: decision?.intent?.value || intentLabel || "general_chat",
+      workflowDecision: workflowDecision?.action || "unknown",
+      contextUpdates: JSON.stringify({ activeFlow: userState?.activeFlow }),
+      workflowTransition: `${userState?.workflowContext?.previousWorkflow} -> ${workflowDecision?.workflow}`,
+      response: assistantText || JSON.stringify(finalPayload)
+    });
 
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);
     return sendCompleteAndEnd(res, finalPayload);

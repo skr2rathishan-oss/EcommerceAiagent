@@ -1,4 +1,10 @@
 import "./config/loadEnv.mjs";
+if (process.stdout._handle && typeof process.stdout._handle.setBlocking === "function") {
+  process.stdout._handle.setBlocking(true);
+}
+if (process.stderr._handle && typeof process.stderr._handle.setBlocking === "function") {
+  process.stderr._handle.setBlocking(true);
+}
 import express    from "express";
 import cors       from "cors";
 import mongoose   from "mongoose";
@@ -33,6 +39,7 @@ import {
 import { runStartupChecks } from "./services/core/startupHealthService.mjs";
 import { initializePromptCache } from "./agent/core/promptCache.mjs";
 import { getPromptInformation } from "./agent/core/promptLoader.mjs";
+import { validateResponseTemplates } from "./services/responseService.mjs";
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,6 +73,19 @@ try {
 
 // Run modular diagnostic checks
 const diagnostics = await runStartupChecks();
+
+// Enforce required workflow template bindings at startup.
+const responseTemplateValidation = validateResponseTemplates();
+if (!responseTemplateValidation.ok) {
+  for (const missing of responseTemplateValidation.missing) {
+    logError(
+      "STARTUP - RESPONSE TEMPLATE VALIDATION",
+      `Missing template binding for workflow=${missing.workflow}, module=${missing.module}, category=${missing.category}, missingLanguages=${missing.missingLanguages.join(",")}`
+    );
+  }
+  logError("STARTUP", "Response template validation failed. Startup aborted.");
+  process.exit(1);
+}
 
 // Check critical failures and warnings
 if (diagnostics.criticalFailures > 0) {

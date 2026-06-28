@@ -1,0 +1,40 @@
+{
+  "ask_delivery_date": {
+    "english": [
+      "Great! When would you like this delivered? (tomorrow, next day, or a specific date) 😊",
+      "What delivery date works best for you?",
+      "Please let me know the delivery date you want.",
+      "When should we schedule this delivery?",
+      "Tell me the date you’d like the package delivered.",
+      "What day should I book this delivery for?",
+      "Please send the preferred delivery date.",
+      "I’m ready to schedule delivery — what date should I use? 😊",
+      "Which date should we deliver this to you?",
+      "Please provide a delivery date so I can check availability."
+    ],
+    "sinhala_mix": [
+      "Niyamai! Delivery ekata oyage date eka mokakda? (tomorrow, next day, custom date) 😊",
+      "Oyage damage date eka mokakda kiyala danna puluwanda?",
+      "Delivery dawasaya kiyanna puluwanda?",
+      "Me delivery ekata oyage name nidhahasa danna one date eka?",
+      "Oya delivery karanna one dawasata kiyanna.",
+      "Me delivery eka kumada set karanna one kiyala danna.",
+      "Karunakarala delivery dawasaya danna.",
+      "Mama schedule karanna ready — date eka mokakda? 😊",
+      "Meka oyata kohomada deliver karanna one?",
+      "Delivery availability check karanna date eka danna." 
+    ],
+    "tamil_mix": [
+      "Super! Itha enga deliver pannalaam? (tomorrow, next day, illa oru date) 😊",
+      "Unga delivery date enna nu sollunga.",
+      "Delivery date ah sollunga, naan check panniduven.",
+      "Itha evlo naaluku schedule panna vendum?",
+      "Delivery ku yaru date prefer pannirukeenga?",
+      "Delivery date solra mattum vendum.",
+      "Indha delivery ai eppadi date ku set panna sollreenga?",
+      "Naan schedule panna ready — date enna? 😊",
+      "Inga oru delivery date kodunga.",
+      "Delivery availability check panna date ah anuppunga."
+    ]
+  }
+}

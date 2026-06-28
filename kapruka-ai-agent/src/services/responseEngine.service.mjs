@@ -24,7 +24,6 @@
  *   // Returns a string from the appropriate language array, or null if no match.
  */
 
-import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { dirname, join }  from "path";
 import fs                 from "fs";
@@ -40,6 +39,18 @@ const LIBRARY_ROOT = join(
 
 // ── In-memory cache for loaded JSON files ────────────────────────────────────
 const _cache = new Map();
+
+// Required workflow-to-template bindings used by the pipeline.
+const REQUIRED_TEMPLATE_BINDINGS = [
+  { workflow: "greeting", module: "common", category: "greeting" },
+  { workflow: "product_search", module: "shopping", category: "search" },
+  { workflow: "product_details", module: "shopping", category: "product_details" },
+  { workflow: "delivery", module: "delivery", category: "ask_delivery_address" },
+  { workflow: "checkout", module: "order", category: "confirm_order" },
+  { workflow: "order_tracking", module: "common", category: "clarification" },
+  { workflow: "recovery", module: "recovery", category: "fallback" },
+  { workflow: "clarify", module: "common", category: "confused" }
+];
 
 /**
  * loadResponseFile(module, category)
@@ -111,7 +122,81 @@ const lastReturnedResponses = new Map();
  * @param {string|null} [sessionId] - Optional session ID for duplicate prevention
  * @returns {object|null} - A response object, or null if no library match.
  */
+function logExit({ category, template, fallbackUsed, llmUsed, streaming, duration }) {
+  console.log(`
+=========================
+RESPONSE ENGINE EXIT
+=========================
+
+Response Category: ${category || "N/A"}
+
+Template: ${template || "None"}
+
+Fallback Used: ${fallbackUsed ? "yes" : "no"}
+
+LLM Used: ${llmUsed ? "yes" : "no"}
+
+Streaming: ${streaming ? "yes" : "no"}
+
+Duration: ${duration}ms
+
+=========================
+  `.trim());
+}
+
 export function selectResponse(decision, variables = {}, sessionId = null, workflowDecision = null) {
+  const startTime = Date.now();
+  const stack = new Error().stack || "";
+  const isStream = stack.includes("chatStream");
+  const controller = isStream ? "chatStream.controller" : "chat.controller";
+  const intent = decision?.intent?.value || "N/A";
+  const workflow = workflowDecision?.workflow || decision?.response?.module || "N/A";
+  const reference = decision?.variables?.product_id || decision?.variables?.product_name || "N/A";
+
+  console.log(`
+=========================
+RESPONSE ENGINE ENTRY
+=========================
+
+Endpoint:
+/api/chat
+
+Controller:
+${controller}
+
+Intent:
+${intent}
+
+Workflow:
+${workflow}
+
+Reference:
+${reference}
+
+Calling Response Engine...
+
+=========================
+  `.trim());
+
+  const result = _selectResponseInternal(decision, variables, sessionId, workflowDecision);
+
+  const duration = Date.now() - startTime;
+  const isLlm = decision?.llm_response === true || (result === null && decision?.llm_response !== false);
+  const isFallback = result === null;
+
+  logExit({
+    category: result ? result.category : (decision?.category || "N/A"),
+    template: result ? result.text : null,
+    fallbackUsed: isFallback && !isLlm,
+    llmUsed: isLlm,
+    streaming: isStream,
+    duration
+  });
+
+  return result;
+}
+
+function _selectResponseInternal(decision, variables = {}, sessionId = null, workflowDecision = null) {
   let resolvedDecision = decision;
 
   if (workflowDecision) {
@@ -144,16 +229,16 @@ export function selectResponse(decision, variables = {}, sessionId = null, workf
           break;
         case "checkout":
           module = "order";
-          category = "payment";
+          category = "confirm_order";
           break;
         case "order_tracking":
-          module = "order";
-          category = "order_confirmation";
+          module = "common";
+          category = "clarification";
           llm_response = true;
           break;
         case "recovery":
           module = "recovery";
-          category = "recovery";
+          category = "fallback";
           llm_response = true;
           break;
         default:
@@ -263,7 +348,17 @@ export function selectResponseWithFallback(decision, variables = {}, sessionId =
     category: "small_talk",
     llm_response: false,
   };
-  return selectResponse(fallbackDecision, variables, sessionId);
+  const fallback = selectResponse(fallbackDecision, variables, sessionId);
+  if (fallback) return fallback;
+
+  // Engine-owned emergency message if response files are missing/corrupt.
+  return {
+    text: "Sorry, I could not prepare a response right now. Please try again.",
+    module: "common",
+    category: "small_talk",
+    language: decision?.language?.detected || "english",
+    source: "response_engine_emergency"
+  };
 }
 
 /**
@@ -272,4 +367,35 @@ export function selectResponseWithFallback(decision, variables = {}, sessionId =
  */
 export function clearResponseCache() {
   _cache.clear();
+}
+
+export function validateResponseTemplates(bindings = REQUIRED_TEMPLATE_BINDINGS) {
+  const missing = [];
+
+  for (const binding of bindings) {
+    const data = loadResponseFile(binding.module, binding.category);
+    const section = data?.[binding.category];
+    const hasEnglish = Array.isArray(section?.english) && section.english.length > 0;
+    const hasSinhala = Array.isArray(section?.sinhala_mix) && section.sinhala_mix.length > 0;
+    const hasTamil = Array.isArray(section?.tamil_mix) && section.tamil_mix.length > 0;
+
+    if (!hasEnglish || !hasSinhala || !hasTamil) {
+      missing.push({
+        workflow: binding.workflow,
+        module: binding.module,
+        category: binding.category,
+        missingLanguages: [
+          ...(!hasEnglish ? ["english"] : []),
+          ...(!hasSinhala ? ["sinhala_mix"] : []),
+          ...(!hasTamil ? ["tamil_mix"] : [])
+        ]
+      });
+    }
+  }
+
+  return {
+    ok: missing.length === 0,
+    checked: bindings.length,
+    missing
+  };
 }

@@ -1,0 +1,25 @@
+{
+  "delivery_available": {
+    "english": [
+      "Great news! Delivery is available to {city} on {date} (Delivery Charge: Rs. {charge}).",
+      "Your item can be delivered to {city} on {date}. Delivery Charge is Rs. {charge}.",
+      "Delivery is available for {city} on {date}. The fee is Rs. {charge}.",
+      "Yes! We can deliver to {city} on {date}. Delivery cost: Rs. {charge}.",
+      "Delivery is confirmed for {city} on {date}, with a charge of Rs. {charge}."
+    ],
+    "sinhala_mix": [
+      "Niyamai! {city} walata {date} dawasata delivery thiyenawa (Delivery Charge: Rs. {charge}).",
+      "Oyage item eka {city} walata {date} dawasata deliver karanna puluwan. Delivery charge eka Rs. {charge}.",
+      "{city} walata {date} dawasata delivery available. Fee eka Rs. {charge}.",
+      "Hari! {city} walata {date} dawasata delivery karanna puluwan. Charge eka Rs. {charge}.",
+      "Delivery eka confirm wela thiyenawa {city} walata {date} dawasata. Charge eka Rs. {charge}."
+    ],
+    "tamil_mix": [
+      "Super news! {city} ku {date} la delivery available. Delivery charge Rs. {charge}.",
+      "Ungal item {city} ku {date} la deliver panna mudiyum. Charge Rs. {charge}.",
+      "{city} ku {date} la delivery irukku. Fee Rs. {charge}.",
+      "Yes! {city} ku {date} la delivery panna mudiyum. Charge Rs. {charge}.",
+      "Delivery confirm! {city} ku {date} la. Charge Rs. {charge}."
+    ]
+  }
+}

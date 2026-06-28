@@ -161,18 +161,29 @@ async function runScenario4_PendingOrderReminder() {
 
   // 1. Get all the way to order summary (waiting for final confirmation)
   console.log("  User → \"Check delivery\" (with product ID)");
-  await sendMessage(session, "Check delivery", "check_delivery", { productId: "EF_PC_ELEC0V701POD00603" });
+  let r = await sendMessage(session, "Check delivery", "check_delivery", { productId: "EF_PC_ELEC0V701POD00603" });
+  console.log(`  AI  ← "${text(r).replace(/\n/g, " ").substring(0, 140)}..."`);
+  
   console.log("  User → \"No 25 Temple Road Colombo 01\"");
-  await sendMessage(session, "No 25 Temple Road Colombo 01");
+  r = await sendMessage(session, "No 25 Temple Road Colombo 01");
+  console.log(`  AI  ← "${text(r).replace(/\n/g, " ").substring(0, 140)}..."`);
+  
   console.log("  User → \"A\"");
-  await sendMessage(session, "A");
+  r = await sendMessage(session, "A");
+  console.log(`  AI  ← "${text(r).replace(/\n/g, " ").substring(0, 140)}..."`);
+  
   console.log("  User → \"tomorrow\"");
-  await sendMessage(session, "tomorrow");
+  r = await sendMessage(session, "tomorrow");
+  console.log(`  AI  ← "${text(r).replace(/\n/g, " ").substring(0, 140)}..."`);
+  
   console.log("  User → \"Rathishan\"");
-  await sendMessage(session, "Rathishan");
+  r = await sendMessage(session, "Rathishan");
+  console.log(`  AI  ← "${text(r).replace(/\n/g, " ").substring(0, 140)}..."`);
+  
   console.log("  User → \"0771234567\"");
-  let r = await sendMessage(session, "0771234567");
+  r = await sendMessage(session, "0771234567");
   let t = text(r);
+  console.log(`  AI  ← "${t.replace(/\n/g, " ").substring(0, 140)}..."`);
   assert("Step 1: order summary shown", t.toLowerCase().includes("summary") || t.toLowerCase().includes("ready"), `got: "${t}"`);
 
   // 2. Search for laptops (while having a pending order) -> should show reminder once

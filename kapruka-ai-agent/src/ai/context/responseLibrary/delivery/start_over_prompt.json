@@ -1,0 +1,25 @@
+{
+  "start_over_prompt": {
+    "english": [
+      "Alright, let's start over. What product are you looking for today? 😊",
+      "Okay, we can begin again. What would you like to search for now?",
+      "Sure, let’s try something new. What are you interested in today?",
+      "No problem. Start fresh by telling me what product you want.",
+      "Let's reset the search. What do you want to find next?"
+    ],
+    "sinhala_mix": [
+      "Hari, aluthin balamu. Ada oyata ona mokakda? 😊",
+      "Okay, apita pennan inna. Oya mokakda search karanna one?",
+      "Hari, aluthin try karamu. Oya ada mokakda balanna one?",
+      "Parava ne. Aluthin karanna, oyage ona de kiyanna.",
+      "Apita reset karamu. Eeta passe mokakda hoyanne?"
+    ],
+    "tamil_mix": [
+      "Seri, pudusa start pannalaam. Indru enna product thedureenga? 😊",
+      "Okay, namma munnadiye mudhithu start pannalam. Enna theduveenga?",
+      "Sure, pudusa try pannalam. Indha naal enna vidham product ishtam?",
+      "Parava illa. Pudhu way la start panni, enna venum nu sollunga.",
+      "Namma reset pannalam. Apram enna kandupidikka poringa?"
+    ]
+  }
+}

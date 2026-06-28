@@ -1,0 +1,25 @@
+{
+  "delivery_cancel_a_prefix": {
+    "english": [
+      "Sure, I’ll show you similar products based on your earlier search.",
+      "Okay! Here are products like what you searched before.",
+      "I’m pulling up similar items for you now.",
+      "Let me show you similar options to keep things moving.",
+      "Here are some alternatives that match your earlier request."
+    ],
+    "sinhala_mix": [
+      "Hari 😄 oya kalin hoyapu de walata similar options tikak pennannam.",
+      "Okay! Oyage pase balapu de walata geniyana derek deka pennannam.",
+      "Mama dan meka mata pasuwa similar items hoyagannawa.",
+      "Thawa dewal balanna mama hariyata similar options genalla.",
+      "Oyage purudu kiyapu de walata samanaiyata inna options pennannam."
+    ],
+    "tamil_mix": [
+      "Seri 😄 neenga munnadi paatha products maari innum sila options kaamikkiren.",
+      "Okay! Ungaloda mun search pola items kaamikkiren.",
+      "Naan ippo similar items eduththu kandupidithu kaamikkiren.",
+      "Intha maathiri options kaamikkiren so neenga charge illa.",
+      "Ungaloda mun search pathi adharithu similar items kaamikkiren."
+    ]
+  }
+}

@@ -76,7 +76,19 @@ const conversationStateSchema = new mongoose.Schema({
     canInterrupt: { type: Boolean, default: true },
     canResume: { type: Boolean, default: false },
     lastResetAt: { type: Date, default: null }
-  }
+  },
+  currentWorkflow: { type: String, default: "idle" },
+  previousWorkflow: { type: String, default: "idle" },
+  lastTransition: { type: String, default: null },
+  workflowStartedAt: { type: Date, default: null },
+  awaitingConfirmation: { type: Boolean, default: false },
+  waitingForPhoneNumber: { type: Boolean, default: false },
+  waitingForDelivery: { type: Boolean, default: false },
+  waitingForPayment: { type: Boolean, default: false },
+  resumeSearch: { type: Boolean, default: false },
+  previousSearchQuery: { type: String, default: null },
+  canInterrupt: { type: Boolean, default: true },
+  canResume: { type: Boolean, default: false }
 }, {
   timestamps: true
 });

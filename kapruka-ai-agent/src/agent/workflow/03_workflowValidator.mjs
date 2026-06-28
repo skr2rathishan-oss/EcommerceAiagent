@@ -47,6 +47,18 @@ export function validateWorkflow({
 
 } = {}) {
 
+    const state = {
+        ...conversationState,
+        waitingForDelivery: conversationState.waitingForDelivery || conversationState.workflowContext?.waitingForDelivery,
+        waitingForPhoneNumber: conversationState.waitingForPhoneNumber || conversationState.workflowContext?.waitingForPhoneNumber,
+        awaitingConfirmation: conversationState.awaitingConfirmation || conversationState.workflowContext?.awaitingConfirmation,
+        resumeSearch: conversationState.resumeSearch || conversationState.workflowContext?.resumeSearch,
+        previousSearchQuery: conversationState.previousSearchQuery || conversationState.workflowContext?.previousSearchQuery,
+        checkoutActive: conversationState.checkoutActive || conversationState.activeFlow?.type === "checkout" || conversationState.workflowContext?.currentWorkflow === "checkout",
+        paymentPending: conversationState.paymentPending || conversationState.workflowContext?.waitingForPayment || conversationState.activeFlow?.type === "payment" || conversationState.workflowContext?.currentWorkflow === "payment",
+        orderReference: conversationState.orderReference || conversationState.order?.orderRef || conversationState.order_id
+    };
+
     const result = {
 
         allowed: true,
@@ -91,7 +103,7 @@ export function validateWorkflow({
 
     ) {
 
-        if (!conversationState.checkoutActive) {
+        if (!state.checkoutActive) {
 
             result.allowed = false;
 
@@ -116,7 +128,7 @@ export function validateWorkflow({
 
     ) {
 
-        if (!conversationState.paymentPending) {
+        if (!state.paymentPending) {
 
             result.allowed = false;
 
@@ -141,7 +153,7 @@ export function validateWorkflow({
 
     ) {
 
-        if (!conversationState.waitingForDelivery) {
+        if (!state.waitingForDelivery) {
 
             result.allowed = false;
 
@@ -168,9 +180,9 @@ export function validateWorkflow({
 
         if (
 
-            conversationState.resumeSearch === true &&
+            state.resumeSearch === true &&
 
-            !conversationState.previousSearchQuery
+            !state.previousSearchQuery
 
         ) {
 
@@ -199,7 +211,7 @@ export function validateWorkflow({
 
         if (
 
-            !conversationState.orderReference
+            !state.orderReference
 
         ) {
 
@@ -220,9 +232,11 @@ export function validateWorkflow({
 
     const isAffirmative = ["yes", "y", "yeah", "ok", "okay", "hari", "ow", "confirm"].includes(message.trim().toLowerCase());
 
+    const isAwaitingConfirmation = state.awaitingConfirmation || state.workflowContext?.awaitingConfirmation;
+
     if (
         isAffirmative &&
-        !conversationState.awaitingConfirmation
+        !isAwaitingConfirmation
     ) {
 
         result.allowed = false;
@@ -242,11 +256,13 @@ export function validateWorkflow({
 
     const phoneRegex = /^0\d{9}$/;
 
+    const isWaitingForPhone = state.waitingForPhoneNumber || state.workflowContext?.waitingForPhoneNumber;
+
     if (
 
         phoneRegex.test(message.trim()) &&
 
-        !conversationState.waitingForPhoneNumber
+        !isWaitingForPhone
 
     ) {
 

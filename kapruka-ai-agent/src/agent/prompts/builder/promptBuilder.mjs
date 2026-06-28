@@ -38,6 +38,7 @@ import { CUSTOMER_PSYCHOLOGY_PROMPT } from "../intelligence/07_customerPsycholog
 import { CONVERSATION_STRATEGY_PROMPT } from "../intelligence/08_conversationStrategy.prompt.mjs";
 import { RECOMMENDATION_STRATEGY_PROMPT } from "../intelligence/09_recommendationStrategy.prompt.mjs";
 import { RESPONSE_LIBRARY_PROMPT } from "../intelligence/10_responseLibrary.prompt.mjs";
+import { REFERENCE_PROMPT } from "../intelligence/10b_reference.prompt.mjs";
 
 import { SHOPPING_PROMPT } from "../commerce/11_shopping.prompt.mjs";
 import { DELIVERY_PROMPT } from "../commerce/12_delivery.prompt.mjs";
@@ -57,7 +58,7 @@ import { RECOVERY_PROMPT } from "../communication/19_recovery.prompt.mjs";
 export const PROMPT_OS_VERSION = Object.freeze({
     name: "Velora Prompt Operating System",
     version: "2.0.0",
-    modules: 19
+    modules: 20
 });
 
 /* ============================================================================
@@ -77,7 +78,8 @@ const INTELLIGENCE = [
     CUSTOMER_PSYCHOLOGY_PROMPT,
     CONVERSATION_STRATEGY_PROMPT,
     RECOMMENDATION_STRATEGY_PROMPT,
-    RESPONSE_LIBRARY_PROMPT
+    RESPONSE_LIBRARY_PROMPT,
+    REFERENCE_PROMPT
 ];
 
 const COMMERCE = [

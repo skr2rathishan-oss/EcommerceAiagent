@@ -1,0 +1,10 @@
+{
+  "pending_order_reminder": {
+    "english": [
+      "By the way, your {product_name} order is still waiting for confirmation. When you’re ready, reply with Yes and I’ll place it.",
+      "Just a quick reminder: your {product_name} order is pending confirmation. Say Yes when you want me to place it.",
+      "Your {product_name} order is still waiting to be confirmed. Reply Yes whenever you’re ready to complete it.",
+      "I’m holding your {product_name} order until you confirm. Say Yes to place it now."
+    ]
+  }
+}

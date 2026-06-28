@@ -1,0 +1,25 @@
+{
+  "delivery_cancel_recovery": {
+    "english": [
+      "Sorry about that — I couldn’t complete the delivery for this location/date.",
+      "I’m sorry we couldn’t finish the delivery there. Let me help you with the next step.",
+      "That delivery didn’t work out. I can either show similar items or start a new search.",
+      "I couldn’t complete the delivery for that date/location. Would you like to see similar items or try a fresh search?",
+      "Unfortunately that delivery option isn’t available. I can help by showing alternatives or starting over."
+    ],
+    "sinhala_mix": [
+      "Sorry ah 😔 me location/date ekata delivery complete karanna bari una.",
+      "Mata mathakai, me delivery eka me hema wita iwarayi. Thawa options balanna puluwan.",
+      "Ooops 😔 me location/date ekata delivery eka wenne ne. Similar products balanna nathnam aluthin search karanna puluwan.",
+      "Meka hariyata nowei. Mama oyata mawath ekak danna puluwan — similar products nathnam aluthin search.",
+      "Me delivery option eka nathi una. Api athukota similar de balanna puluwan, nathnam aluthin search karamu."
+    ],
+    "tamil_mix": [
+      "Sorry pa 😔 intha location/date ku delivery mudiyala.",
+      "Enaku theriyum, intha delivery epadi kaanum, aana naan adha next step ku help pannaren.",
+      "Intha location/date ku delivery work aagala. Similar items paarunga illa pudusa search pannalaam.",
+      "Ithu epadi illa. Intha time la similar items ah kaamikkaren illa pudusa search pannalam.",
+      "Intha delivery option available illa. Naan unga ku alternative kaamikkalam illa start over pannalam."
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "delivery_date_cancelled": {
+    "english": [
+      "No problem, I’ve cancelled the delivery check. 🤝",
+      "Okay, the delivery check has been cancelled.",
+      "Alright, I’ve stopped the delivery availability check.",
+      "Delivery date check cancelled. Let me know if you want to try again.",
+      "I’ve cancelled the delivery check for now. We can restart whenever you’re ready."
+    ],
+    "sinhala_mix": [
+      "Awulak ne, mama delivery check eka cancel kala. 🤝",
+      "Hari, delivery check eka cancel una.",
+      "Okkoma, mama delivery availability check eka stop kala.",
+      "Delivery date check eka cancel una. Ayeth try karanna one nam kiyanna.",
+      "Mama delivery check eka cancel kala. Oya ready unama ayeth start karanna puluwan."
+    ],
+    "tamil_mix": [
+      "Parava illa, naan delivery check ah cancel pannitten. 🤝",
+      "Okay, delivery check cancel aayiduchu.",
+      "Seri, naan delivery availability check ah stop pannitten.",
+      "Delivery date check cancel aagiduchu. Verechu try panna solunga.",
+      "Naan delivery check ah cancel pannitten. Ready aana innum start pannalam."
+    ]
+  }
+}

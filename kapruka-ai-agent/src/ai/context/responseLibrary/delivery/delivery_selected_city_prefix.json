@@ -1,0 +1,25 @@
+{
+  "delivery_selected_city_prefix": {
+    "english": [
+      "Got it. I’m checking delivery for {selected_city} now.",
+      "Sure — checking if we can deliver to {selected_city} instead.",
+      "Okay, I’ll see whether delivery is available for {selected_city}.",
+      "I’m switching the delivery check to {selected_city} now.",
+      "Let me confirm delivery availability for {selected_city}."
+    ],
+    "sinhala_mix": [
+      "Hari, mama dan **{selected_city}** walata delivery eka balannam.",
+      "Oya select kara **{selected_city}** walata delivery thiyenawada balamu.",
+      "Okay, **{selected_city}** ekata delivery hadanna balannam.",
+      "Mama dan **{selected_city}** walata delivery availability eka check karanawa.",
+      "**{selected_city}** walata delivery balanna mama yamu."
+    ],
+    "tamil_mix": [
+      "Seri, naan ippo **{selected_city}** ku delivery check pannuren.",
+      "Sari — **{selected_city}** ku delivery irukka nu paarpom.",
+      "Okay, **{selected_city}** ku delivery availability ah check pannuren.",
+      "Naan ippo **{selected_city}** ku delivery check panna poren.",
+      "**{selected_city}** ku delivery possible ah nu paakka vaangiren."
+    ]
+  }
+}

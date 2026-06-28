@@ -1,0 +1,25 @@
+{
+  "invalid_contact_phone": {
+    "english": [
+      "That phone number doesn't look right. Please send a valid Sri Lankan mobile number. Example: 0771234567",
+      "I need a valid Sri Lankan phone number for delivery. Please send it like 0771234567.",
+      "This number doesn't seem correct. Please share the delivery contact's mobile number.",
+      "Please provide a Sri Lankan mobile phone number for the delivery contact.",
+      "I couldn't use that phone number. Please send a valid one like 0771234567."
+    ],
+    "sinhala_mix": [
+      "E phone number eka hari neme. Karunakarala hari Sri Lankan mobile number ekak danna. Example: 0771234567",
+      "Delivery phone number ekak oney. Sri Lankan mobile number ekak danna.",
+      "Me number eka hitiyanam hari neme. Delivery contact ge phone number ekak danna.",
+      "Karunakarala Sri Lankan mobile number ekak danna. Udaharana: 0771234567.",
+      "Mama me number eka use karanna ba. Valid number ekak danna."
+    ],
+    "tamil_mix": [
+      "Intha phone number sari illa. Delivery ku Sri Lankan mobile number sollunga. Example: 0771234567",
+      "Delivery phone number venum. Sri Lankan mobile number ah kodunga.",
+      "Ithu number sariya illa maathirom. Delivery contact oda number sollunga.",
+      "Please Sri Lankan mobile number sollunga. Udharanam: 0771234567.",
+      "Intha number ah use panna mudiyathu. Oru valid number sollunga."
+    ]
+  }
+}

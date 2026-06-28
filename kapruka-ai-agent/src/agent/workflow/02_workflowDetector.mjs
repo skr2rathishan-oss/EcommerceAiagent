@@ -225,6 +225,13 @@ export function detectWorkflow({
      * Default
      * ---------------------------------------------------------------------- */
 
+    if (conversationState?.activeFlow?.type) {
+        const activeType = conversationState.activeFlow.type;
+        if (Object.values(WORKFLOWS).includes(activeType) && conversationState.activeFlow.status === "active") {
+            return activeType;
+        }
+    }
+
     return WORKFLOWS.IDLE;
 
 }

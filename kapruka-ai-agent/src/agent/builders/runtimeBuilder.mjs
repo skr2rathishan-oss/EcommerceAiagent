@@ -72,6 +72,44 @@ Previous Search Query : ${workflowData.previousSearchQuery || "none"}
 ===============================================================================
 `.trim();
 
+    const referenceData = runtimeContext.resolvedReference || null;
+    let referencePrompt = "";
+    if (referenceData && referenceData.success && referenceData.handled) {
+        if (referenceData.action === "PRODUCT_SELECTED" && referenceData.product) {
+            referencePrompt = `
+===============================================================================
+REFERENCE RUNTIME (RESOLVED PRODUCT)
+===============================================================================
+
+The user is referring to the following product. Address their question or action regarding this specific product:
+Name: ${referenceData.product.name}
+Brand: ${referenceData.product.brand || "N/A"}
+Price: ${referenceData.product.price || "N/A"} ${referenceData.product.currency || ""}
+Description: ${referenceData.product.description || "N/A"}
+
+===============================================================================
+`.trim();
+        } else if (referenceData.action === "COMPARE_PRODUCTS" && referenceData.products) {
+            const productsList = referenceData.products.map((p, idx) => `
+Product ${idx + 1}:
+Name: ${p.name}
+Brand: ${p.brand || "N/A"}
+Price: ${p.price || "N/A"} ${p.currency || ""}
+Description: ${p.description || "N/A"}
+`).join("\n");
+            referencePrompt = `
+===============================================================================
+REFERENCE RUNTIME (COMPARE PRODUCTS)
+===============================================================================
+
+The user is comparing the following products. Address their comparison regarding these products:
+${productsList}
+
+===============================================================================
+`.trim();
+        }
+    }
+
     return {
 
         data: {
@@ -88,7 +126,9 @@ Previous Search Query : ${workflowData.previousSearchQuery || "none"}
 
             response: response.data,
 
-            workflow: workflowData
+            workflow: workflowData,
+
+            resolvedReference: runtimeContext.resolvedReference || null
 
         },
 
@@ -107,13 +147,15 @@ Previous Search Query : ${workflowData.previousSearchQuery || "none"}
             "",
             workflowPrompt,
             "",
+            referencePrompt,
+            "",
             memory.prompt,
             "",
             response.prompt,
             "",
             system.prompt
 
-        ].join("\n")
+        ].filter(Boolean).join("\n")
 
     };
 
@@ -163,7 +205,8 @@ export function constructRuntimeData({
     deliverySession,
     pendingOrder,
     voiceMode,
-    message
+    message,
+    resolvedReference
 }) {
     return {
         decision,
@@ -217,7 +260,8 @@ export function constructRuntimeData({
             model: null,
             environment: process.env.NODE_ENV || "development"
         },
-        latestMessage: message
+        latestMessage: message,
+        resolvedReference: resolvedReference || null
     };
 }
 

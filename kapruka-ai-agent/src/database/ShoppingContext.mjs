@@ -27,6 +27,10 @@ const shoppingContextSchema = new mongoose.Schema({
     type: [Object],
     default: []
   },
+  lastSearchResults: {
+    type: [Object],
+    default: []
+  },
   selectedProduct: {
     type: Object,
     default: null

@@ -3,6 +3,8 @@
  * Used by the chat controller to stream workflow progress to the frontend.
  */
 
+import { logBypass } from "../services/core/bypassDetector.service.mjs";
+
 /**
  * Builds the initial `logs` array based on detected intent.
  * @param {string} intent
@@ -121,6 +123,28 @@ export function sendErrorAndEnd(res, logs, message = "Internal Server Error") {
  * @param {*} data
  */
 export function sendCompleteAndEnd(res, data) {
+  // Any user-facing text without a Response Engine source is a bypass signal.
+  if (data?.text && !data?.source && data?.type === "text") {
+    const stack = new Error().stack || "";
+    const stackLine = stack.split("\n").find(line =>
+      line.includes("chat.controller") || line.includes("chatStream.controller")
+    ) || "";
+
+    const fnMatch = stackLine.match(/at\s+([^\s]+)\s+/);
+    const locMatch = stackLine.match(/src\\([^:]+):(\d+):(\d+)/);
+
+    logBypass({
+      file: locMatch ? `src\\${locMatch[1]}` : "src\\unknown",
+      functionName: fnMatch ? fnMatch[1] : "unknown",
+      line: locMatch ? Number(locMatch[2]) : 0,
+      message: data.text,
+      controller: stackLine.includes("chatStream") ? "chatStream.controller" : "chat.controller",
+      workflow: "unknown",
+      intent: "unknown",
+      sessionId: "unknown"
+    });
+  }
+
   res.write(`data: ${JSON.stringify({ type: "complete", data })}\n\n`);
   res.end();
 }
