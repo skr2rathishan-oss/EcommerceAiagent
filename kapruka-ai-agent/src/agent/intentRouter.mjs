@@ -127,7 +127,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 logger.info(`[SEARCH PRODUCTS] Query is empty or too short: "${searchQuery}". Requesting clarification.`);
                 return {
                     error: true,
-                    message: "What kind of products are you looking for? You can search for cakes, flowers, electronics, or anything else!"
+                    code: "MISSING_QUERY"
                 };
             }
 
@@ -197,27 +197,18 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             onProgress?.("RANKING", "completed", ["Ranked by relevance"]);
             onProgress?.("READY", "active");
 
-            if (introText) {
-                return {
-                    type: "product_grid",
-                    text: introText,
-                    products: finalProducts
-                };
-            }
-            return finalProducts;
+            return {
+                type: "product_grid",
+                products: finalProducts,
+                isSuggestion: !!introText
+            };
         }
 
         // ── Product Selection ─────────────────────────────────────────────────
         case INTENTS.SELECT_PRODUCT: {
             const product = parameters.product;
             if (!product) {
-                let failText = "I couldn't find that product. Please try selecting it again.";
-                if (lang === "ta") {
-                    failText = "அந்தத் தயாரிப்பை என்னால் கண்டுபிடிக்க முடியவில்லை. மீண்டும் தேர்ந்தெடுக்க முயற்சிக்கவும்.";
-                } else if (lang === "si") {
-                    failText = "මට එම නිෂ්පාදනය සොයාගත නොහැකි විය. කරුණාකර එය නැවත තේරීමට උත්සාහ කරන්න.";
-                }
-                return { type: "text", text: failText };
+                return { error: true, code: "PRODUCT_NOT_FOUND" };
             }
 
             updateShoppingContext(sessionId, { selectedProduct: product });
@@ -233,41 +224,10 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 logger.error("[Background Tracking Error] Failed to track select_product:", err);
             });
 
-            let selectMessage = `Great choice! 😊\n\nThat looks like a promising option.\n\nWhat would you like to do next?`;
-            let actions = [
-                { id: "view_details", label: "View Full Details", emoji: "👀" },
-                { id: "check_delivery", label: "Check Delivery", emoji: "🚚" },
-                { id: "add_to_cart", label: "Add To Cart", emoji: "🛒" },
-                { id: "save_for_later", label: "Save For Later", emoji: "❤️" },
-                { id: "compare", label: "Compare With Similar", emoji: "⚖️" },
-            ];
-
-            if (lang === "ta") {
-                selectMessage = `அருமையான தேர்வு! 😊\n\nஅது ஒரு சிறந்த தயாரிப்பாகத் தெரிகிறது.\n\nஅடுத்து நீங்கள் என்ன செய்ய விரும்புகிறீர்கள்?`;
-                actions = [
-                    { id: "view_details", label: "முழு விபரங்களையும் காண்க", emoji: "👀" },
-                    { id: "check_delivery", label: "டெலிவரியைச் சரிபார்", emoji: "🚚" },
-                    { id: "add_to_cart", label: "கார்ட்டில் சேர்", emoji: "🛒" },
-                    { id: "save_for_later", label: "பின்னர் சேமிக்கவும்", emoji: "❤️" },
-                    { id: "compare", label: "ஒத்தவற்றுடன் ஒப்பிடுக", emoji: "⚖️" },
-                ];
-            } else if (lang === "si") {
-                selectMessage = `නියම තේරීමක්! 😊\n\nඑය හොඳ නිෂ්පාදනයක් බව පෙනේ.\n\nඊළඟට ඔබ කුමක් කිරීමට කැමතිද?`;
-                actions = [
-                    { id: "view_details", label: "සම්පූර්ණ විස්තර බලන්න", emoji: "👀" },
-                    { id: "check_delivery", label: "බෙදා හැරීම පරීක්ෂා කරන්න", emoji: "🚚" },
-                    { id: "add_to_cart", label: "කරත්තයට එක් කරන්න", emoji: "🛒" },
-                    { id: "save_for_later", label: "පසුවට සුරකින්න", emoji: "❤️" },
-                    { id: "compare", label: "සමාන ඒවා සමඟ සසඳන්න", emoji: "⚖️" },
-                ];
-            }
-
             return {
                 type: "product_selected",
                 productId: product.id,
-                product: product,
-                message: selectMessage,
-                actions: actions
+                product: product
             };
         }
 
@@ -281,13 +241,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             }
 
             if (!productId) {
-                let failText = "I need a product ID to fetch details. Please select a product first.";
-                if (lang === "ta") {
-                    failText = "விவரங்களைப் பெற எனக்கு தயாரிப்பு ஐடி தேவை. முதலில் ஒரு தயாரிப்பைத் தேர்ந்தெடுக்கவும்.";
-                } else if (lang === "si") {
-                    failText = "විස්තර ලබා ගැනීමට මට නිෂ්පාදන හැඳුනුම්පතක් (ID) අවශ්‍ය වේ. කරුණාකර පළමුව නිෂ්පාදනයක් තෝරන්න.";
-                }
-                return { type: "text", text: failText };
+                return { error: true, code: "MISSING_PRODUCT_ID" };
             }
 
             try {
@@ -309,13 +263,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                     return formatProductDetails(context.selectedProduct);
                 }
 
-                let errorText = "⚠️ Sorry, I couldn't load the full product details right now. Please try again shortly.";
-                if (lang === "ta") {
-                    errorText = "⚠️ மன்னிக்கவும், இப்போது தயாரிப்பு விவரங்களை ஏற்ற முடியவில்லை. சிறிது நேரத்தில் மீண்டும் முயற்சிக்கவும்.";
-                } else if (lang === "si") {
-                    errorText = "⚠️ කණගාටුයි, මේ මොහොතේ නිෂ්පාදන විස්තර ලබා ගැනීමට නොහැකි විය. කරුණාකර සුළු මොහොතකින් නැවත උත්සාහ කරන්න.";
-                }
-                return { type: "text", text: errorText };
+                return { error: true, code: "PRODUCT_DETAILS_FAILED" };
             }
         }
 
@@ -374,6 +322,49 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             } else {
                 return await startDeliveryFlow(sessionId, product, lang);
             }
+        }
+
+        case INTENTS.DELIVERY_FLOW_INPUT: {
+            const {
+                handleAddressConfirmation,
+                handleDateInput,
+                handleRecoveryChoice,
+                handleCancelOptions,
+                handleCheckoutConfirmation,
+                handleContactNameInput,
+                handleContactPhoneInput,
+                handleCancelChoice
+            } = await import("../services/commerce/deliveryFlowService.mjs");
+            
+            const message = parameters.message || parameters.query || "";
+            const session = await getDeliverySession(sessionId);
+            if (!session) {
+                return { status: "temporary_error" };
+            }
+
+            const deliveryState = session.state;
+            logger.info(`[INTENT ROUTER] Processing DELIVERY_FLOW_INPUT. State: ${deliveryState}, Message: "${message}"`);
+            if (deliveryState === "WAITING_FOR_ADDRESS") {
+                return await handleAddressInput(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_ADDRESS_CONFIRMATION") {
+                return await handleAddressConfirmation(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_DATE") {
+                return await handleDateInput(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_RECOVERY_CHOICE") {
+                return await handleRecoveryChoice(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_ALTERNATIVE_PRODUCT_SELECTION") {
+                return await handleCancelOptions(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_CONFIRMATION" || deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
+                return await handleCheckoutConfirmation(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
+                return await handleContactNameInput(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
+                return await handleContactPhoneInput(session, message, lang);
+            } else if (deliveryState === "WAITING_FOR_CANCEL_CHOICE") {
+                return await handleCancelChoice(session, message, lang);
+            }
+
+            return { status: "temporary_error" };
         }
 
         default:

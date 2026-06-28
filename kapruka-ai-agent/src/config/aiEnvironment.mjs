@@ -36,7 +36,7 @@ export const AI_ENVIRONMENTS = {
     recommendations: {
       provider: "gemini",
       model: GEMINI_MODELS.flash25,
-      displayName: "Gemini 2.5 Flash (Vertex AI)",
+      displayName: "Gemini 2.5 Pro (Vertex AI)",
     },
     intentDetect: {
       provider: "gemini",

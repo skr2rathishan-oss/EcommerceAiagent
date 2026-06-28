@@ -44,6 +44,11 @@ export function buildRuntimeContext(runtimeContext = {}) {
     const conversation = buildConversationRuntime(runtimeContext);
 
     const customer = buildCustomerRuntime(runtimeContext);
+    
+    // Explicit Language override to fix telemetry/prompt
+    if (runtimeContext.customer) {
+       customer.data.preferredLanguage = runtimeContext.customer.preferredLanguage;
+    }
 
     const commerce = buildCommerceRuntime(runtimeContext);
 
@@ -213,7 +218,7 @@ export function constructRuntimeData({
         conversationState: userState,
         customer: {
             name: decision?.variables?.customer_name || userState?.customerName,
-            preferredLanguage: decision?.language?.code || userState?.language,
+            preferredLanguage: decision?.language?.detected || userState?.preferredLanguage || "english",
             city: decision?.variables?.city || userState?.city,
             shoppingStyle: memory?.shoppingStyle || "standard"
         },

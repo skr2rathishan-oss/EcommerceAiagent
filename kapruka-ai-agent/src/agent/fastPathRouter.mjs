@@ -82,23 +82,6 @@ export function isComplexQuery(message) {
  * @returns {boolean}
  */
 export function shouldBypassQwen(intent, message, voiceMode = false) {
-  if (voiceMode) {
-    return false; // Never bypass Qwen formatting in voice mode
-  }
-  if (intent === "general_chat") {
-    return isSimpleConversation(message);
-  }
-  if (intent === "search_products") {
-    return !isComplexQuery(message);
-  }
-  if (
-    intent === "get_product_details" ||
-    intent === "select_product" ||
-    intent === "track_order" ||
-    intent === "check_delivery"
-  ) {
-    return true;
-  }
   return false;
 }
 

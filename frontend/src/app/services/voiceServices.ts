@@ -2,6 +2,8 @@
  * Service to handle text-to-speech requests and audio playback.
  */
 
+import { apiFetch } from "./api";
+
 /**
  * Calls the backend voice API, retrieves the audio blob, and plays it.
  * @param {string} text - The text to convert to speech.
@@ -12,7 +14,7 @@ export const playVoice = async (text: string): Promise<HTMLAudioElement> => {
     throw new Error("Text content is required for voice generation.");
   }
 
-  const response = await fetch("/api/voice", {
+  const response = await apiFetch("/api/voice", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

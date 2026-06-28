@@ -57,7 +57,8 @@ export function detectWorkflow({
     if (
 
         ["hi", "hello", "hey", "vanakkam", "good morning", "good evening"]
-            .includes(text)
+            .includes(text) ||
+        (intent === "general_chat" && decision.chat_subtype === "greeting")
 
     ) {
 

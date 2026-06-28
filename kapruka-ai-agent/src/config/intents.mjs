@@ -5,4 +5,5 @@ export const INTENTS = {
     TRACK_ORDER: "track_order",
     GENERAL_CHAT: "general_chat",
     CHECK_DELIVERY: "check_delivery",
+    DELIVERY_FLOW_INPUT: "delivery_flow_input",
 };

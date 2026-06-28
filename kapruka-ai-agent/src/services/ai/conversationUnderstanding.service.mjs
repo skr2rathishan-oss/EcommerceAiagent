@@ -10,6 +10,7 @@
 import { CONVERSATION_UNDERSTANDING_PROMPT } from "../../agent/conversationUnderstandingPrompt.mjs";
 import { getIntentModel, callGeminiSingleTurn } from "./modelRouter.mjs";
 import { normalizeText, isShortMessage, runHeuristicDetection, applyLanguagePreferenceStickiness } from "../../utils/language.utils.mjs";
+import { EnglishDictionary, SINGlishDictionary, TANGlishDictionary, SinhalaDictionary, TamilDictionary } from "../../resources/language/index.mjs";
 import { detectEmotion } from "../../ai/context/emotionDetector.mjs";
 import { detectSituation } from "../../ai/context/situationDetector.mjs";
 import { saveConversationState } from "../commerce/conversationStateService.mjs";
@@ -142,6 +143,12 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
   if (langLabel === "sinhala") langLabel = "sinhala_mix";
   if (langLabel === "tamil") langLabel = "tamil_mix";
 
+  let chat_subtype = "casual_chat";
+  const lowerMsg = message ? message.toLowerCase().trim() : "";
+  if (["hi", "hello", "hey", "good morning", "good evening"].some(p => lowerMsg.includes(p))) {
+    chat_subtype = "greeting";
+  }
+
   // Apply preferred language rules
   let preferredLanguage = conversationState?.preferredLanguage || "english";
   let consecutiveCount = conversationState?.consecutiveMessagesInSameLanguage || 0;
@@ -208,7 +215,6 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
 
   // 2. Intent detection using rule-based pattern matching
   let intent = "general_chat";
-  const lowerMsg = message.toLowerCase().trim();
 
   if (["buy", "order", "checkout", "purchase", "place order", "place the order"].some(p => lowerMsg.includes(p))) {
     intent = "create_order";
@@ -288,6 +294,7 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
     },
     intent: {
       value: intent,
+      chat_subtype: intent === "general_chat" ? chat_subtype : null,
       confidence: 0.7
     },
     emotion: mapEmotion(emotionResult.emotion),
@@ -323,20 +330,38 @@ export async function understandConversation({
     deliverySessionState,
   };
 
-  const userPrompt = `Conversation State:\n${JSON.stringify(stateContext, null, 2)}\n\nMessage History:\n${JSON.stringify(history.slice(-6), null, 2)}\n\nLatest User Message: "${message}"`;
+  const languageResources = {
+    tanglish: TANGlishDictionary.greetings,
+    singlish: SINGlishDictionary.greetings,
+    english: EnglishDictionary.greetings
+  };
+
+  const userPrompt = `Language Resources (Heuristics):\n${JSON.stringify(languageResources, null, 2)}\n\nConversation State:\n${JSON.stringify(stateContext, null, 2)}\n\nMessage History:\n${JSON.stringify(history.slice(-6), null, 2)}\n\nLatest User Message: "${message}"`;
 
   try {
     const { client: activeClient, model } = getIntentModel();
     const raw = await callGeminiSingleTurn(activeClient, model, CONVERSATION_UNDERSTANDING_PROMPT, userPrompt, {
       temperature: 0,
-      maxOutputTokens: 1500
+      maxOutputTokens: 1500,
+      responseMimeType: "application/json"
     });
 
-    const clean = raw.trim()
+    // Priority Fix: Stronger JSON parsing fallback
+    const match = raw.match(/\{[\s\S]*\}/);
+    let clean = raw.trim()
       .replace(/^```json\s*/i, "")
       .replace(/^```\s*/i, "")
       .replace(/```\s*$/, "")
       .trim();
+    
+    if (match) {
+        clean = match[0];
+    }
+    
+    // Repair common trailing comma / missing brace issues
+    if (clean.endsWith(",")) {
+        clean = clean.slice(0, -1) + "\n}";
+    }
 
     result = JSON.parse(clean);
   } catch (err) {
@@ -377,6 +402,7 @@ export async function understandConversation({
   }
 
   const intent = result.intent?.value || "general_chat";
+  const chat_subtype = result.intent?.chat_subtype || null;
   const emotion = result.emotion || "neutral";
 
   let conversationStage = result.conversationStage || "browsing";
@@ -387,6 +413,11 @@ export async function understandConversation({
   const tool = resolveToolDecision(intent);
   const situation = result.variables?.situation || "general";
   const { module, category, llm_response } = resolveResponseLibrary(intent, conversationStage, emotion, situation);
+  
+  if (intent === "general_chat" && chat_subtype) {
+      // Ensure the Response Engine knows what sub-type to log and handle
+      // This is passed back in _raw for workflow/response checks
+  }
 
   const vars = result.variables || {};
   const variables = {
@@ -410,6 +441,7 @@ export async function understandConversation({
       reason: isFallback ? "heuristic_fallback" : "gemini_2.5_flash"
     },
     intent,
+    chat_subtype,
     emotion,
     conversation_stage: conversationStage,
     tool,
