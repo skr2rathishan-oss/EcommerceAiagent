@@ -1,0 +1,25 @@
+{
+  "ask_contact_phone": {
+    "english": [
+      "Perfect! Now please send the contact phone number for delivery.",
+      "I just need the delivery phone number next. Example: 0771234567",
+      "Please send the receiver's phone number for the delivery.",
+      "What is the contact phone number for this delivery?",
+      "Now send me the phone number for the delivery contact."
+    ],
+    "sinhala_mix": [
+      "Perfect! Dan contact phone number eka danna.",
+      "Delivery phone number eka danna. Udaharana: 0771234567",
+      "Delivery contact kenekage phone number eka danna.",
+      "Me delivery ekata phone number eka mokakda?",
+      "Contact phone number eka danna, please."
+    ],
+    "tamil_mix": [
+      "Super! Ippo delivery phone number ah sollunga.",
+      "Delivery phone number venum. Example: 0771234567",
+      "Delivery edukkira perukku phone number ah anuppunga.",
+      "Delivery ku contact phone number enna?",
+      "Contact phone number ah anuppunga, please."
+    ]
+  }
+}

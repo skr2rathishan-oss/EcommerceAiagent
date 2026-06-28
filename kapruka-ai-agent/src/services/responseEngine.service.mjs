@@ -24,7 +24,6 @@
  *   // Returns a string from the appropriate language array, or null if no match.
  */
 
-import { createRequire } from "module";
 import { fileURLToPath } from "url";
 import { dirname, join }  from "path";
 import fs                 from "fs";
@@ -40,6 +39,18 @@ const LIBRARY_ROOT = join(
 
 // ── In-memory cache for loaded JSON files ────────────────────────────────────
 const _cache = new Map();
+
+// Required workflow-to-template bindings used by the pipeline.
+const REQUIRED_TEMPLATE_BINDINGS = [
+  { workflow: "greeting", module: "common", category: "greeting" },
+  { workflow: "product_search", module: "shopping", category: "search" },
+  { workflow: "product_details", module: "shopping", category: "product_details" },
+  { workflow: "delivery", module: "delivery", category: "ask_delivery_address" },
+  { workflow: "checkout", module: "order", category: "confirm_order" },
+  { workflow: "order_tracking", module: "common", category: "clarification" },
+  { workflow: "recovery", module: "recovery", category: "fallback" },
+  { workflow: "clarify", module: "common", category: "confused" }
+];
 
 /**
  * loadResponseFile(module, category)
@@ -218,16 +229,16 @@ function _selectResponseInternal(decision, variables = {}, sessionId = null, wor
           break;
         case "checkout":
           module = "order";
-          category = "payment";
+          category = "confirm_order";
           break;
         case "order_tracking":
-          module = "order";
-          category = "order_confirmation";
+          module = "common";
+          category = "clarification";
           llm_response = true;
           break;
         case "recovery":
           module = "recovery";
-          category = "recovery";
+          category = "fallback";
           llm_response = true;
           break;
         default:
@@ -337,7 +348,17 @@ export function selectResponseWithFallback(decision, variables = {}, sessionId =
     category: "small_talk",
     llm_response: false,
   };
-  return selectResponse(fallbackDecision, variables, sessionId);
+  const fallback = selectResponse(fallbackDecision, variables, sessionId);
+  if (fallback) return fallback;
+
+  // Engine-owned emergency message if response files are missing/corrupt.
+  return {
+    text: "Sorry, I could not prepare a response right now. Please try again.",
+    module: "common",
+    category: "small_talk",
+    language: decision?.language?.detected || "english",
+    source: "response_engine_emergency"
+  };
 }
 
 /**
@@ -346,4 +367,35 @@ export function selectResponseWithFallback(decision, variables = {}, sessionId =
  */
 export function clearResponseCache() {
   _cache.clear();
+}
+
+export function validateResponseTemplates(bindings = REQUIRED_TEMPLATE_BINDINGS) {
+  const missing = [];
+
+  for (const binding of bindings) {
+    const data = loadResponseFile(binding.module, binding.category);
+    const section = data?.[binding.category];
+    const hasEnglish = Array.isArray(section?.english) && section.english.length > 0;
+    const hasSinhala = Array.isArray(section?.sinhala_mix) && section.sinhala_mix.length > 0;
+    const hasTamil = Array.isArray(section?.tamil_mix) && section.tamil_mix.length > 0;
+
+    if (!hasEnglish || !hasSinhala || !hasTamil) {
+      missing.push({
+        workflow: binding.workflow,
+        module: binding.module,
+        category: binding.category,
+        missingLanguages: [
+          ...(!hasEnglish ? ["english"] : []),
+          ...(!hasSinhala ? ["sinhala_mix"] : []),
+          ...(!hasTamil ? ["tamil_mix"] : [])
+        ]
+      });
+    }
+  }
+
+  return {
+    ok: missing.length === 0,
+    checked: bindings.length,
+    missing
+  };
 }

@@ -1,0 +1,25 @@
+{
+  "invalid_contact_name": {
+    "english": [
+      "That doesn't look like a valid contact name. Please send the name of the person receiving the delivery. Example: Nimal Perera",
+      "I need the delivery contact’s name. Please send a real name like Nimal Perera.",
+      "That name seems off. Please send the recipient’s full name for delivery.",
+      "Please share the contact name for the delivery, for example: Nimal Perera.",
+      "I couldn't use that as a contact name. Please send a proper name like Nimal Perera."
+    ],
+    "sinhala_mix": [
+      "Eka hari contact name ekak neme. Delivery recipient kenekage nama danna. Udaharana: Nimal Perera",
+      "Delivery contact name eka oney. Udaharana widiyata Nimal Perera kiyala danna.",
+      "Oyage dena nama hari neme. Karunakarala delivery agaa nama danna.",
+      "Delivery kenaage nama danna. Eg: Nimal Perera.",
+      "Mama denna nama use karanna ba. Proper name ekak danna."
+    ],
+    "tamil_mix": [
+      "Ithu valid contact name illa. Delivery receipt pera peyar sollunga. Udharanam: Nimal Perera",
+      "Delivery contact name venum. Example ah Nimal Perera solunga.",
+      "Ithu name sari illa. Delivery pera name ah sollunga.",
+      "Delivery ku contact pera peyar sollunga. Udharanam: Nimal Perera.",
+      "Ithu contact name ah use panna mudiyathu. Oru sariyaana peyar sollunga."
+    ]
+  }
+}

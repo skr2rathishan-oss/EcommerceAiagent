@@ -1,0 +1,25 @@
+{
+  "delivery_cancel_b_prefix": {
+    "english": [
+      "Sure 👍 let’s start fresh. What would you like to look for?",
+      "Okay, let’s begin a new search. What are you after today?",
+      "No problem — we can try a different product. What do you want?",
+      "Great, starting over. Tell me what you’d like to find next.",
+      "Let’s reset and look for something new. What are you interested in?"
+    ],
+    "sinhala_mix": [
+      "Hari hari 👍 aluthin balamu.\n\nOya mokakda hoyanne? 👀",
+      "Okay 👍 aluthin start karamu.\n\nOyage ona deyak mokakda? 👀",
+      "Okkoma hari, nathnam aluthin balamu.\n\nOya mokakda balanna one? 👀",
+      "Hari, adala product ekak hoyaganna aluthin patan ganamu.\n\nMokakda ona? 👀",
+      "Aluthin balanna mama ready. Oya mokakda hitiyenne? 👀"
+    ],
+    "tamil_mix": [
+      "Okay 👍 pudusa start pannalaam.\n\nIppo enna product theduveenga? 👀",
+      "Seri 👍 pudusa paakalaam.\n\nUngalukku enna venda? 👀",
+      "No problem, pudusa thedalam.\n\nEnna venum nu sollunga? 👀",
+      "Great, pudusa start pannalam.\n\nUngaluku enna venum? 👀",
+      "Nalla, pudusa try pannalam.\n\nEnna thedureenga? 👀"
+    ]
+  }
+}

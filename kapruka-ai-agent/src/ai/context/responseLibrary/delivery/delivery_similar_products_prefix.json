@@ -1,0 +1,25 @@
+{
+  "delivery_similar_products_prefix": {
+    "english": [
+      "Sure 😊 I’ll show you similar items that can be delivered to {city} on {date}.",
+      "Let me find products that can actually be delivered to {city} on {date}.",
+      "I’m pulling up similar options for delivery to {city} on {date}.",
+      "Here are similar products that should be deliverable to {city} on {date}.",
+      "I’ll find matching items that can arrive in {city} by {date}."
+    ],
+    "sinhala_mix": [
+      "Hari 😄 oya select karapu city/date ekata deliver karanna puluwan similar products pennannam.",
+      "Mama **{city}** walata **{date}** dawasata deliver karanna puluwan similar items hoyagannam.",
+      "**{city}** walata **{date}** dawasata deliver karanna puluwan dewal pennannam.",
+      "Oya select kara city/date ekata anuwa similar products deka balanawa.",
+      "Mama **{city}** + **{date}** ekata deliver karanna puluwan options hoyagannawa."
+    ],
+    "tamil_mix": [
+      "Super 😄 **{city}** ku **{date}** la delivery panna mudiyum similar items kaamikkiren.",
+      "Naan **{city}** ku **{date}** la deliver panna mudiyum products eduthukkiren.",
+      "Intha **{city}**/**{date}** ku suitable ah irukka similar items kaamikkiren.",
+      "Ungaluku **{city}** ku **{date}** la deliver panna mudiyum items kandupidithu tharen.",
+      "Naan **{city}** ku **{date}** la deliver panna mudiyum options kaamilikkinren."
+    ]
+  }
+}

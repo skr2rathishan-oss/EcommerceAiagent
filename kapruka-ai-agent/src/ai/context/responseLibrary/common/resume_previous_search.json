@@ -1,0 +1,10 @@
+{
+  "resume_previous_search": {
+    "english": [
+      "It looks like you were already searching for {search_query}. Would you like to continue that search or start a new one?",
+      "We found an earlier search for {search_query}. Should we keep going with it or begin a fresh search?",
+      "I’ve got your previous search for {search_query}. Want to continue it or start again?",
+      "Would you like to resume the earlier search for {search_query}, or should we do a new search?"
+    ]
+  }
+}

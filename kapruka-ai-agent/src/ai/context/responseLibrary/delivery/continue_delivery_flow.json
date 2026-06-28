@@ -1,0 +1,25 @@
+{
+  "continue_delivery_flow": {
+    "english": [
+      "Please continue with your delivery flow.",
+      "Let’s keep going with the delivery process.",
+      "I’m here to help you finish the delivery steps.",
+      "Please continue the delivery flow so I can complete your order.",
+      "Let’s continue with delivery and finalize everything."
+    ],
+    "sinhala_mix": [
+      "Karunakarala delivery flow ekata continue karanna.",
+      "Mama oyata delivery process eka iwara karanna awashya.",
+      "Delivery steps iwara karanna ekathu wu yomu karanna.",
+      "Delivery flow ekata continue karanna kiyanawa, order eka complete karanna.",
+      "Delivery ekata yana widiyata iwara karamu."
+    ],
+    "tamil_mix": [
+      "Delivery flow ah continue pannunga.",
+      "Naan ungalukku delivery process ah mudikka help pannaren.",
+      "Delivery steps ah continue pannunga, order finish pannalaam.",
+      "Delivery flow ah continue pannunga so we can finalize it.",
+      "Delivery ku poi ellathayum complete pannuvom."
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "delivery_available_perishable": {
+    "english": [
+      "⚠️ This is a perishable item. Please make sure someone is available to receive it on the delivery date.",
+      "Because this item is perishable, please ensure someone is home on the delivery day.",
+      "Perishable item warning: have someone ready to receive the delivery on the scheduled date.",
+      "Please note: this item is perishable, so it’s important that someone is available to accept it.",
+      "Since this is perishable, please make sure someone can receive it on delivery day."
+    ],
+    "sinhala_mix": [
+      "⚠️ Meka perishable item ekak. Delivery dawasata kenek inna bawak thahawuru karanna.",
+      "Meka narakwana item ekak nisa delivery dawasata kenek thiyenawa kiyala balanna.",
+      "Perishable item eka nisa delivery dawasata kenek atte awashya.",
+      "Meka perishable nisa, delivery dawasata kenek thiyanawada kiyala sure wenna.",
+      "Me item eka narak wenna puluwan, e nisa delivery dawasata kenek inna balanna."
+    ],
+    "tamil_mix": [
+      "⚠️ Ithuvum perishable item. Delivery date la engaluku oru peron wait pannitu irukkanuma nu kandippa paarunga.",
+      "Intha item perishable ah irukku, delivery naalil oru peron irukka sollunga.",
+      "Perishable item warning: delivery naalil oru peron accept pannuvaanga nu paarunga.",
+      "Ithu perishable item aanaal, delivery date la oru peron iruppan-nu sure pannunga.",
+      "Ithu perishable, athu nala oru peron receive panna ready ah irukkanum."
+    ]
+  }
+}

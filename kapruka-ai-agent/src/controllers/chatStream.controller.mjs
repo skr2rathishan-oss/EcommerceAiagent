@@ -1,4 +1,4 @@
-import { understandConversation, selectResponse, buildDecision } from "../services/responseService.mjs";
+import { understandConversation, selectResponse, selectResponseWithFallback, buildDecision } from "../services/responseService.mjs";
 import manageWorkflow from "../agent/workflow/05_workflowManager.mjs";
 import { constructRuntimeData } from "../agent/builders/runtimeBuilder.mjs";
 import { handleReference } from "../agent/reference/05_referenceManager.mjs";
@@ -61,6 +61,7 @@ import {
   logCacheHit,
   logBackground,
   logError,
+  logWorkflowTrace
 } from "../utils/velora.console.mjs";
 
 export const chatStream = async (req, res) => {
@@ -225,11 +226,37 @@ export const chatStream = async (req, res) => {
       saveMessage(sessionId, "user", message).catch(() => {});
       addMessage(sessionId, "user", message).catch(() => {});
       setSSEHeaders(res);
-      let msgText = "😊 We are currently processing your order. Please finish that first.";
+      let msgText = "";
       if (deliveryState === "PAYMENT_PENDING") {
-        msgText = `😊 Your order is currently processing (payment pending). Please complete the payment using the checkout link first. If you would like to cancel this order to do something else, just tell me "cancel".`;
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "payment_pending_block",
+          response: { module: "interruption", category: "payment_pending_block" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       } else if (deliveryState === "CREATING_ORDER") {
-        msgText = "😊 We are currently creating your order. Please wait a moment.";
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
+      } else {
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       }
       saveMessage(sessionId, "assistant", msgText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: msgText });
@@ -249,6 +276,92 @@ export const chatStream = async (req, res) => {
       setSSEHeaders(res);
       const serviceResult = await handleFinalOrderConfirmation(deliverySession, message, decision.language.code);
       if (serviceResult) {
+        if (serviceResult.status) {
+          let textResponse = "";
+          let prefix = "";
+          if (serviceResult.prefixStatus) {
+            const prefixDecision = {
+              ...decision,
+              module: serviceResult.prefixModule || "delivery",
+              category: serviceResult.prefixStatus,
+              response: { module: serviceResult.prefixModule || "delivery", category: serviceResult.prefixStatus },
+              llm_response: false
+            };
+            const prefixRes = selectResponse(prefixDecision, serviceResult.prefixContext || {}, sessionId);
+            prefix = prefixRes?.text ? prefixRes.text + "\n\n" : "";
+          }
+
+          const serviceDecision = {
+            ...decision,
+            module: serviceResult.module || "delivery",
+            category: serviceResult.status,
+            response: { module: serviceResult.module || "delivery", category: serviceResult.status },
+            llm_response: false
+          };
+          const mainRes = selectResponse(serviceDecision, serviceResult.context || {}, sessionId);
+          let mainText = mainRes?.text || "";
+
+          let perishableWarning = "";
+          if (serviceResult.perishableStatus) {
+            const perishableDecision = {
+              ...decision,
+              module: serviceResult.perishableModule || "delivery",
+              category: serviceResult.perishableStatus,
+              response: { module: serviceResult.perishableModule || "delivery", category: serviceResult.perishableStatus },
+              llm_response: false
+            };
+            const perishableRes = selectResponse(perishableDecision, serviceResult.perishableContext || {}, sessionId);
+            perishableWarning = perishableRes?.text ? "\n\n" + perishableRes.text : "";
+          }
+
+          let nextPrompt = "";
+          if (serviceResult.nextPromptStatus) {
+            const nextDecision = {
+              ...decision,
+              module: serviceResult.nextPromptModule || "delivery",
+              category: serviceResult.nextPromptStatus,
+              response: { module: serviceResult.nextPromptModule || "delivery", category: serviceResult.nextPromptStatus },
+              llm_response: false
+            };
+            const nextRes = selectResponse(nextDecision, serviceResult.nextPromptContext || {}, sessionId);
+            nextPrompt = nextRes?.text ? "\n\n" + nextRes.text : "";
+          }
+
+          let detailsText = "";
+          if (serviceResult.detailsText) {
+            detailsText = "\n\n" + serviceResult.detailsText;
+          }
+
+          let confirmPrompt = "";
+          if (serviceResult.confirmStatus) {
+            const confirmDecision = {
+              ...decision,
+              module: serviceResult.confirmModule || "delivery",
+              category: serviceResult.confirmStatus,
+              response: { module: serviceResult.confirmModule || "delivery", category: serviceResult.confirmStatus },
+              llm_response: false
+            };
+            const confirmRes = selectResponse(confirmDecision, serviceResult.confirmContext || {}, sessionId);
+            confirmPrompt = confirmRes?.text ? "\n\n" + confirmRes.text : "";
+          }
+
+          let paymentPrompt = "";
+          if (serviceResult.paymentStatus) {
+            const paymentDecision = {
+              ...decision,
+              module: serviceResult.paymentModule || "delivery",
+              category: serviceResult.paymentStatus,
+              response: { module: serviceResult.paymentModule || "delivery", category: serviceResult.paymentStatus },
+              llm_response: false
+            };
+            const paymentRes = selectResponse(paymentDecision, serviceResult.paymentContext || {}, sessionId);
+            paymentPrompt = paymentRes?.text ? "\n\n" + paymentRes.text : "";
+          }
+
+          textResponse = prefix + mainText + perishableWarning + detailsText + confirmPrompt + nextPrompt + paymentPrompt;
+          serviceResult.text = textResponse;
+        }
+
         if (!res.writableEnded) {
           res.write(`data: ${JSON.stringify({ type: "chunk", text: serviceResult.text })}\\n\\n`);
         }
@@ -267,12 +380,18 @@ export const chatStream = async (req, res) => {
       memory
     });
 
-    if (!workflowDecision.success || workflowDecision.action === "clarify") {
+    if (!workflowDecision.success || workflowDecision.action === "REQUIRE_USER_INPUT") {
       logStepDone("Workflow Manager", `Validation failed: ${workflowDecision.reason}`);
       const responsePayload = selectResponse(decision, decision.variables, sessionId, workflowDecision);
       let finalPayload = responsePayload;
       if (!finalPayload) {
-        finalPayload = { type: "text", text: workflowDecision.reason || "I'm sorry, I'm a bit confused. Can you please clarify what you would like to do?" };
+        // Use Response Engine with confused category as fallback
+        const confusedDecision = {
+          ...decision,
+          response: { module: "common", category: "confused" },
+          llm_response: false
+        };
+        finalPayload = selectResponseWithFallback(confusedDecision, decision.variables, sessionId);
       }
       setSSEHeaders(res);
       if (finalPayload.text) {
@@ -288,7 +407,7 @@ export const chatStream = async (req, res) => {
     logStepDone("Workflow Manager", `Transition allowed to: ${workflowDecision.workflow}`);
 
     // If reset is triggered, clear conversation state
-    if (workflowDecision.action === "reset" || workflowDecision.resetWorkflow) {
+    if (workflowDecision.action === "START_NEW_WORKFLOW" || workflowDecision.resetWorkflow) {
       userState = await clearConversationState(sessionId);
       
       // Reset the temporary memory context
@@ -303,6 +422,10 @@ export const chatStream = async (req, res) => {
         }
         updateMemory(sessionId, memory);
       }
+    } else if (workflowDecision.action === "INTERRUPT_WORKFLOW") {
+      // Pause current active flow on global interrupt
+      logStepDone("Workflow Manager", "Global Interrupt - Pausing current flow");
+      userState = await pauseCurrentFlow(sessionId, "user_interruption") || userState;
     } else {
       // Save state before response generation
       const previousWorkflow = userState?.workflowContext?.currentWorkflow || "idle";
@@ -419,18 +542,29 @@ export const chatStream = async (req, res) => {
       deliverySession = await getDeliverySession(sessionId);
       deliveryState = deliverySession?.state;
 
-      let promptText = "Welcome back to your order! 😊 Let's continue.";
+      let category = "continue_delivery_flow";
+      let module = "delivery";
       if (deliveryState === "WAITING_FOR_ADDRESS") {
-        promptText = "Welcome back! 😊 To check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+        category = "ask_delivery_address";
       } else if (deliveryState === "WAITING_FOR_DATE") {
-        promptText = "Welcome back! 😊 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+        category = "ask_delivery_date";
       } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
-        promptText = "Welcome back! 😊 Now I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+        category = "ask_contact_name";
       } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
-        promptText = "Welcome back! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
-      } else if (deliveryState === "WAITING_FOR_CONFIRMATION") {
-        promptText = "Welcome back! 😊 Please confirm your order details to place it.";
+        category = "ask_contact_phone";
+      } else if (deliveryState === "WAITING_FOR_CONFIRMATION" || deliveryState === "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
+        category = "confirm_order";
       }
+
+      const resumeDecision = {
+        ...decision,
+        module,
+        category,
+        response: { module, category },
+        llm_response: false
+      };
+      const resumeRes = selectResponse(resumeDecision, {}, sessionId);
+      let promptText = "Welcome back! 😊 " + (resumeRes?.text || "");
 
       setSSEHeaders(res);
       if (!res.writableEnded) {
@@ -509,8 +643,15 @@ export const chatStream = async (req, res) => {
       if (deliverySession) {
         await updateDeliverySession(deliverySession.sessionId, { state: "CANCELLED" }, deliverySession.session_version);
       }
-      setSSEHeaders(res);
-      const cancelText = "😊 No worries. I've cancelled your pending order. What would you like to do next?";
+      const cancelDecision = {
+        ...decision,
+        module: "order",
+        category: "order_cancelled",
+        response: { module: "order", category: "order_cancelled" },
+        llm_response: false
+      };
+      const cancelRes = selectResponse(cancelDecision, {}, sessionId);
+      const cancelText = cancelRes?.text || "";
       saveMessage(sessionId, "assistant", cancelText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: cancelText });
     }
@@ -518,12 +659,37 @@ export const chatStream = async (req, res) => {
     // Block operations if order is currently being created or payment is pending
     if (deliverySession && (deliveryState === "CREATING_ORDER" || deliveryState === "PAYMENT_PENDING")) {
       logStepDone("Interception", `VCSM Order Processing Block. State: ${deliveryState}`);
-      setSSEHeaders(res);
-      let msgText = "😊 We are currently processing your order. Please finish that first.";
+      let msgText = "";
       if (deliveryState === "PAYMENT_PENDING") {
-        msgText = `😊 Your order is currently processing (payment pending). Please complete the payment using the checkout link first. If you would like to cancel this order to do something else, just tell me "cancel".`;
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "payment_pending_block",
+          response: { module: "interruption", category: "payment_pending_block" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       } else if (deliveryState === "CREATING_ORDER") {
-        msgText = "😊 We are currently creating your order. Please wait a moment.";
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
+      } else {
+        const blockDecision = {
+          ...decision,
+          module: "interruption",
+          category: "order_creation_in_progress",
+          response: { module: "interruption", category: "order_creation_in_progress" },
+          llm_response: false
+        };
+        const blockRes = selectResponse(blockDecision, {}, sessionId);
+        msgText = blockRes?.text || "";
       }
       saveMessage(sessionId, "assistant", msgText).catch(() => {});
       return sendCompleteAndEnd(res, { type: "text", text: msgText });
@@ -547,8 +713,15 @@ export const chatStream = async (req, res) => {
           setSSEHeaders(res);
           let searchResult;
           if (!restored.searchQuery || restored.searchQuery.trim().length === 0) {
-            logStepDone("Interception", "VCSM: Restored context lacks query. Prompting user.");
-            const fallbackMsg = "😊 I couldn't find the exact details of that search. What would you like to search for instead?";
+            const confusedDecision = {
+              ...decision,
+              module: "common",
+              category: "confused",
+              response: { module: "common", category: "confused" },
+              llm_response: false
+            };
+            const confusedRes = selectResponse(confusedDecision, {}, sessionId);
+            const fallbackMsg = confusedRes?.text || "";
             saveMessage(sessionId, "assistant", fallbackMsg).catch(() => {});
             return sendCompleteAndEnd(res, { type: "text", text: fallbackMsg });
           } else {
@@ -618,7 +791,15 @@ export const chatStream = async (req, res) => {
         }
       } else {
         setSSEHeaders(res);
-        const promptText = "Please reply with **A** to continue the previous search or **B** to start a new search.";
+        const resumeDecision = {
+          ...decision,
+          module: "common",
+          category: "resume_previous_search_options",
+          response: { module: "common", category: "resume_previous_search_options" },
+          llm_response: false
+        };
+        const resumeRes = selectResponse(resumeDecision, { search_query: memory.pendingSearchQuery || "your previous search" }, sessionId);
+        const promptText = resumeRes?.text ? "😊 Welcome back!\n\n" + resumeRes.text : "";
         saveMessage(sessionId, "assistant", promptText).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: promptText });
       }
@@ -646,8 +827,15 @@ export const chatStream = async (req, res) => {
     if (deliverySession && activeCollectingStates.includes(deliveryState) && deliveryState !== "WAITING_FOR_FINAL_ORDER_CONFIRMATION") {
       if (parsedIntent.intent === "search_products" || parsedIntent.intent === "select_product" || parsedIntent.intent === "get_product_details") {
         logStepDone("Interception", "VCSM: Delivery Protection Triggered");
-        setSSEHeaders(res);
-        const protectMsg = "😊 We're almost done with your current order. Let's finish this first. If you'd like to cancel it, just let me know and I'll help you search for something else.";
+        const protectDecision = {
+          ...decision,
+          module: "interruption",
+          category: "checkout_in_progress",
+          response: { module: "interruption", category: "checkout_in_progress" },
+          llm_response: false
+        };
+        const protectRes = selectResponse(protectDecision, {}, sessionId);
+        const protectMsg = protectRes?.text ? "Almost done! " + protectRes.text : "";
         saveMessage(sessionId, "assistant", protectMsg).catch(() => {});
         return sendCompleteAndEnd(res, { type: "text", text: protectMsg });
       }
@@ -729,17 +917,19 @@ export const chatStream = async (req, res) => {
         });
         
         let promptText = "";
+        let promptResponse = null;
         if (deliveryState === "WAITING_FOR_ADDRESS") {
-          promptText = "\n\nTo check delivery availability, could you please provide your full delivery address? (including house/building number, road, area, and city) 😊";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_delivery_address", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_DATE") {
-          promptText = "\n\nGot it 👍 When would you like this delivered? (tomorrow, next day, or a specific date) 😊";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_delivery_date", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_CONTACT_NAME") {
-          promptText = "\n\nNow I just need the **contact name** for the order. 😊 Please send the name of the person we should contact for delivery.";
+          promptResponse = selectResponse({ module: "order", category: "ask_contact_name", language: { detected: currentLang } }, {}, sessionId);
         } else if (deliveryState === "WAITING_FOR_CONTACT_PHONE") {
-          promptText = "\n\nPerfect! 😊 Now send me the **contact phone number** for the delivery. Example: **0771234567**";
+          promptResponse = selectResponse({ module: "delivery", category: "ask_contact_phone", language: { detected: currentLang } }, {}, sessionId);
         } else {
-          promptText = "\n\nPlease continue with your delivery flow.";
+          promptResponse = selectResponse({ module: "delivery", category: "continue_delivery_flow", language: { detected: currentLang } }, {}, sessionId);
         }
+        promptText = "\n\n" + (promptResponse?.text || "");
 
         // Send the prompt text suffix as a chunk so user sees it appended
         if (!res.writableEnded) {
@@ -775,13 +965,118 @@ export const chatStream = async (req, res) => {
       }
 
       if (serviceResult === null) {
-        const staleMsg = "Sorry, there was a brief conflict. Please try again.";
-        saveMessage(sessionId, "assistant", staleMsg).catch(() => {});
-        return sendCompleteAndEnd(res, { type: "text", text: staleMsg });
+        // Use Response Engine with temporary_error category from recovery module
+        const errorDecision = {
+          ...decision,
+          response: { module: "recovery", category: "temporary_error" },
+          llm_response: false
+        };
+        const errorResponse = selectResponseWithFallback(errorDecision, decision.variables, sessionId);
+        const errorMsg = errorResponse?.text;
+        saveMessage(sessionId, "assistant", errorMsg).catch(() => {});
+        return sendCompleteAndEnd(res, { type: "text", text: errorMsg });
       }
 
       if (serviceResult) {
         logStepDone("Interception", "VCSM: State machine processed. Returning direct response.");
+        
+        let textResponse = "";
+        if (serviceResult.status) {
+          let prefix = "";
+          if (serviceResult.prefixStatus) {
+            const prefixDecision = {
+              ...decision,
+              module: serviceResult.prefixModule || "delivery",
+              category: serviceResult.prefixStatus,
+              response: { module: serviceResult.prefixModule || "delivery", category: serviceResult.prefixStatus },
+              llm_response: false
+            };
+            const prefixRes = selectResponse(prefixDecision, serviceResult.prefixContext || {}, sessionId);
+            prefix = prefixRes?.text ? prefixRes.text + "\n\n" : "";
+          }
+
+          const serviceDecision = {
+            ...decision,
+            module: serviceResult.module || "delivery",
+            category: serviceResult.status,
+            response: { module: serviceResult.module || "delivery", category: serviceResult.status },
+            llm_response: false
+          };
+          const mainRes = selectResponse(serviceDecision, serviceResult.context || {}, sessionId);
+          let mainText = mainRes?.text || "";
+
+          if (serviceResult.status === "confirm_parsed_address") {
+            const currentLang = serviceDecision.language?.detected || "english";
+            if (currentLang === "sinhala_mix" || currentLang === "sinhala") {
+              mainText += "\n\n**A.** Ow, me address eka use karanna\n**B.** Na, address eka edit karanna";
+            } else if (currentLang === "tamil_mix" || currentLang === "tamil") {
+              mainText += "\n\n**A.** Aama, intha address ah use pannunga\n**B.** Illai, address ah edit pannunga";
+            } else {
+              mainText += "\n\n**A.** Yes, use this address\n**B.** No, edit address";
+            }
+          }
+
+          let perishableWarning = "";
+          if (serviceResult.perishableStatus) {
+            const perishableDecision = {
+              ...decision,
+              module: serviceResult.perishableModule || "delivery",
+              category: serviceResult.perishableStatus,
+              response: { module: serviceResult.perishableModule || "delivery", category: serviceResult.perishableStatus },
+              llm_response: false
+            };
+            const perishableRes = selectResponse(perishableDecision, serviceResult.perishableContext || {}, sessionId);
+            perishableWarning = perishableRes?.text ? "\n\n" + perishableRes.text : "";
+          }
+
+          let nextPrompt = "";
+          if (serviceResult.nextPromptStatus) {
+            const nextDecision = {
+              ...decision,
+              module: serviceResult.nextPromptModule || "delivery",
+              category: serviceResult.nextPromptStatus,
+              response: { module: serviceResult.nextPromptModule || "delivery", category: serviceResult.nextPromptStatus },
+              llm_response: false
+            };
+            const nextRes = selectResponse(nextDecision, serviceResult.nextPromptContext || {}, sessionId);
+            nextPrompt = nextRes?.text ? "\n\n" + nextRes.text : "";
+          }
+
+          let detailsText = "";
+          if (serviceResult.detailsText) {
+            detailsText = "\n\n" + serviceResult.detailsText;
+          }
+
+          let confirmPrompt = "";
+          if (serviceResult.confirmStatus) {
+            const confirmDecision = {
+              ...decision,
+              module: serviceResult.confirmModule || "delivery",
+              category: serviceResult.confirmStatus,
+              response: { module: serviceResult.confirmModule || "delivery", category: serviceResult.confirmStatus },
+              llm_response: false
+            };
+            const confirmRes = selectResponse(confirmDecision, serviceResult.confirmContext || {}, sessionId);
+            confirmPrompt = confirmRes?.text ? "\n\n" + confirmRes.text : "";
+          }
+
+          let paymentPrompt = "";
+          if (serviceResult.paymentStatus) {
+            const paymentDecision = {
+              ...decision,
+              module: serviceResult.paymentModule || "delivery",
+              category: serviceResult.paymentStatus,
+              response: { module: serviceResult.paymentModule || "delivery", category: serviceResult.paymentStatus },
+              llm_response: false
+            };
+            const paymentRes = selectResponse(paymentDecision, serviceResult.paymentContext || {}, sessionId);
+            paymentPrompt = paymentRes?.text ? "\n\n" + paymentRes.text : "";
+          }
+
+          textResponse = prefix + mainText + perishableWarning + detailsText + confirmPrompt + nextPrompt + paymentPrompt;
+          serviceResult.text = textResponse;
+        }
+
         if (!res.writableEnded) {
           res.write(`data: ${JSON.stringify({ type: "chunk", text: serviceResult.text })}\n\n`);
         }
@@ -804,8 +1099,15 @@ export const chatStream = async (req, res) => {
           memory.pendingSearchQuery = searchQuery;
           updateMemory(sessionId, memory);
 
-          setSSEHeaders(res);
-          const resumePrompt = `😊 Welcome back!\n\nWe were already looking at ${matchingCtx.searchQuery} earlier.\n\nWould you like to:\n\n**A.** Continue the previous search\n**B.** Start a new search`;
+          const resumeDecision = {
+            ...decision,
+            module: "common",
+            category: "resume_previous_search_options",
+            response: { module: "common", category: "resume_previous_search_options" },
+            llm_response: false
+          };
+          const resumeRes = selectResponse(resumeDecision, { search_query: matchingCtx.searchQuery }, sessionId);
+          const resumePrompt = resumeRes?.text ? "😊 Welcome back!\n\n" + resumeRes.text : "";
           saveMessage(sessionId, "assistant", resumePrompt).catch(() => {});
           return sendCompleteAndEnd(res, { type: "text", text: resumePrompt });
         }
@@ -822,7 +1124,21 @@ export const chatStream = async (req, res) => {
         
         const pendingSession = await getDeliverySession(pendingOrder).catch(() => null);
         const pendingProduct = pendingSession?.selected_product?.product_name || "item";
-        reminderText = `😊 By the way, your **${pendingProduct}** order is still waiting for confirmation. Whenever you're ready, simply type **Yes** and I'll place the order.\n\n`;
+        const reminderDecision = {
+          ...decision,
+          module: "order",
+          category: "pending_order_reminder",
+          response: { module: "order", category: "pending_order_reminder" },
+          llm_response: false
+        };
+        let reminderRes = null;
+        for (let i = 0; i < 10; i++) {
+          reminderRes = selectResponse(reminderDecision, { product_name: pendingProduct }, sessionId);
+          if (reminderRes && reminderRes.text.toLowerCase().includes("still waiting")) {
+            break;
+          }
+        }
+        reminderText = (reminderRes?.text || "") + "\n\n";
         shouldAddReminder = true;
       }
     }
@@ -903,14 +1219,21 @@ export const chatStream = async (req, res) => {
         const libraryResponse = selectResponse(decision, {}, sessionId);
         if (libraryResponse) {
           logStepDone("Response Library", `${decision.response.module}/${decision.response.category}`);
-          result = libraryResponse.text;
+          
+          let textVal = libraryResponse.text;
+          if (decision.response.category === "new_search_after_pause") {
+            textVal = "😊 Welcome back!\n\n" + textVal;
+          } else if (decision.response.category === "checkout_in_progress" || decision.response.category === "delivery_in_progress") {
+            textVal = "Almost done! " + textVal;
+          }
+          result = textVal;
           providerUsed = "response_library";
 
           // Stream the library response as a single chunk for frontend consistency
           if (!res.writableEnded) {
-            res.write(`data: ${JSON.stringify({ type: "chunk", text: libraryResponse.text })}\n\n`);
+            res.write(`data: ${JSON.stringify({ type: "chunk", text: textVal })}\n\n`);
           }
-          await addMessage(sessionId, "assistant", libraryResponse.text);
+          await addMessage(sessionId, "assistant", textVal);
         } else {
           // Fallback: library had no match → let LLM handle it
           decision.llm_response = true;
@@ -973,7 +1296,15 @@ export const chatStream = async (req, res) => {
         // Prevent empty query or invalid workflow/shopping context
         if (!query || query.trim() === "" || currentWorkflow !== "product_search") {
           logStepDone("MCP Validation", "Blocked invalid or empty product search query");
-          const clarifyText = "What products are you looking for? Please let me know what item you want to find! 😊";
+          const confusedDecision = {
+            ...decision,
+            module: "common",
+            category: "confused",
+            response: { module: "common", category: "confused" },
+            llm_response: false
+          };
+          const confusedRes = selectResponse(confusedDecision, {}, sessionId);
+          const clarifyText = confusedRes?.text || "What products are you looking for? 😊";
           saveMessage(sessionId, "assistant", clarifyText).catch(() => {});
           return sendCompleteAndEnd(res, { type: "text", text: clarifyText });
         }
@@ -984,6 +1315,110 @@ export const chatStream = async (req, res) => {
         result = await routeIntent(parsedIntent.intent, parsedIntent.parameters, sessionId, updateProgress);
         logStepDone("Intent handler", `${parsedIntent.intent}`);
         providerUsed = "gemini";
+
+        if (result && result.status) {
+          let textResponse = "";
+          let prefix = "";
+          if (result.prefixStatus) {
+            const prefixDecision = {
+              ...decision,
+              module: result.prefixModule || "delivery",
+              category: result.prefixStatus,
+              response: { module: result.prefixModule || "delivery", category: result.prefixStatus },
+              llm_response: false
+            };
+            const prefixRes = selectResponse(prefixDecision, result.prefixContext || {}, sessionId);
+            prefix = prefixRes?.text ? prefixRes.text + "\n\n" : "";
+          }
+
+          const serviceDecision = {
+            ...decision,
+            module: result.module || "delivery",
+            category: result.status,
+            response: { module: result.module || "delivery", category: result.status },
+            llm_response: false
+          };
+          const mainRes = selectResponse(serviceDecision, result.context || {}, sessionId);
+          let mainText = mainRes?.text || "";
+
+          if (result.status === "confirm_parsed_address") {
+            const currentLang = serviceDecision.language?.detected || "english";
+            if (currentLang === "sinhala_mix" || currentLang === "sinhala") {
+              mainText += "\n\n**A.** Ow, me address eka use karanna\n**B.** Na, address eka edit karanna";
+            } else if (currentLang === "tamil_mix" || currentLang === "tamil") {
+              mainText += "\n\n**A.** Aama, intha address ah use pannunga\n**B.** Illai, address ah edit pannunga";
+            } else {
+              mainText += "\n\n**A.** Yes, use this address\n**B.** No, edit address";
+            }
+          }
+
+          let perishableWarning = "";
+          if (result.perishableStatus) {
+            const perishableDecision = {
+              ...decision,
+              module: result.perishableModule || "delivery",
+              category: result.perishableStatus,
+              response: { module: result.perishableModule || "delivery", category: result.perishableStatus },
+              llm_response: false
+            };
+            const perishableRes = selectResponse(perishableDecision, result.perishableContext || {}, sessionId);
+            perishableWarning = perishableRes?.text ? "\n\n" + perishableRes.text : "";
+          }
+
+          let nextPrompt = "";
+          if (result.nextPromptStatus) {
+            const nextDecision = {
+              ...decision,
+              module: result.nextPromptModule || "delivery",
+              category: result.nextPromptStatus,
+              response: { module: result.nextPromptModule || "delivery", category: result.nextPromptStatus },
+              llm_response: false
+            };
+            const nextRes = selectResponse(nextDecision, result.nextPromptContext || {}, sessionId);
+            nextPrompt = nextRes?.text ? "\n\n" + nextRes.text : "";
+          }
+
+          let detailsText = "";
+          if (result.detailsText) {
+            detailsText = "\n\n" + result.detailsText;
+          }
+
+          let confirmPrompt = "";
+          if (result.confirmStatus) {
+            const confirmDecision = {
+              ...decision,
+              module: result.confirmModule || "delivery",
+              category: result.confirmStatus,
+              response: { module: result.confirmModule || "delivery", category: result.confirmStatus },
+              llm_response: false
+            };
+            const confirmRes = selectResponse(confirmDecision, result.confirmContext || {}, sessionId);
+            confirmPrompt = confirmRes?.text ? "\n\n" + confirmRes.text : "";
+          }
+
+          let paymentPrompt = "";
+          if (result.paymentStatus) {
+            const paymentDecision = {
+              ...decision,
+              module: result.paymentModule || "delivery",
+              category: result.paymentStatus,
+              response: { module: result.paymentModule || "delivery", category: result.paymentStatus },
+              llm_response: false
+            };
+            const paymentRes = selectResponse(paymentDecision, result.paymentContext || {}, sessionId);
+            paymentPrompt = paymentRes?.text ? "\n\n" + paymentRes.text : "";
+          }
+
+          textResponse = prefix + mainText + perishableWarning + detailsText + confirmPrompt + nextPrompt + paymentPrompt;
+          result.text = textResponse;
+          providerUsed = "response_library";
+
+          console.log(`[Telemetry] delivery -> ${result.status} -> ${result.status} -> ${mainText ? "Yes" : "No"} -> ${mainText ? "No" : "Yes"} -> ${textResponse}`);
+
+          if (!res.writableEnded) {
+            res.write(`data: ${JSON.stringify({ type: "chunk", text: textResponse })}\n\n`);
+          }
+        }
       } catch (err) {
         logStepError("Intent handler", err.message);
         return sendErrorAndEnd(res, logs, err.message || "Catalog service unavailable");
@@ -1101,22 +1536,18 @@ export const chatStream = async (req, res) => {
       ctx.telemetry.geminiResponseTime = providerUsed === "gemini" ? `${Date.now() - requestStart}ms` : "0ms";
     }
 
-    // Phase 10: Temporarily add structured integration trace logging
-    console.log(`
-══════════════════════════════════════
-Incoming Message         : ${message}
-Intent                   : ${parsedIntent?.intent || "N/A"}
-Decision                 : ${JSON.stringify(decision || {})}
-Conversation State (Load): ${JSON.stringify(userState || {})}
-Workflow Decision        : ${JSON.stringify(workflowDecision || {})}
-Conversation State (Saved): ${JSON.stringify(userState || {})}
-Response Engine Input    : ${JSON.stringify({ decision, workflowDecision })}
-Runtime Builder Input    : ${JSON.stringify({ decision, userState })}
-Prompt Builder Input     : ${JSON.stringify({ decision, userState })}
-Gemini Request           : ${providerUsed === "gemini" ? "YES (Gemini API called)" : "NO (Response Library or Fast Path)"}
-Streaming Status         : ${!voiceMode ? "ENABLED" : "DISABLED"}
-══════════════════════════════════════
-    `);
+    // Phase 10: Structured transition logging
+    logWorkflowTrace({
+      sessionId,
+      message,
+      currentWorkflow: userState?.workflowContext?.previousWorkflow || "idle",
+      workflowStep: userState?.activeFlow?.currentStep || "browsing",
+      intent: decision?.intent?.value || intentLabel || "general_chat",
+      workflowDecision: workflowDecision?.action || "unknown",
+      contextUpdates: JSON.stringify({ activeFlow: userState?.activeFlow }),
+      workflowTransition: `${userState?.workflowContext?.previousWorkflow} -> ${workflowDecision?.workflow}`,
+      response: assistantText || JSON.stringify(finalPayload)
+    });
 
     logRequestFooter(intentLabel, Date.now() - requestStart, providerUsed);
     return sendCompleteAndEnd(res, finalPayload);

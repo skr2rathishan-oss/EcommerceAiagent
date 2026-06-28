@@ -1,31 +1,84 @@
-name: Deploy to GCP VM
+name: Deploy Velora to GCP VM
 
 on:
   push:
     branches:
-      - main   # Change to master if your branch is master
+      - main
 
 jobs:
   deploy:
+    name: Deploy Application
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Deploy to VM
+      - name: Deploy to GCP VM
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USERNAME }}
           key: ${{ secrets.VM_SSH_KEY }}
+          script_stop: true
+
           script: |
-            cd /home/Rathishan/EcommerceAiagent
+            set -e
 
-            git pull origin main
+            echo "======================================"
+            echo "🚀 Starting Velora Deployment"
+            echo "======================================"
 
+            cd ~/EcommerceAiagent
+
+            echo "📥 Pulling latest source..."
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "🛑 Stopping old containers..."
             docker compose down
 
-            docker compose up -d --build
+            echo "🧹 Removing unused Docker resources..."
+            docker image prune -af
+            docker builder prune -af
 
-            docker image prune -f
+            echo "🔨 Building containers..."
+            docker compose build --no-cache
+
+            echo "🚀 Starting containers..."
+            docker compose up -d
+
+            echo "⏳ Waiting for services..."
+            sleep 20
+
+            echo "======================================"
+            echo "📦 Running Containers"
+            echo "======================================"
+            docker compose ps
+
+            echo "======================================"
+            echo "💾 Disk Usage"
+            echo "======================================"
+            df -h
+
+            echo "======================================"
+            echo "📝 Recent Logs"
+            echo "======================================"
+            docker compose logs --tail=30
+
+            echo "======================================"
+            echo "🩺 Backend Health Check"
+            echo "======================================"
+
+            if curl -fs http://localhost:5000/health; then
+              echo ""
+              echo "✅ Backend is healthy"
+            else
+              echo ""
+              echo "❌ Backend health check failed"
+              exit 1
+            fi
+
+            echo "======================================"
+            echo "✅ Deployment Completed Successfully!"
+            echo "======================================"

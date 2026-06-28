@@ -1,0 +1,25 @@
+{
+  "ask_contact_name": {
+    "english": [
+      "Great! Who should I contact for delivery? Please send the contact name.",
+      "I just need the delivery contact name now. 😊",
+      "Please provide the name of the person who will receive the delivery.",
+      "Who should I list as the delivery contact?",
+      "Send me the contact name for this delivery, please."
+    ],
+    "sinhala_mix": [
+      "Hari! Delivery contact name eka danna puluwanda?",
+      "Mama dannawa contact name eka oney. 😊",
+      "Delivery ekata contact karanna ona kenekage nama danna.",
+      "Me delivery eka walata contact name eka mokakda kiyala danna.",
+      "Karunakarala delivery contact name eka danna."
+    ],
+    "tamil_mix": [
+      "Super! Delivery contact name ah sollunga.",
+      "Enakku contact name venum. 😊",
+      "Delivery edukka contact panna pora per sonnaalam.",
+      "Ithu delivery ku contact pera enna?",
+      "Delivery contact name ah anuppunga, please."
+    ]
+  }
+}

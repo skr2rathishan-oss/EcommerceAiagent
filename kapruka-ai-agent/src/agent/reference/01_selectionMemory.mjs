@@ -18,7 +18,7 @@
  * ============================================================
  */
 
-const selectionStore = new Map();
+import { getShoppingContext, updateShoppingContext } from "../memoryManager.mjs";
 
 /**
  * Save latest product search results.
@@ -26,11 +26,10 @@ const selectionStore = new Map();
 export function saveSelection(sessionId, products = []) {
     if (!sessionId) return;
 
-    selectionStore.set(sessionId, {
-        timestamp: Date.now(),
-        products: Array.isArray(products) ? products : [],
+    updateShoppingContext(sessionId, {
+        lastSearchResults: Array.isArray(products) ? products : [],
         lastSelectedIndex: null,
-        lastSelectedProduct: null
+        selectedProduct: null
     });
 }
 
@@ -38,58 +37,60 @@ export function saveSelection(sessionId, products = []) {
  * Get current selection state.
  */
 export function getSelection(sessionId) {
-    return selectionStore.get(sessionId) || null;
+    const ctx = getShoppingContext(sessionId);
+    if (!ctx || !ctx.lastSearchResults || ctx.lastSearchResults.length === 0) return null;
+    return {
+        products: ctx.lastSearchResults,
+        lastSelectedIndex: ctx.lastSelectedIndex,
+        lastSelectedProduct: ctx.selectedProduct
+    };
 }
 
 /**
  * Update currently selected product.
  */
 export function setCurrentSelection(sessionId, index) {
-    const state = selectionStore.get(sessionId);
+    const ctx = getShoppingContext(sessionId);
+    if (!ctx || !ctx.lastSearchResults) return;
+    const products = ctx.lastSearchResults;
 
-    if (!state) return;
+    if (index < 0 || index >= products.length) return;
 
-    if (index < 0 || index >= state.products.length) return;
-
-    state.lastSelectedIndex = index;
-    state.lastSelectedProduct = state.products[index];
-
-    selectionStore.set(sessionId, state);
+    updateShoppingContext(sessionId, {
+        lastSelectedIndex: index,
+        selectedProduct: products[index]
+    });
 }
 
 /**
  * Get current selected product.
  */
 export function getCurrentSelection(sessionId) {
-    const state = selectionStore.get(sessionId);
-
-    if (!state) return null;
-
-    return state.lastSelectedProduct;
+    const ctx = getShoppingContext(sessionId);
+    return ctx ? ctx.selectedProduct : null;
 }
 
 /**
  * Get product by list index.
  */
 export function getProductByIndex(sessionId, index) {
-    const state = selectionStore.get(sessionId);
+    const ctx = getShoppingContext(sessionId);
+    if (!ctx || !ctx.lastSearchResults) return null;
+    const products = ctx.lastSearchResults;
 
-    if (!state) return null;
-
-    if (index < 0 || index >= state.products.length) {
+    if (index < 0 || index >= products.length) {
         return null;
     }
 
-    return state.products[index];
+    return products[index];
 }
 
 /**
  * Get all products.
  */
 export function getProducts(sessionId) {
-    const state = selectionStore.get(sessionId);
-
-    return state?.products || [];
+    const ctx = getShoppingContext(sessionId);
+    return ctx?.lastSearchResults || [];
 }
 
 /**
@@ -97,30 +98,30 @@ export function getProducts(sessionId) {
  * Keeps the product list for future references.
  */
 export function clearCurrentSelection(sessionId) {
-    const state = selectionStore.get(sessionId);
-
-    if (!state) return;
-
-    state.lastSelectedIndex = null;
-    state.lastSelectedProduct = null;
-
-    selectionStore.set(sessionId, state);
+    updateShoppingContext(sessionId, {
+        lastSelectedIndex: null,
+        selectedProduct: null
+    });
 }
 
 /**
  * Completely remove selection memory.
  */
 export function clearSelection(sessionId) {
-    selectionStore.delete(sessionId);
+    updateShoppingContext(sessionId, {
+        lastSearchResults: [],
+        lastSelectedIndex: null,
+        selectedProduct: null
+    });
 }
 
 /**
  * Useful for debugging.
  */
 export function getSelectionSummary(sessionId) {
-    const state = selectionStore.get(sessionId);
+    const ctx = getShoppingContext(sessionId);
 
-    if (!state) {
+    if (!ctx || !ctx.lastSearchResults || ctx.lastSearchResults.length === 0) {
         return {
             exists: false
         };
@@ -128,12 +129,12 @@ export function getSelectionSummary(sessionId) {
 
     return {
         exists: true,
-        productCount: state.products.length,
-        lastSelectedIndex: state.lastSelectedIndex,
+        productCount: ctx.lastSearchResults.length,
+        lastSelectedIndex: ctx.lastSelectedIndex,
         lastSelectedProductName:
-            state.lastSelectedProduct?.name ||
-            state.lastSelectedProduct?.title ||
+            ctx.selectedProduct?.name ||
+            ctx.selectedProduct?.title ||
             null,
-        timestamp: state.timestamp
+        timestamp: Date.now()
     };
 }

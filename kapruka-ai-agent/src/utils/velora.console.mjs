@@ -451,6 +451,28 @@ export function logRequestFooter(intentType, totalMs, provider) {
   console.log(chalk.bold.cyan("  └" + "─".repeat(70) + "┘\n"));
 }
 
+export function logWorkflowTrace(trace) {
+  console.log(chalk.cyan("  │  ") + chalk.gray("─".repeat(60)));
+  console.log(chalk.cyan("  │  ") + chalk.bold.magenta("WORKFLOW TRACE LOG"));
+  console.log(chalk.cyan("  │  ") + chalk.gray("─".repeat(60)));
+  
+  const printLine = (lbl, val) => {
+    console.log(chalk.cyan("  │  ") + chalk.magenta(String(lbl).padEnd(25)) + chalk.white(val || "N/A"));
+  };
+
+  printLine("Session ID", trace.sessionId);
+  printLine("Incoming Message", trace.message ? `"${trace.message.slice(0, 50)}${trace.message.length > 50 ? '...' : ''}"` : "N/A");
+  printLine("Current Workflow", trace.currentWorkflow);
+  printLine("Workflow Step", trace.workflowStep);
+  printLine("Intent", trace.intent);
+  printLine("Workflow Decision", trace.workflowDecision);
+  printLine("Context Updates", trace.contextUpdates);
+  printLine("Workflow Transition", trace.workflowTransition);
+  printLine("Response", trace.response ? `"${trace.response.slice(0, 50)}${trace.response.length > 50 ? '...' : ''}"` : "N/A");
+
+  console.log(chalk.bold.cyan("  └" + "─".repeat(70) + "┘\n"));
+}
+
 export function logFallback(from, to) {
   console.log(chalk.cyan("  │  ") + chalk.yellow("⚡") + "  " + chalk.yellow(`Fallback: ${from} → ${to}`));
 }

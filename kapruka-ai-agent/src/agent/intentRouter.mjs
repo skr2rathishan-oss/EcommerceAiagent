@@ -161,7 +161,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
             const activeCtx = await createShoppingContext(sessionId, searchQuery, category, filters);
             if (activeCtx) {
                 await setActiveShoppingContext(sessionId, activeCtx.contextId);
-                await updateShoppingContextInDB(activeCtx.contextId, { viewedProducts: results });
+                await updateShoppingContextInDB(activeCtx.contextId, { viewedProducts: results, lastSearchResults: results });
             }
 
             updateShoppingContext(sessionId, { lastSearchResults: results });

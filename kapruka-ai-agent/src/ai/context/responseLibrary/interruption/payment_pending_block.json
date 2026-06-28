@@ -1,0 +1,10 @@
+{
+  "payment_pending_block": {
+    "english": [
+      "Your order is currently waiting for payment. Please complete it using the payment link so we can continue.",
+      "This order is pending payment right now. Use the payment link to wrap it up, or say cancel if you want to stop.",
+      "Payment is still pending for your current order. Please finish the payment first so I can help you again.",
+      "I’m holding your order while payment is pending. Please complete the payment via the link, or tell me cancel if you’d like to stop."
+    ]
+  }
+}

@@ -30,7 +30,8 @@ import validateWorkflow from "./03_workflowValidator.mjs";
 
 import {
     canTransition,
-    isGlobalInterrupt
+    isGlobalInterrupt,
+    getAvailableTransitions
 } from "./04_workflowTransitions.mjs";
 
 import {
@@ -56,9 +57,19 @@ export function manageWorkflow({
 
 } = {}) {
 
-    const currentWorkflow =
+    let currentWorkflow =
         conversationState.currentWorkflow ||
         WORKFLOWS.IDLE;
+
+    if (currentWorkflow === "general_chat") {
+        currentWorkflow = WORKFLOWS.IDLE;
+    }
+
+    console.log(`\n[WorkflowManager] TRANSITION ATTEMPT:
+  Session ID: ${conversationState.sessionId || 'Unknown'}
+  Current Workflow: ${currentWorkflow}
+  Active Flow: ${conversationState.activeFlow?.type || 'Unknown'}
+  Caller Stack: ${new Error().stack.split('\n').slice(1, 4).join('\n')}`);
 
     /* -------------------------------------------------------------------------
      * Step 1
@@ -77,6 +88,8 @@ export function manageWorkflow({
             conversationState
 
         });
+
+    console.log(`  Requested Workflow: ${nextWorkflow}\n`);
 
     /* -------------------------------------------------------------------------
      * Step 2
@@ -100,13 +113,15 @@ export function manageWorkflow({
 
     if (!validation.allowed) {
 
+        console.warn(`[WorkflowManager] VALIDATION FAILED: ${validation.reason}. Action: ${validation.action}`);
+
         return {
 
             success: false,
 
             workflow: currentWorkflow,
 
-            action: validation.action,
+            action: "REQUIRE_USER_INPUT",
 
             reason: validation.reason,
 
@@ -131,7 +146,7 @@ export function manageWorkflow({
 
             previousWorkflow: currentWorkflow,
 
-            action: "reset",
+            action: "START_NEW_WORKFLOW",
 
             reason: validation.reason,
 
@@ -160,7 +175,7 @@ export function manageWorkflow({
 
             previousWorkflow: currentWorkflow,
 
-            action: "interrupt",
+            action: "INTERRUPT_WORKFLOW",
 
             reason: "Global workflow interrupt.",
 
@@ -187,13 +202,15 @@ export function manageWorkflow({
 
     ) {
 
+        console.error(`[WorkflowManager] TRANSITION REJECTED: Cannot transition from ${currentWorkflow} to ${nextWorkflow}. Allowed transitions: ${getAvailableTransitions(currentWorkflow).join(", ")}`);
+
         return {
 
             success: false,
 
             workflow: currentWorkflow,
 
-            action: "clarify",
+            action: "REQUIRE_USER_INPUT",
 
             reason:
                 `Cannot transition from ${currentWorkflow} to ${nextWorkflow}.`
@@ -215,7 +232,7 @@ export function manageWorkflow({
 
         previousWorkflow: currentWorkflow,
 
-        action: "continue",
+        action: "CONTINUE_WORKFLOW",
 
         reason: "Workflow transition approved.",
 

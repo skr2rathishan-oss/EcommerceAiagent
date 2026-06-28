@@ -1,0 +1,22 @@
+{
+  "resume_previous_search_options": {
+    "english": [
+      "It looks like you were already searching for {search_query}. Would you like to continue that search or start a new one?\n\n**A.** Continue the previous search\n**B.** Start a new search",
+      "We found an earlier search for {search_query}. Should we keep going with it or begin a fresh search?\n\n**A.** Continue previous search\n**B.** Start a new search",
+      "I’ve got your previous search for {search_query}. Want to continue it or start again?\n\n**A.** Continue the previous search\n**B.** Start a new search",
+      "Would you like to resume the earlier search for {search_query}, or should we do a new search?\n\n**A.** Continue the previous search\n**B.** Start a new search"
+    ],
+    "sinhala_mix": [
+      "Oya kalinma {search_query} gena search karanne. Api eka continue karanna onda nathnam aluthin start karanna?\n\n**A.** Kalin search eka continue karanna\n**B.** Aluthin search karanna",
+      "Mama oyage kalin search ekakagena thiyenawa: {search_query}. Eka continue karanna onda nathnam new search ekak patan ganna?\n\n**A.** Previous search continue karanna\n**B.** New search patan ganna",
+      "Oyage pase balapu search eka {search_query}. Eya continue karanna hari da? Nethnam aluthin start karanna?\n\n**A.** Previous search continue karanna\n**B.** Aluth search patan ganna",
+      "Eka penenawa, oya {search_query} kiyala kalin search karala thiyenne. Api eka continue karamu nathnam aluthin patan gannam?\n\n**A.** Continue karanna\n**B.** Start new search"
+    ],
+    "tamil_mix": [
+      "Neenga munnadiye {search_query} a search pannirukeenga. Athai continue panna venta illa pudusa search start panna?\n\n**A.** Previous search continue panna\n**B.** Pudusa search start panna",
+      "Namaku oru earlier search irukku: {search_query}. Athai continue pannalaama illa pudusa search pannanuma?\n\n**A.** Previous search continue panna\n**B.** New search start panna",
+      "Naan unga previous search {search_query} ah kandu pottitten. Itha continue pannalaam illa pudusa start pannalaam?\n\n**A.** Previous search continue pannunga\n**B.** New search start pannunga",
+      "Ithu pathi kandupidicha search {search_query}. Athai continue panna vente illa pudusa search panna vente?\n\n**A.** Continue previous search\n**B.** Start new search"
+    ]
+  }
+}

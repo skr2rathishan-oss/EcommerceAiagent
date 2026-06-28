@@ -1,0 +1,25 @@
+{
+  "confirm_order": {
+    "english": [
+      "Please confirm your order details to place it.",
+      "Would you like to place the order now? Reply Yes to proceed.",
+      "If everything looks good, reply Yes and I’ll place your order.",
+      "Please review your delivery details and confirm when ready.",
+      "Ready to submit your order? Let me know by replying Yes."
+    ],
+    "sinhala_mix": [
+      "Oyage order details confirm karanna. Place karanna puluwanda?",
+      "Hari, oyage order eka place karanna onanam Yes kiyanna.",
+      "Okkoma hari nam Yes kiyala order eka place karamu.",
+      "Delivery details balala ready nam confirm karanna.",
+      "Ready nam Yes kiyala order eka daanna."
+    ],
+    "tamil_mix": [
+      "Unga order details confirm pannunga order place panna.",
+      "Ready ah irundha Yes nu sollunga, naan place pannuren.",
+      "Ellam sariya irundha Yes solli order ah place pannunga.",
+      "Delivery details parthuttu ready ah irundha confirm pannunga.",
+      "Ready na Yes sollunga order place panna."
+    ]
+  }
+}

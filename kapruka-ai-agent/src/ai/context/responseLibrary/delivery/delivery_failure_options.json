@@ -1,0 +1,9 @@
+{
+  "delivery_failure_options": {
+    "english": [
+      "Sorry, we can’t deliver to {city} on {date}. Here are a few options:\n\n**A.** Deliver to {nearest_city_1}\n**B.** Deliver to {nearest_city_2}\n**C.** Deliver to {nearest_city_3}\n**D.** Show similar products that can be delivered to your selected location/date\n**E.** Cancel this order\n\nReply with **A, B, C, D, or E** 😊",
+      "I’m sorry, delivery to {city} on {date} is unavailable. What would you like to do?\n\n**A.** Deliver to {nearest_city_1}\n**B.** Deliver to {nearest_city_2}\n**C.** Deliver to {nearest_city_3}\n**D.** Show similar deliverable products\n**E.** Cancel this order\n\nPlease reply with A, B, C, D, or E.",
+      "Unfortunately, we can’t make this delivery to {city} on {date}. Try one of these options:\n\n**A.** Deliver to {nearest_city_1}\n**B.** Deliver to {nearest_city_2}\n**C.** Deliver to {nearest_city_3}\n**D.** Show similar products for your chosen date/location\n**E.** Cancel the order\n\nReply with A, B, C, D, or E."
+    ]
+  }
+}

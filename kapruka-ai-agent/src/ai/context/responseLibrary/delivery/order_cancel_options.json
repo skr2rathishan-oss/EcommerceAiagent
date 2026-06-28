@@ -1,0 +1,22 @@
+{
+  "order_cancel_options": {
+    "english": [
+      "No worries 😊 I haven’t placed the order yet.\n\nIf you want, I can help you with one of these:\n\n**A.** Change the delivery details\n**B.** Start over with another product\n\nReply with **A** or **B**.",
+      "I didn’t submit the order yet. Would you like to:\n\n**A.** Update the delivery details\n**B.** Search for another product\n\nReply A or B.",
+      "The order is still pending. You can:\n\n**A.** Change delivery details\n**B.** Start a fresh search\n\nPlease reply with A or B.",
+      "I’ve paused the order. Tell me:\n\n**A.** Change the delivery address/date\n**B.** Start over with a new product\n\nReply **A** or **B**."
+    ],
+    "sinhala_mix": [
+      "Awulak ne 😊 mama thama order eka place kale ne.\n\nOyata ona nam me deken ekak karamu:\n\n**A.** Delivery details wenas karamu\n**B.** Aluthin wena product ekak balamu\n\n**A** hari **B** hari reply karanna.",
+      "Mata order eka place karanna nowei. Oya karanna puluwan:\n\n**A.** Delivery details update karanna\n**B.** Wena product ekak balanna\n\nA nathnam B kiyanna.",
+      "Order eka pending wath, oya balanna puluwan:\n\n**A.** Delivery details wenas karanna\n**B.** Aluth search ekak patan ganna\n\nA nathnam B kiyanna.",
+      "Mama order eka pause karala thiyenawa. Kiyanna:\n\n**A.** Delivery details wenas karanna\n**B.** Aluth product ekak balanna\n\n**A** nathnam **B** kiyanna."
+    ],
+    "tamil_mix": [
+      "Parava illa 😊 naan innum order place pannala.\n\nNeenga venumna idhula onnu pannalaam:\n\n**A.** Delivery details maathalaam\n**B.** Pudusa vera product paakalaam\n\n**A** illa **B** nu reply pannunga.",
+      "Naan order ah place pannala. Neenga seyyalaam:\n\n**A.** Delivery details update panna\n**B.** Vera product paaka\n\nA illa B sollunga.",
+      "Order innum pending. Neenga choose pannalaam:\n\n**A.** Delivery details maatha\n**B.** Pudhusa oru search start panna\n\nA nu illa B nu sollunga.",
+      "Naan order ah pause pannitten. Sollunga:\n\n**A.** Delivery details maathalaam\n**B.** Pudhusa vera product paakka\n\n**A** illa **B** nu reply pannunga."
+    ]
+  }
+}

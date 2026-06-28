@@ -11,5 +11,5 @@
  */
 
 export { understandConversation } from "./ai/conversationUnderstanding.service.mjs";
-export { selectResponse, selectResponseWithFallback, clearResponseCache } from "./responseEngine.service.mjs";
+export { selectResponse, selectResponseWithFallback, clearResponseCache, validateResponseTemplates } from "./responseEngine.service.mjs";
 export { buildDecision, validateDecision } from "./ai/decisionBuilder.mjs";
