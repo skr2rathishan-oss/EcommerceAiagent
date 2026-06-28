@@ -1,3 +1,5 @@
+import { apiFetch } from "./api";
+
 // ── Session Management ───────────────────────────────────────────────────────
 // Generate and persist a stable session ID across page reloads.
 // This ties the frontend conversation to the backend's per-session memory.
@@ -34,7 +36,7 @@ const fetchStream = async (
     activeAbortController = new AbortController();
 
     try {
-        const response = await fetch(API_URL, {
+        const response = await apiFetch(API_URL, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",

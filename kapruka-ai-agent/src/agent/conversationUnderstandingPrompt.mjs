@@ -20,6 +20,7 @@ OUTPUT FORMAT
   },
   "intent": {
     "value": "search_products" | "get_product_details" | "check_delivery" | "create_order" | "track_order" | "general_chat" | "recovery_nearby_location" | "recovery_alternative_date" | "recovery_similar_products",
+    "chat_subtype": "greeting" | "casual_chat" | "thanks" | "goodbye" | "shopping_chat" | null,
     "confidence": 0.0 to 1.0,
     "parameters": {
       "query": string | null,
@@ -83,7 +84,7 @@ INTENT DETECTION RULES
 - check_delivery: User asks about delivery, shipping, check if city is available, or ETA (e.g., "Can you deliver this tomorrow?", "Deliver to Jaffna", "Yes, use my default address").
 - create_order: User wants to buy, order, checkout, or place an order (e.g., "I want to buy this", "Checkout", "Order this for me", "Yes, place the order").
 - track_order: User wants to track their order status or inputs an order tracking ID (e.g., "Track my order", "Where is my order?").
-- general_chat: User is saying greetings, small talk, asking general assistant questions (e.g., "Hello", "How are you?").
+- general_chat: User is engaging in conversation (e.g., greetings, thanks, goodbye, casual chat, or chatting about shopping context). Set chat_subtype based on the context.
 - recovery_nearby_location: User is replying to a delivery city failure/not-serviced by asking to try nearby locations.
 - recovery_alternative_date: User is replying to a delivery date failure/not-serviced by asking for another date.
 - recovery_similar_products: User is asking for alternative products after a product is out of stock.

@@ -3,6 +3,7 @@ import { type Product } from "../components/products";
 import { type DeliveryInfo, getDefaultSeller } from "../components/InteractiveOrderSummary";
 import { type OrderConfirmationDetails } from "../components/OrderConfirmationCard";
 import { checkDelivery } from "../services/productServices";
+import { apiFetch } from "../services/api";
 import { useCart } from "../contexts/CartContext";
 
 export const useCheckout = () => {
@@ -124,7 +125,7 @@ export const useCheckout = () => {
     const orderDetails = generateOrderConfirmation(updatedDelivery, inlineItems);
     saveOrderToHistory(orderDetails);
 
-    fetch("/api/products/interaction", {
+    apiFetch("/api/products/interaction", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -157,7 +158,7 @@ export const useCheckout = () => {
 
     // Track purchase for each item in cart
     cartItems.forEach(item => {
-      fetch("/api/products/interaction", {
+      apiFetch("/api/products/interaction", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

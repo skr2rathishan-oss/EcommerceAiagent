@@ -105,10 +105,26 @@ export async function getDeliverySession(sessionId) {
  * @param {Object} updates 
  * @param {number} currentVersion 
  */
+function flattenObject(ob, prefix = '', result = null) {
+  result = result || {};
+  for (const i in ob) {
+    if (ob.hasOwnProperty(i)) {
+      if ((typeof ob[i]) === 'object' && ob[i] !== null && !Array.isArray(ob[i]) && !(ob[i] instanceof Date)) {
+        flattenObject(ob[i], prefix + i + '.', result);
+      } else {
+        result[prefix + i] = ob[i];
+      }
+    }
+  }
+  return result;
+}
+
 export async function updateDeliverySession(sessionId, updates, currentVersion) {
   try {
+    // Priority 3: Use flattenObject to perform deep-merging via MongoDB dot notation.
+    const flatUpdates = flattenObject(updates);
     const updatePayload = {
-      $set: updates,
+      $set: flatUpdates,
       $inc: { session_version: 1 }
     };
     

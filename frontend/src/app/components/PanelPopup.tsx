@@ -5,6 +5,7 @@ import {
   FileText, HelpCircle, Mail, Phone, ChevronRight, User, Camera, LogOut,
   DollarSign, Euro, PoundSterling, IndianRupee
 } from "lucide-react";
+import * as profileService from "../services/profileService";
 import { useApp, type PanelId, type AnchorPos } from "../contexts/AppContext";
 import { formatUIPrice } from "../services/mapping";
 
@@ -63,11 +64,12 @@ export const PanelPopup: React.FC<PanelPopupProps> = ({ id, anchor, onClose }) =
         zIndex: 200,
         display: "flex",
         flexDirection: "column",
-        background: "var(--card-bg, #ffffff)",
+        background: "rgba(255,255,255,0.98)",
         borderRadius: 16,
-        boxShadow: "0 8px 40px rgba(64,41,112,0.22), 0 2px 8px rgba(64,41,112,0.10)",
-        border: "1px solid var(--card-border, rgba(64,41,112,0.10))",
+        boxShadow: "0 12px 40px rgba(64,41,112,0.24), 0 2px 8px rgba(64,41,112,0.12)",
+        border: "1px solid rgba(64,41,112,0.16)",
         overflow: "hidden",
+        backdropFilter: "none",
       }}
     >
       {/* Left arrow */}
@@ -80,7 +82,7 @@ export const PanelPopup: React.FC<PanelPopupProps> = ({ id, anchor, onClose }) =
           height: 0,
           borderTop: `${ARROW_SIZE}px solid transparent`,
           borderBottom: `${ARROW_SIZE}px solid transparent`,
-          borderRight: `${ARROW_SIZE}px solid var(--card-bg, #ffffff)`,
+          borderRight: `${ARROW_SIZE}px solid rgba(255,255,255,0.98)`,
           filter: "drop-shadow(-2px 0 2px rgba(64,41,112,0.08))",
           pointerEvents: "none",
         }}
@@ -601,188 +603,345 @@ const PanelHelp: React.FC = () => {
 const PanelProfile: React.FC = () => {
   const [name, setName] = useState("Alex Johnson");
   const [email, setEmail] = useState("alex@example.com");
+  const [mobile, setMobile] = useState("+94 77 123 4567");
   const [editing, setEditing] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeSection, setActiveSection] = useState<"profile" | "delivery" | "shopping" | "language" | "account" | null>("profile");
+  const [deliveryData, setDeliveryData] = useState<any>(null);
+  const [preferencesData, setPreferencesData] = useState<any>(null);
+  const [languageData, setLanguageData] = useState<any>(null);
+  const [deliveryEditing, setDeliveryEditing] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState<string>("");
+  const [deliveryCityField, setDeliveryCityField] = useState<string>("");
+  const [deliveryPostal, setDeliveryPostal] = useState<string>("");
+  const [deliverySavedLocal, setDeliverySavedLocal] = useState(false);
+
+  const [prefsEditing, setPrefsEditing] = useState(false);
+  const [budgetRange, setBudgetRange] = useState<string>("");
+  const [favoriteCategories, setFavoriteCategories] = useState<string>("");
+  const [favoriteBrands, setFavoriteBrands] = useState<string>("");
+  const [prefsSaved, setPrefsSaved] = useState(false);
+
+  const [languageEditing, setLanguageEditing] = useState(false);
+  const [languageSelectedLocal, setLanguageSelectedLocal] = useState<string>("English");
+  const [languageSavedLocal, setLanguageSavedLocal] = useState(false);
 
   const handleSave = () => {
-    setEditing(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    // persist profile to backend via frontend service
+    profileService.updateProfile({ name, email, mobile })
+      .then(() => {
+        setEditing(false);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2000);
+      })
+      .catch(() => {
+        // fallback UX: still close edit mode but show failure via console
+        setEditing(false);
+        console.error("Failed to save profile");
+      });
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    // load current profile values if available from backend
+    profileService.getProfile()
+      .then((p: any) => {
+        if (!mounted) return;
+        if (p?.name) setName(p.name);
+        if (p?.email) setEmail(p.email);
+        if (p?.mobile) setMobile(p.mobile);
+      })
+      .catch(() => {
+        // ignore - local defaults remain
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    if (activeSection === 'delivery') {
+      profileService.getDelivery().then((d: any) => { if (mounted) setDeliveryData(d); }).catch(() => {});
+    } else if (activeSection === 'shopping') {
+      profileService.getPreferences().then((p: any) => { if (mounted) setPreferencesData(p); }).catch(() => {});
+    } else if (activeSection === 'language') {
+      profileService.getLanguage().then((l: any) => { if (mounted) setLanguageData(l); }).catch(() => {});
+    }
+    return () => { mounted = false; };
+  }, [activeSection]);
+
+  const sections = [
+    { key: "profile", label: "Profile", icon: "👤", description: "Edit your personal details and profile picture" },
+    { key: "delivery", label: "Delivery Information", icon: "📍", description: "Update your delivery addresses" },
+    { key: "shopping", label: "Shopping Preferences", icon: "🛍️", description: "Set your budget, categories and favorite brands" },
+    { key: "language", label: "Language", icon: "🌐", description: "Choose your preferred language" },
+    { key: "account", label: "Account", icon: "🔐", description: "Manage password and account security" },
+  ] as const;
+
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case "profile":
+        return (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <p style={{ color: "#1a1025", fontSize: 13, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>Profile Details</p>
+              {!editing ? (
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  style={{ padding: "7px 10px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.14)", background: "transparent", color: "#402970", cursor: "pointer", fontSize: 12, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}
+                >
+                  Edit
+                </button>
+              ) : null}
+            </div>
+
+            {editing ? (
+              <div className="flex flex-col gap-2">
+                {[
+                  { label: "Full Name", value: name, set: setName },
+                  { label: "Email", value: email, set: setEmail },
+                  { label: "Mobile Number", value: mobile, set: setMobile },
+                ].map((field) => (
+                  <div key={field.label}>
+                    <p style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, marginBottom: 5, fontFamily: "'Nunito',sans-serif" }}>{field.label}</p>
+                    <input
+                      value={field.value}
+                      onChange={(e) => field.set(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.18)", background: "#fff", color: "#1a1025", fontSize: 12.5, fontWeight: 600, fontFamily: "'Nunito',sans-serif", outline: "none", boxSizing: "border-box" }}
+                    />
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-1">
+                  <button type="button" onClick={() => setEditing(false)} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.16)", background: "transparent", color: "#7c6a9e", cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
+                    Cancel
+                  </button>
+                  <button type="button" onClick={handleSave} style={{ flex: 1, padding: "10px", borderRadius: 10, border: "none", background: "linear-gradient(135deg,#7c4dba,#402970)", color: "#fff", cursor: "pointer", fontSize: 12.5, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2" style={{ color: "#7c6a9e", fontSize: 12.5, fontFamily: "'Nunito',sans-serif" }}>
+                <span>👤 {name}</span>
+                <span>📧 {email}</span>
+                <span>📱 {mobile}</span>
+              </div>
+            )}
+
+            <AnimatePresence>
+              {saved && (
+                <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="flex items-center gap-2" style={{ padding: "10px 12px", borderRadius: 10, background: "rgba(63,199,142,0.12)", border: "1px solid rgba(63,199,142,0.3)" }}>
+                  <CheckCircle size={15} color="#3fc78e" strokeWidth={2.5} />
+                  <span style={{ color: "#2a9e6a", fontSize: 12, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Profile updated</span>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      case "delivery":
+        return (
+          <div>
+            {!deliveryEditing ? (
+              <div className="flex flex-col gap-2" style={{ color: "#7c6a9e", fontSize: 12.5, fontFamily: "'Nunito',sans-serif" }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Default Delivery Address</div>
+                    <div style={{ color: '#9e8dc0', marginTop: 4 }}>{deliveryAddress || 'Not set'}</div>
+                  </div>
+                  <button type="button" onClick={() => setDeliveryEditing(true)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.08)', background: 'transparent', color: '#402970', fontWeight: 700 }}>Manage Addresses</button>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>City / District</div>
+                    <div style={{ color: '#9e8dc0', marginTop: 4 }}>{deliveryCityField || 'Not set'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700 }}>Postal Code</div>
+                    <div style={{ color: '#9e8dc0', marginTop: 4 }}>{deliveryPostal || 'Not set'}</div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Address</p>
+                  <input value={deliveryAddress} onChange={(e) => setDeliveryAddress(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>City</p>
+                  <input value={deliveryCityField} onChange={(e) => setDeliveryCityField(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Postal Code</p>
+                  <input value={deliveryPostal} onChange={(e) => setDeliveryPostal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setDeliveryEditing(false)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)', background: 'transparent' }}>Cancel</button>
+                  <button type="button" onClick={() => {
+                    // persist delivery to backend
+                    profileService.updateDelivery({ address: deliveryAddress, city: deliveryCityField, postal: deliveryPostal })
+                      .then(() => {
+                        setDeliveryEditing(false);
+                        setDeliverySavedLocal(true);
+                        setTimeout(() => setDeliverySavedLocal(false), 2000);
+                      })
+                      .catch(() => {
+                        setDeliveryEditing(false);
+                        console.error('Failed to save delivery');
+                      });
+                  }} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#7c4dba,#402970)', color: '#fff' }}>Save</button>
+                </div>
+                {deliverySavedLocal && <div style={{ marginTop: 8, padding: '8px', borderRadius: 8, background: 'rgba(63,199,142,0.12)', border: '1px solid rgba(63,199,142,0.3)' }}>Saved</div>}
+              </div>
+            )}
+          </div>
+        );
+      case "shopping":
+        return (
+          <div>
+            {!prefsEditing ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Shopping Preferences</div>
+                  <div style={{ color: '#9e8dc0', marginTop: 4 }}>{favoriteCategories || 'No categories set'}</div>
+                </div>
+                <button type="button" onClick={() => setPrefsEditing(true)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.08)', background: 'transparent', color: '#402970', fontWeight: 700 }}>Set Preferences</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Budget Range</p>
+                  <input value={budgetRange} onChange={(e) => setBudgetRange(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Favorite Categories</p>
+                  <input value={favoriteCategories} onChange={(e) => setFavoriteCategories(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Favorite Brands</p>
+                  <input value={favoriteBrands} onChange={(e) => setFavoriteBrands(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setPrefsEditing(false)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)', background: 'transparent' }}>Cancel</button>
+                  <button type="button" onClick={() => {
+                    profileService.updatePreferences({ budgetRange, favoriteCategories, favoriteBrands })
+                      .then(() => {
+                        setPrefsEditing(false);
+                        setPrefsSaved(true);
+                        setTimeout(() => setPrefsSaved(false), 2000);
+                      })
+                      .catch(() => {
+                        setPrefsEditing(false);
+                        console.error('Failed to save preferences');
+                      });
+                  }} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#7c4dba,#402970)', color: '#fff' }}>Save</button>
+                </div>
+                {prefsSaved && <div style={{ marginTop: 8, padding: '8px', borderRadius: 8, background: 'rgba(63,199,142,0.12)', border: '1px solid rgba(63,199,142,0.3)' }}>Saved</div>}
+              </div>
+            )}
+          </div>
+        );
+      case "language":
+        return (
+          <div>
+            {!languageEditing ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700 }}>Language</div>
+                  <div style={{ color: '#9e8dc0', marginTop: 4 }}>{languageSelectedLocal || 'English'}</div>
+                </div>
+                <button type="button" onClick={() => setLanguageEditing(true)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.08)', background: 'transparent', color: '#402970', fontWeight: 700 }}>Change</button>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p style={{ color: '#7c6a9e', fontSize: 11, fontWeight: 700 }}>Select Language</p>
+                  <select value={languageSelectedLocal} onChange={(e) => setLanguageSelectedLocal(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)' }}>
+                    <option>English</option>
+                    <option>සිංහල</option>
+                    <option>தமிழ்</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" onClick={() => setLanguageEditing(false)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: '1px solid rgba(64,41,112,0.12)', background: 'transparent' }}>Cancel</button>
+                  <button type="button" onClick={() => {
+                    profileService.updateLanguage({ language: languageSelectedLocal })
+                      .then(() => {
+                        setLanguageEditing(false);
+                        setLanguageSavedLocal(true);
+                        setTimeout(() => setLanguageSavedLocal(false), 2000);
+                      })
+                      .catch(() => {
+                        setLanguageEditing(false);
+                        console.error('Failed to save language');
+                      });
+                  }} style={{ flex: 1, padding: '8px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#7c4dba,#402970)', color: '#fff' }}>Save</button>
+                </div>
+                {languageSavedLocal && <div style={{ marginTop: 8, padding: '8px', borderRadius: 8, background: 'rgba(63,199,142,0.12)', border: '1px solid rgba(63,199,142,0.3)' }}>Saved</div>}
+              </div>
+            )}
+          </div>
+        );
+      case "account":
+        return (
+          <div className="flex flex-col gap-2">
+            <button type="button" style={{ padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(64,41,112,0.12)", background: "transparent", color: "#402970", cursor: "pointer", textAlign: "left", fontSize: 12.5, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>
+              🔐 Change Password
+            </button>
+            <motion.button type="button" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-center gap-2" style={{ padding: "10px", borderRadius: 10, border: "1.5px solid rgba(212,24,61,0.25)", background: "rgba(212,24,61,0.05)", color: "#d4183d", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif" }}>
+              <LogOut size={15} strokeWidth={2.5} />
+              Log Out
+            </motion.button>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   return (
-    <div className="px-5 py-4 flex flex-col gap-4">
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-3 py-4">
-        <div className="relative">
-          <div
-            style={{
-              width: 80,
-              height: 80,
-              borderRadius: 24,
-              background: "linear-gradient(135deg,#7c4dba,#402970)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: "0 8px 24px rgba(64,41,112,0.35)",
-            }}
-          >
-            <User size={36} color="#fff" strokeWidth={1.6} />
-          </div>
-          <button
-            type="button"
-            style={{
-              position: "absolute",
-              bottom: -4,
-              right: -4,
-              width: 28,
-              height: 28,
-              borderRadius: 9999,
-              background: "#402970",
-              border: "2.5px solid #fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-            }}
-          >
-            <Camera size={12} color="#fff" strokeWidth={2.5} />
-          </button>
-        </div>
-        <div className="text-center">
-          <p style={{ color: "#1a1025", fontSize: 16, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{name}</p>
-          <p style={{ color: "#9e8dc0", fontSize: 12, fontFamily: "'Nunito',sans-serif", marginTop: 2 }}>{email}</p>
-        </div>
-      </motion.div>
+    <div className="px-5 py-4 flex flex-col gap-3">
+      <div className="flex flex-col gap-2">
+        {sections.map((section) => {
+          const isActive = activeSection === section.key;
+          return (
+            <div key={section.key} style={{ width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => setActiveSection(isActive ? null : section.key)}
+                className="flex items-center justify-between w-full"
+                style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${isActive ? "rgba(124,77,186,0.12)" : "rgba(64,41,112,0.05)"}`, background: isActive ? "rgba(250,250,252,1)" : "rgba(255,255,255,0.98)", color: "#1a1025", cursor: "pointer", textAlign: "left", display: 'flex', alignItems: 'center', height: 40 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 6, background: isActive ? 'rgba(255,240,241,1)' : 'rgba(248,248,250,1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c6a9e', fontSize: 13 }}>{section.icon}</div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{section.label}</div>
+                  </div>
+                </div>
+                <ChevronRight size={14} strokeWidth={2} style={{ color: '#9e8dc0', transform: isActive ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.18s' }} />
+              </button>
 
-      <p style={{ color: "#9e8dc0", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", fontFamily: "'Nunito',sans-serif", textTransform: "uppercase" }}>Account Details</p>
-      <div className="flex flex-col gap-3">
-        {[
-          { label: "Full Name", value: name, set: setName },
-          { label: "Email", value: email, set: setEmail },
-        ].map((f, i) => (
-          <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}>
-            <p style={{ color: "#7c6a9e", fontSize: 11, fontWeight: 700, marginBottom: 5, fontFamily: "'Nunito',sans-serif" }}>{f.label}</p>
-            <input
-              disabled={!editing}
-              value={f.value}
-              onChange={e => f.set(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "11px 14px",
-                borderRadius: 12,
-                border: `1.5px solid ${editing ? "rgba(64,41,112,0.45)" : "rgba(64,41,112,0.12)"}`,
-                background: editing ? "#fff" : "rgba(64,41,112,0.04)",
-                color: "#1a1025",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "'Nunito',sans-serif",
-                outline: "none",
-                transition: "border 0.15s,background 0.15s",
-                boxSizing: "border-box",
-              }}
-            />
-          </motion.div>
-        ))}
+              <AnimatePresence>
+                {isActive && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: 'easeOut' }}
+                    style={{ overflow: 'hidden', marginTop: 8 }}
+                  >
+                    <div style={{ padding: '10px 10px', borderRadius: 8, background: 'rgba(64,41,112,0.04)', border: '1px solid rgba(64,41,112,0.06)' }}>
+                      {renderSectionContent()}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
       </div>
 
-      <div className="flex gap-2 mt-2">
-        {!editing ? (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            style={{
-              flex: 1,
-              padding: "11px",
-              borderRadius: 12,
-              border: "none",
-              background: "linear-gradient(135deg,#7c4dba,#402970)",
-              color: "#fff",
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "'Nunito',sans-serif",
-            }}
-          >
-            Edit Profile
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => setEditing(false)}
-              style={{
-                flex: 1,
-                padding: "11px",
-                borderRadius: 12,
-                border: "1.5px solid rgba(64,41,112,0.2)",
-                background: "transparent",
-                color: "#7c6a9e",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "'Nunito',sans-serif",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              style={{
-                flex: 1,
-                padding: "11px",
-                borderRadius: 12,
-                border: "none",
-                background: "linear-gradient(135deg,#7c4dba,#402970)",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "'Nunito',sans-serif",
-              }}
-            >
-              Save Changes
-            </button>
-          </>
-        )}
-      </div>
-
-      <AnimatePresence>
-        {saved && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-2"
-            style={{ padding: "10px 14px", borderRadius: 12, background: "rgba(63,199,142,0.12)", border: "1px solid rgba(63,199,142,0.3)" }}
-          >
-            <CheckCircle size={15} color="#3fc78e" strokeWidth={2.5} />
-            <span style={{ color: "#2a9e6a", fontSize: 12, fontWeight: 600, fontFamily: "'Nunito',sans-serif" }}>Profile saved successfully</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <motion.button
-        type="button"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 0.25 }}
-        className="flex items-center justify-center gap-2 mt-2"
-        style={{
-          padding: "11px",
-          borderRadius: 12,
-          border: "1.5px solid rgba(212,24,61,0.25)",
-          background: "rgba(212,24,61,0.05)",
-          color: "#d4183d",
-          fontSize: 13,
-          fontWeight: 700,
-          cursor: "pointer",
-          fontFamily: "'Nunito',sans-serif",
-        }}
-      >
-        <LogOut size={15} strokeWidth={2.5} />
-        Sign Out
-      </motion.button>
+      {/* consolidated: removed duplicate bottom render to avoid duplicate content */}
     </div>
   );
 };

@@ -1,8 +1,7 @@
-import React, { useState, useRef } from "react";
+import React, { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { SquarePen, Clock, Settings, HelpCircle, UserCircle, ShoppingCart, Heart } from "lucide-react";
+import { SquarePen, Clock, UserCircle, ShoppingCart, Heart, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
-import { AdminPanel } from "./AdminPanel";
 
 const NAV_TOP = [
   { icon: SquarePen, label: "New Chat" },
@@ -10,8 +9,6 @@ const NAV_TOP = [
 ];
 
 const NAV_BOTTOM = [
-  { icon: Settings, label: "Settings" },
-  { icon: HelpCircle, label: "Help & Support" },
   { icon: UserCircle, label: "Profile" },
 ];
 
@@ -21,7 +18,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const { sidebarOpen, setSidebarOpen, activeScreen, activePanel, cartItems, wishlistItems } = useApp();
-  const [adminOpen, setAdminOpen] = useState(false);
 
   const cartCount = cartItems?.reduce((acc, item) => acc + item.quantity, 0) || 0;
   const wishlistCount = wishlistItems?.length || 0;
@@ -39,43 +35,28 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
           flexShrink: 0,
         }}
       >
-        {/* Velora logo brand toggle button */}
         <div style={{ height: 64, display: "flex", alignItems: "center", padding: sidebarOpen ? "0 16px" : "0", justifyContent: sidebarOpen ? "flex-start" : "center" }}>
-          <motion.div
+          <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
-            style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+            type="button"
+            style={{
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              border: "none",
+              background: "rgba(255,255,255,0.12)",
+              color: "#ffffff",
+            }}
             onClick={() => setSidebarOpen(!sidebarOpen)}
             title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
           >
-            <img
-              src="/logo.png"
-              alt="Velora"
-              style={{
-                height: 28,
-                width: 28,
-                objectFit: "contain",
-                borderRadius: "6px",
-              }}
-            />
-            {sidebarOpen && (
-              <motion.span
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.2 }}
-                style={{
-                  color: "#ffffff",
-                  fontWeight: 800,
-                  fontSize: 16,
-                  fontFamily: "'Nunito', sans-serif",
-                  letterSpacing: "0.02em"
-                }}
-              >
-                Velora
-              </motion.span>
-            )}
-          </motion.div>
+            {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
+          </motion.button>
         </div>
 
         <div style={{ height: 1, width: sidebarOpen ? "85%" : 36, background: "rgba(255,255,255,0.12)", margin: "0 auto 8px" }} />
@@ -89,9 +70,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
               <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} active={active} />
             );
           })}
-
+        </nav>
+        <nav className="flex flex-col gap-1.5 px-3 pb-4" style={{ width: "100%", alignItems: sidebarOpen ? "stretch" : "center" }}>
           <div style={{ height: 1, width: sidebarOpen ? "100%" : 36, background: "rgba(255,255,255,0.12)", margin: "6px 0 8px" }} />
-
           <SidebarItem 
             key="Cart" 
             icon={<ShoppingCart size={20} strokeWidth={1.8} />} 
@@ -108,22 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
             badgeCount={wishlistCount} 
             active={activeScreen === "wishlist" && !activePanel}
           />
-        </nav>
-        <nav className="flex flex-col gap-1.5 px-3 pb-4" style={{ width: "100%", alignItems: sidebarOpen ? "stretch" : "center" }}>
-          <div style={{ height: 1, width: sidebarOpen ? "100%" : 36, background: "rgba(255,255,255,0.12)", margin: "6px 0 8px" }} />
           {NAV_BOTTOM.map(({ icon: Icon, label }) => {
-            if (label === "Settings") {
-              const active = adminOpen || activePanel === "Settings";
-              return (
-                <SidebarItem
-                  key={label}
-                  icon={<Icon size={20} strokeWidth={1.8} />}
-                  label={label}
-                  onClick={() => setAdminOpen(true)}
-                  active={active}
-                />
-              );
-            }
             const active = activePanel === label;
             return (
               <SidebarItem key={label} icon={<Icon size={20} strokeWidth={1.8} />} label={label} onClick={onItemClick} active={active} />
@@ -131,9 +97,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
           })}
         </nav>
       </motion.aside>
-
-      {/* AI Environment Admin Panel */}
-      <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
     </>
   );
 };

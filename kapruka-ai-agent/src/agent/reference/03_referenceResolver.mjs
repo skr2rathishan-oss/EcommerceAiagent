@@ -109,6 +109,23 @@ function resolveCurrent(sessionId) {
     const product = getCurrentSelection(sessionId);
 
     if (!product) {
+        const allProducts = getProducts(sessionId);
+        
+        // Priority 4: Don't guess if multiple matches are ambiguous
+        if (allProducts && allProducts.length > 1) {
+             return {
+                 success: false,
+                 reason: "AMBIGUOUS_REFERENCE",
+                 message: "I see multiple products. Could you clarify which one you mean?"
+             };
+        } else if (allProducts && allProducts.length === 1) {
+             setCurrentSelection(sessionId, 0);
+             return {
+                 success: true,
+                 type: "single",
+                 product: allProducts[0]
+             };
+        }
 
         return {
             success: false,

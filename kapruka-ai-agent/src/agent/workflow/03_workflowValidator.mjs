@@ -94,7 +94,7 @@ export function validateWorkflow({
     }
 
     /* -------------------------------------------------------------------------
-     * Continue Checkout
+     * Continue Checkout & Checkout Gating
      * ---------------------------------------------------------------------- */
 
     if (
@@ -103,14 +103,25 @@ export function validateWorkflow({
 
     ) {
 
-        if (!state.checkoutActive) {
+        const isAffirmativeOrCheckout = ["yes", "y", "yeah", "ok", "okay", "hari", "ow", "confirm", "buy", "order", "checkout"].some(word => message.trim().toLowerCase().includes(word));
+        
+        // Priority 2/8: Enforce checkout gating
+        if (currentWorkflow === WORKFLOWS.PRODUCT_SEARCH && !isAffirmativeOrCheckout) {
+             result.allowed = false;
+             result.action = "reject";
+             result.reason = "Cannot transition directly from product search to checkout without explicit confirmation.";
+             return result;
+        }
+        
+        // If not already active, user must explicitly confirm or we need a product
+        if (!state.checkoutActive && !isAffirmativeOrCheckout) {
 
             result.allowed = false;
 
             result.action = "reject";
 
             result.reason =
-                "Checkout is not currently active.";
+                "Checkout requires explicit confirmation.";
 
             return result;
 

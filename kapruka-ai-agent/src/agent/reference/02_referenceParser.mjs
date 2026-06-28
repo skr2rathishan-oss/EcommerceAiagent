@@ -100,6 +100,14 @@ function parseOrdinal(text) {
         }
     }
 
+    // Bare numbers (e.g. "order 3", "number 2")
+    // Only capture if it follows words like 'number', 'item', 'product' or is just a single digit after a verb
+    const numMatch = text.match(/\b(?:number|item|product)\s*(\d+)\b|\b(?:order|buy|get|select|choose)\s*(\d+)\b/);
+    if (numMatch) {
+        const num = numMatch[1] || numMatch[2];
+        if (num) return Number(num);
+    }
+
     return null;
 }
 

@@ -1,3 +1,5 @@
+import { apiJson, apiFetch } from "./api";
+
 export interface ProductDetail {
   id: string;
   name: string;
@@ -26,20 +28,17 @@ export interface DeliveryResponse {
 
 export const fetchProductDetails = async (productId: string): Promise<ProductDetail> => {
   const sessionId = sessionStorage.getItem("velora_session_id") || "default";
-  const response = await fetch(`/api/products/${productId}`, {
+  const response = await apiFetch(`/api/products/${productId}`, {
     headers: {
       "x-session-id": sessionId
     }
   });
-  if (!response.ok) {
-    throw new Error("Failed to fetch product details");
-  }
   return response.json();
 };
 
 export const checkDelivery = async (req: DeliveryRequest): Promise<DeliveryResponse> => {
   const sessionId = sessionStorage.getItem("velora_session_id") || "default";
-  const response = await fetch("/api/delivery/check", {
+  const response = await apiFetch("/api/delivery/check", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -47,10 +46,6 @@ export const checkDelivery = async (req: DeliveryRequest): Promise<DeliveryRespo
     },
     body: JSON.stringify(req),
   });
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || "Failed to check delivery availability");
-  }
   return response.json();
 };
 
@@ -68,11 +63,7 @@ export interface BackendRecommendationProduct {
 }
 
 export const fetchRecommendations = async (): Promise<BackendRecommendationProduct[]> => {
-  const response = await fetch("/api/products/recommendations");
-  if (!response.ok) {
-    throw new Error("Failed to fetch recommendations");
-  }
-  const data = await response.json();
+  const data = await apiJson("/api/products/recommendations");
   return data.products || [];
 };
 
