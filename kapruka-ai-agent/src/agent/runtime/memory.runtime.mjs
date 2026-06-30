@@ -56,7 +56,8 @@ const DEFAULTS = Object.freeze({
 
 export function buildMemoryRuntime({
 
-    memory = {}
+    memory = {},
+    shouldSuppressMemory = false
 
 } = {}) {
 
@@ -96,7 +97,7 @@ export function buildMemoryRuntime({
 
         data: runtime,
 
-        prompt: buildMemoryPrompt(runtime)
+        prompt: buildMemoryPrompt(runtime, shouldSuppressMemory)
 
     };
 
@@ -118,9 +119,21 @@ function formatList(list) {
 
 }
 
-function buildMemoryPrompt(runtime) {
+function buildMemoryPrompt(runtime, shouldSuppressMemory = false) {
+    if (shouldSuppressMemory) {
+        return `
+MEMORY RUNTIME
+
+Remembered facts and topics are temporarily suppressed for this greeting.
+Do NOT reference, summarize, or ask about any past conversation history or user-specific facts in your greeting or response right now. Welcome the user warmly and naturally.
+
+`.trim();
+    }
 
     return `
+MEMORY RUNTIME
+
+Remembered Customer Facts
 ===============================================================================
 MEMORY RUNTIME
 ===============================================================================

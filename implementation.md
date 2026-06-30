@@ -1,58 +1,322 @@
-# Objective
+Refactor the prompt architecture into a modular Prompt Registry and integrate it cleanly into the existing AI request pipeline.
 
-Refactor Velora so there is **one canonical request pipeline**. Remove legacy routing paths and response bypasses while preserving the existing architecture and functionality.
+Goal
 
-## Target Pipeline
+The project now contains many prompt files across different categories (commerce, communication, intelligence, etc.). Prompt loading is becoming difficult to maintain.
 
-Every user message must follow exactly this execution flow:
+Create a centralized Prompt Registry that manages all prompts and assembles the final system prompt for the Response Engine.
+
+Do not change the existing business logic or workflow behavior.
+
+------------------------------------------------------------
+
+1. Create Prompt Registry
+
+Create:
+
+src/agent/prompts/index.mjs
+
+This file should become the single entry point for every prompt used by the AI.
+
+It should export all prompt modules in a structured way.
+
+Example structure:
+
+Commerce
+- shopping
+- delivery
+- checkout
+- orders
+- tracking
+
+Communication
+- writingStyle
+- voice
+- clarification
+- recovery
+
+Intelligence
+- commerce
+- customerPsychology
+- conversationStrategy
+- recommendationStrategy
+- responseLibrary
+- reference
+
+The registry should not contain prompt text.
+It should only organize and expose prompt modules.
+
+------------------------------------------------------------
+
+2. Update Prompt Builder
+
+Refactor promptBuilder.mjs.
+
+Instead of importing individual prompt files, import them only from:
+
+src/agent/prompts/index.mjs
+
+The Prompt Builder should assemble prompts dynamically depending on:
+
+- workflow
+- runtime context
+- language
+- available MCP data
+- response library context
+
+This should become the only place responsible for constructing the final system prompt.
+
+------------------------------------------------------------
+
+3. Response Library Integration
+
+Refactor the Response Engine so that it always performs a Response Library lookup before generating the final response.
+
+When a matching response category exists:
+
+Retrieve:
+- module
+- category
+- language
+- candidate responses
+
+Do NOT directly return one of the responses.
+
+Instead include them inside the Response Engine prompt as context.
+
+Example runtime:
+
+Response Library
+
+Module:
+delivery
+
+Category:
+ask_city
+
+Language:
+english
+
+Candidate Responses:
+
+1...
+2...
+3...
+
+The LLM should receive these templates.
+
+------------------------------------------------------------
+
+4. Rewrite Strategy
+
+Update the Response Library prompt.
+
+The LLM must understand:
+
+The Response Library represents Velora's official communication style.
+
+The templates are NOT final responses.
+
+Instead:
+
+- understand the templates
+- preserve their intent
+- preserve their personality
+- preserve their meaning
+- rewrite naturally
+- combine multiple templates if useful
+- never invent different business logic
+
+If no templates exist:
+
+Generate a completely new response that matches Velora's communication style.
+
+------------------------------------------------------------
+
+5. Writing Style Prompt
+
+Enhance writingStyle.prompt.mjs.
+
+Describe HOW responses should be written.
+
+Requirements:
+
+- conversational
+- natural
+- human
+- friendly
+- premium shopping assistant
+- concise
+- not repetitive
+- context-aware
+- smooth transitions
+- avoid robotic wording
+
+This prompt should only describe writing style.
+
+------------------------------------------------------------
+
+6. Voice Prompt
+
+Enhance voice.prompt.mjs.
+
+Define Velora's personality.
+
+Examples:
+
+- warm
+- confident
+- trustworthy
+- proactive
+- shopping expert
+- polite
+- empathetic
+- premium brand voice
+
+This prompt should never contain workflow logic.
+
+------------------------------------------------------------
+
+7. Response Library Prompt
+
+Rewrite responseLibrary.prompt.mjs.
+
+Explain:
+
+The Response Library is Velora's source of truth.
+
+When templates are provided:
+
+- analyze them
+- identify the best candidate
+- combine if appropriate
+- improve fluency
+- preserve meaning
+- preserve personality
+- respond naturally
+
+Never simply copy a template unless it already perfectly matches the conversation.
+
+------------------------------------------------------------
+
+8. Multilingual Behaviour
+
+The rewriting process must support every language currently supported.
+
+Examples:
+
+- English
+- Sinhala
+- Tamil
+- Tanglish
+
+The LLM must preserve the user's detected language.
+
+Never translate unless the user changes language.
+
+------------------------------------------------------------
+
+9. Runtime Context
+
+Extend the runtime builder so the Response Engine receives:
+
+responseLibrary
+
+{
+    module,
+    category,
+    language,
+    templates
+}
+
+This should become part of the runtime context.
+
+------------------------------------------------------------
+
+10. Logging
+
+Add prompt debugging.
+
+Example:
+
+[PROMPT]
+
+Workflow:
+delivery
+
+Language:
+english
+
+Prompt Modules:
+
+✓ Commerce
+✓ Voice
+✓ Writing Style
+✓ Response Library
+✓ Recommendation Strategy
+
+Response Library:
+
+delivery.ask_city
+
+Templates:
+3
+
+This should help debug prompt construction.
+
+------------------------------------------------------------
+
+11. No Breaking Changes
+
+Do NOT change:
+
+- Conversation Understanding
+- Decision Builder
+- Workflow Manager
+- MCP integrations
+- Business logic
+- UI rendering
+
+Only improve prompt organization and Response Engine prompt construction.
+
+------------------------------------------------------------
+
+12. Expected Architecture
 
 User
-→ Conversation Understanding Layer (CUL)
-→ Workflow Manager
-→ Response Engine
-→ Reference Engine
-→ Commerce Engine / MCP (when required)
-→ Controller
-→ Frontend
+      ↓
+Conversation Understanding
+      ↓
+Decision Builder
+      ↓
+Workflow
+      ↓
+Business Logic / MCP
+      ↓
+Runtime Builder
+      ↓
+Prompt Builder
+      ↓
+Prompt Registry (index.mjs)
+      ↓
+Response Library Lookup
+      ↓
+Response Engine Prompt
+      ↓
+Gemini
+      ↓
+UI Renderer
 
-No request should bypass any of these stages unless it is a deliberate infrastructure concern (health checks, diagnostics, etc.).
+------------------------------------------------------------
 
-## Tasks
+Expected Result
 
-1. Audit the entire backend for duplicate request pipelines, legacy routing paths, early returns, and bypass logic.
-2. Identify every place where a request can skip the canonical pipeline.
-3. Remove obsolete routing paths that are no longer part of the current architecture.
-4. Remove legacy response generation that bypasses the Response Engine.
-5. Ensure both `chat.controller.mjs` and `chatStream.controller.mjs` use the same orchestration logic instead of maintaining separate execution paths.
-6. Preserve all current business logic, workflows, MCP integrations, shopping, delivery, ordering, tracking, and conversation memory.
-7. Do not rewrite working components. Only eliminate redundant or legacy routing.
+The Prompt Registry becomes the single source for prompt management.
 
-## Constraints
+The Prompt Builder dynamically assembles prompts.
 
-* Do not modify API contracts.
-* Do not change database schemas.
-* Do not rewrite the Workflow Manager.
-* Do not rewrite the Response Engine.
-* Do not change the Commerce Engine logic.
-* Do not introduce new architectures.
+The Response Library guides the LLM instead of bypassing it.
 
-## Before Removing Anything
+Every response becomes more natural while preserving Velora's multilingual personality.
 
-For every pipeline or routing path you believe is obsolete:
-
-* Explain why it is obsolete.
-* Show where it is currently used.
-* Show what will replace it.
-* Confirm that removing it will not break existing workflows.
-
-Do not delete code unless you can prove another active path fully replaces it.
-
-## Deliverables
-
-Produce:
-
-1. A list of all request entry points.
-2. A diagram of the final canonical pipeline.
-3. A list of removed legacy routing paths.
-4. A list of remaining bypasses (if any).
-5. Confirmation that every user message now follows the same canonical execution pipeline.
+The architecture remains modular, scalable, and easy to extend as new prompt modules and workflows are added.

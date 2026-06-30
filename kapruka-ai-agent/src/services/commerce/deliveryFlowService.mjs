@@ -98,10 +98,17 @@ export async function handleAddressInput(session, addressText, lang = "en") {
     };
     await updateDeliverySession(session.sessionId, updates, session.session_version);
 
+    const missing = [];
+    if (!houseNumber) missing.push("house/apartment number");
+    if (!street) missing.push("street/road name");
+    if (!city) missing.push("city");
+
     return {
       status: "address_incomplete",
       module: "delivery",
-      context: {}
+      context: {
+        missing_fields: missing.join(", ")
+      }
     };
   }
 

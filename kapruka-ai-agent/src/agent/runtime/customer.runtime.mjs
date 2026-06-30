@@ -59,6 +59,10 @@ export function buildCustomerRuntime({
             memory.language ??
             DEFAULTS.preferredLanguage,
 
+        personalityState:
+            customer.personalityState ??
+            "friendly",
+
         recipient:
             shoppingContext.recipient ??
             memory.recipient ??
@@ -117,6 +121,7 @@ CUSTOMER RUNTIME
 
 Customer Name        : ${runtime.customerName}
 Preferred Language   : ${runtime.preferredLanguage}
+Personality State    : ${runtime.personalityState}
 Recipient            : ${runtime.recipient ?? "Unknown"}
 Occasion             : ${runtime.occasion ?? "Unknown"}
 Budget               : ${runtime.budget ?? "Not Specified"}

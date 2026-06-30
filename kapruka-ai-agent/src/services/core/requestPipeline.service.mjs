@@ -181,6 +181,10 @@ export const processRequest = async (req, res, isStream = false) => {
     contextData.userState = updatedUserState;
     req.debugWorkflowDecision = workflowDecision;
     
+    if (context) {
+      context.workflow = workflowDecision.workflow;
+    }
+    
     console.log(`[WORKFLOW] Target Workflow: ${workflowDecision.workflow}`);
 
     if (!workflowDecision.success || workflowDecision.action === "REQUIRE_USER_INPUT") {
@@ -222,6 +226,8 @@ export const processRequest = async (req, res, isStream = false) => {
         deliveryDate: decision.variables.delivery_date,
         recipient: decision.variables.recipient,
         occasion: decision.variables.occasion,
+        orderNumber: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
+        order_number: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
         filters: {
           category: decision.variables.category,
           brand: decision.variables.brand,

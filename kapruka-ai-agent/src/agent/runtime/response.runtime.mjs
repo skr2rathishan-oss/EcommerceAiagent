@@ -64,17 +64,12 @@ const DEFAULTS = Object.freeze({
  */
 
 export function buildResponseRuntime({
-
     response = {},
-
     decision = {},
-
-    settings = {}
-
+    settings = {},
+    responseLibrary = null
 } = {}) {
-
     const runtime = {
-
         responseType:
             response.type ??
             DEFAULTS.responseType,
@@ -118,17 +113,18 @@ export function buildResponseRuntime({
 
         shouldUseTemplate:
             Boolean(response.templateId)
-
     };
 
     return {
-
-        data: runtime,
-
-        prompt: buildResponsePrompt(runtime)
-
+        data: {
+            ...runtime,
+            responseLibrary
+        },
+        prompt: buildResponsePrompt({
+            ...runtime,
+            responseLibrary
+        })
     };
-
 }
 
 /**
@@ -138,17 +134,14 @@ export function buildResponseRuntime({
  */
 
 function yesNo(value) {
-
     return value ? "Yes" : "No";
-
 }
 
 function buildResponsePrompt(runtime) {
-
-    return `
-===============================================================================
+    let prompt = `
+==============================================================================
 RESPONSE RUNTIME
-===============================================================================
+==============================================================================
 
 Response Type          : ${runtime.responseType}
 
@@ -174,9 +167,21 @@ Recommend Products     : ${yesNo(runtime.shouldRecommendProducts)}
 
 Ask Clarification      : ${yesNo(runtime.shouldAskClarification)}
 
-===============================================================================
+==============================================================================
 `.trim();
 
+    if (runtime.responseLibrary && runtime.responseLibrary.templates && runtime.responseLibrary.templates.length > 0) {
+        const templatesList = runtime.responseLibrary.templates.map((t, idx) => `${idx + 1}. ${t}`).join("\n");
+        prompt += `\n\n[RESPONSE LIBRARY TEMPLATES]
+Module: ${runtime.responseLibrary.module}
+Category: ${runtime.responseLibrary.category}
+Language: ${runtime.responseLibrary.language}
+
+Candidate Responses:
+${templatesList}`;
+    }
+
+    return prompt;
 }
 
 /**

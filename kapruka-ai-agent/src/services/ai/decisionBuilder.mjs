@@ -45,7 +45,8 @@ export function validateDecision(decision) {
       occasion: "",
       brand: "",
       category: "",
-      price: ""
+      price: "",
+      orderNumber: ""
     },
     llm_response: true
   };
@@ -105,7 +106,8 @@ export function validateDecision(decision) {
     occasion: String(vars.occasion || ""),
     brand: String(vars.brand || ""),
     category: String(vars.category || ""),
-    price: String(vars.price || vars.budget || "")
+    price: String(vars.price || vars.budget || ""),
+    orderNumber: String(vars.orderNumber || vars.order_number || "")
   };
 
   // 9. LLM Response

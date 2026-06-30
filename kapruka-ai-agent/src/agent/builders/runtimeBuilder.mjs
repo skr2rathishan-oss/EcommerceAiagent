@@ -52,7 +52,10 @@ export function buildRuntimeContext(runtimeContext = {}) {
 
     const commerce = buildCommerceRuntime(runtimeContext);
 
-    const memory = buildMemoryRuntime(runtimeContext);
+    const memory = buildMemoryRuntime({
+        ...runtimeContext,
+        shouldSuppressMemory: runtimeContext.shouldSuppressMemory
+    });
 
     const response = buildResponseRuntime(runtimeContext);
 
@@ -211,11 +214,16 @@ export function constructRuntimeData({
     pendingOrder,
     voiceMode,
     message,
-    resolvedReference
+    resolvedReference,
+    products = [],
+    tracking = null,
+    responseLibrary = null,
+    shouldSuppressMemory = false
 }) {
     return {
         decision,
         conversationState: userState,
+        shouldSuppressMemory,
         customer: {
             name: decision?.variables?.customer_name || userState?.customerName,
             preferredLanguage: decision?.language?.detected || userState?.preferredLanguage || "english",
@@ -266,7 +274,10 @@ export function constructRuntimeData({
             environment: process.env.NODE_ENV || "development"
         },
         latestMessage: message,
-        resolvedReference: resolvedReference || null
+        resolvedReference: resolvedReference || null,
+        products,
+        tracking,
+        responseLibrary
     };
 }
 

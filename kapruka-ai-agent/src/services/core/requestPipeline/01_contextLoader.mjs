@@ -61,12 +61,20 @@ export const executeContextLoader = async (reqBody, headers, sessionId) => {
   
   const memory = getMemory(sessionId);
 
+  const cleanMsg = lowerMsg.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
+  const greetingWords = ["hi", "hello", "hey", "hola", "namaste", "vanakkam", "greetings", "good morning", "good evening", "good afternoon", "ada", "heta", "irukkinga", "machan"];
+  const isGreetingOnly = greetingWords.includes(cleanMsg) || cleanMsg.split(/\s+/).length <= 1;
+
+  const hasResumeKeywords = ["resume", "continue", "last time", "we were talking", "remember"].some(kw => lowerMsg.includes(kw));
+  const shouldSuppressMemory = isGreetingOnly && !hasResumeKeywords;
+
   return {
     userState,
     history,
     deliverySession,
     deliveryState,
     pendingOrder,
-    memory
+    memory,
+    shouldSuppressMemory
   };
 };

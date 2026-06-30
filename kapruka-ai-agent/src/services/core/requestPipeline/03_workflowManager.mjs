@@ -70,14 +70,24 @@ export const executeWorkflowManager = async (reqBody, decision, contextData, ses
       canResume: true
     };
 
-    userState = await saveConversationState(sessionId, {
+    const updates = {
       activeFlow: {
         type: workflowDecision.workflow,
         status: "active",
         currentStep: decision.conversation_stage
       },
       workflowContext: updatedWorkflowContext
-    });
+    };
+
+    if (decision.variables?.orderNumber) {
+      updates.order = {
+        ...(userState.order || {}),
+        orderRef: decision.variables.orderNumber
+      };
+      updates.order_id = decision.variables.orderNumber;
+    }
+
+    userState = await saveConversationState(sessionId, updates);
   }
 
   return {
