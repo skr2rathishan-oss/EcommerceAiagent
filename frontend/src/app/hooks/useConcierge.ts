@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { apiFetch, apiJson } from "../services/api";
 
 const API_BASE = "/api/delivery/concierge";
 
@@ -21,9 +22,8 @@ export function useConcierge(sessionId: string) {
   const fetchAddresses = async (): Promise<Address[]> => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/addresses/${sessionId}`);
+      const res = await apiFetch(`${API_BASE}/addresses/${sessionId}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to fetch addresses");
       return data.addresses || [];
     } catch (err: any) {
       setError(err.message);
@@ -36,13 +36,11 @@ export function useConcierge(sessionId: string) {
   const saveAddress = async (addressData: Address): Promise<Address[]> => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/addresses/${sessionId}`, {
+      const res = await apiFetch(`${API_BASE}/addresses/${sessionId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ addressData })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save address");
       return data.addresses || [];
     } catch (err: any) {
       setError(err.message);
@@ -55,13 +53,11 @@ export function useConcierge(sessionId: string) {
   const checkDelivery = async (city: string, deliveryDate: string, productId: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/check`, {
+      const res = await apiFetch(`${API_BASE}/check`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ city, deliveryDate, productId })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to check delivery");
       return data;
     } catch (err: any) {
       setError(err.message);
@@ -74,13 +70,11 @@ export function useConcierge(sessionId: string) {
   const checkNearestArea = async (city: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/nearest`, {
+      const res = await apiFetch(`${API_BASE}/nearest`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ city })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to find nearest area");
       return data.nearest;
     } catch (err: any) {
       setError(err.message);

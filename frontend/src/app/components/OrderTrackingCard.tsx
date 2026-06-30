@@ -5,6 +5,7 @@ import {
   AlertTriangle, Check, Copy, ShoppingBag, RefreshCw
 } from "lucide-react";
 import type { OrderTrackingDetails } from "../types/orderTracking";
+import { apiFetch } from "../services/api";
 
 interface Props {
   orderNumber: string;
@@ -34,9 +35,8 @@ export function OrderTrackingCard({ orderNumber, initialTracking, onContinueShop
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/orders/track", {
+      const res = await apiFetch("/api/orders/track", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ orderNumber })
       });
       if (!res.ok) {

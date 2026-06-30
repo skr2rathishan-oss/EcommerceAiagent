@@ -38,6 +38,8 @@ interface AdminPanelProps {
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { apiFetch, apiJson } from "../services/api";
+
 const API_BASE = "/api/admin";
 
 const MODE_COLORS: Record<string, { bg: string; border: string; badge: string; glow: string }> = {
@@ -159,10 +161,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ open, onClose }) => {
     setLoading(true);
     setError(null);
     try {
-      const res  = await fetch(`${API_BASE}/ai-mode`);
-      const data = await res.json();
-      if (data.success) setConfig(data);
-      else setError(data.message || "Failed to load configuration.");
+      const data = await apiJson(`${API_BASE}/ai-mode`);
+      if (data?.success) setConfig(data);
+      else setError(data?.message || "Failed to load configuration.");
     } catch {
       setError("Cannot reach server. Is the backend running?");
     } finally {
@@ -179,9 +180,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ open, onClose }) => {
     setSwitching(mode);
     setError(null);
     try {
-      const res  = await fetch(`${API_BASE}/ai-mode`, {
+      const res  = await apiFetch(`${API_BASE}/ai-mode`, {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ mode }),
       });
       const data = await res.json();

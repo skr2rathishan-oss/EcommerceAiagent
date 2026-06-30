@@ -8,6 +8,7 @@ import {
 import { useApp } from "../contexts/AppContext";
 import { sendIntentMessage } from "../services/chatServices";
 import { formatUIPrice } from "../services/mapping";
+import { apiFetch } from "../services/api";
 
 interface GuidedWorkflowPanelProps {
   messageIndex: number;
@@ -282,9 +283,9 @@ export const GuidedWorkflowPanel: React.FC<GuidedWorkflowPanelProps> = ({ messag
 
     try {
       const sessionId = sessionStorage.getItem("velora_session_id") || "default";
-      const res = await fetch("/api/orders/track", {
+      const res = await apiFetch("/api/orders/track", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-session-id": sessionId },
+        headers: { "x-session-id": sessionId },
         body: JSON.stringify({ orderNumber: trimmedId })
       });
 

@@ -4,6 +4,7 @@ import { Mic, Square, Volume2, VolumeX, PhoneOff } from "lucide-react";
 import { Message } from "../contexts/AppContext";
 import { ProductShowcase } from "./ProductShowcase";
 import { type Product } from "./products";
+import { apiFetch } from "../services/api";
 
 interface VoiceDashboardProps {
   isOpen: boolean;
@@ -143,7 +144,7 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
           const formData = new FormData();
           formData.append("audio", audioBlob);
 
-          const response = await fetch("/api/voice/transcribe", {
+          const response = await apiFetch("/api/voice/transcribe", {
             method: "POST",
             body: formData,
           });
@@ -270,9 +271,8 @@ export const VoiceDashboard: React.FC<VoiceDashboardProps> = ({
 
     try {
       console.log("[VOICE] Speaking response");
-      const response = await fetch("/api/voice", {
+      const response = await apiFetch("/api/voice", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text })
       });
 
