@@ -399,3 +399,32 @@ export function validateResponseTemplates(bindings = REQUIRED_TEMPLATE_BINDINGS)
     missing
   };
 }
+
+export function getResponseTemplates(module, category, langCode = "english", variables = {}) {
+  const data = loadResponseFile(module, category);
+  if (!data) return null;
+
+  const section = data[category];
+  if (!section) return null;
+
+  const langKey =
+    langCode === "sinhala_mix" || langCode === "sinhala" ? "sinhala_mix" :
+    langCode === "tamil_mix"   || langCode === "tamil"   ? "tamil_mix"   :
+    "english";
+
+  const templates = section[langKey] || section["english"] || [];
+  
+  // Inject variables into templates
+  return templates.map(t => {
+    let text = t;
+    if (Object.keys(variables).length > 0) {
+      text = text.replace(/\{\{(\w+)\}\}/g, (_, key) =>
+        variables[key] !== undefined ? String(variables[key]) : `{{${key}}}`
+      );
+      text = text.replace(/\{(\w+)\}/g, (_, key) =>
+        variables[key] !== undefined ? String(variables[key]) : `{${key}}`
+      );
+    }
+    return text;
+  });
+}

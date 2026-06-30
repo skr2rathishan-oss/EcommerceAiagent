@@ -140,8 +140,8 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
   let langLabel = heuristic.language;
   let langConf = heuristic.confidence;
 
-  if (langLabel === "sinhala") langLabel = "sinhala_mix";
-  if (langLabel === "tamil") langLabel = "tamil_mix";
+  if (langLabel === "sinhala") langLabel = "singlish";
+  if (langLabel === "tamil") langLabel = "tanglish";
 
   let chat_subtype = "casual_chat";
   const lowerMsg = message ? message.toLowerCase().trim() : "";
@@ -216,10 +216,17 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
   // 2. Intent detection using rule-based pattern matching
   let intent = "general_chat";
 
-  if (["buy", "order", "checkout", "purchase", "place order", "place the order"].some(p => lowerMsg.includes(p))) {
-    intent = "create_order";
-  } else if (["track", "status", "where is my"].some(p => lowerMsg.includes(p))) {
+  const orderNumberMatch = message ? message.match(/\b((?:VPAY|VIMP|KAP-)[A-Z0-9-]+)\b/i) : null;
+  const extractedOrderNumber = orderNumberMatch ? orderNumberMatch[1].toUpperCase() : null;
+
+  const hasTrackingKeywords = message ? [
+    "track", "status", "where is my", "where is order", "check my order", "check order", "where's my order"
+  ].some(kw => lowerMsg.includes(kw)) : false;
+
+  if (extractedOrderNumber || hasTrackingKeywords) {
     intent = "track_order";
+  } else if (["buy", "order", "checkout", "purchase", "place order", "place the order"].some(p => lowerMsg.includes(p))) {
+    intent = "create_order";
   } else if (["deliver", "ship", "eta", "arrival", "post", "city"].some(p => lowerMsg.includes(p))) {
     intent = "check_delivery";
   } else if (["detail", "spec", "more about", "tell me more"].some(p => lowerMsg.includes(p))) {
@@ -241,7 +248,8 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
     occasion: null,
     brand: null,
     category: null,
-    price: null
+    price: null,
+    orderNumber: extractedOrderNumber
   };
 
   const cities = ["colombo", "jaffna", "kandy", "galle", "matara", "batticaloa", "kurunegala", "negombo"];
@@ -374,8 +382,8 @@ export async function understandConversation({
   let langLabel = result.language?.detected || "english";
   let langConf = result.language?.confidence || 0.95;
 
-  if (langLabel === "sinhala") langLabel = "sinhala_mix";
-  if (langLabel === "tamil") langLabel = "tamil_mix";
+  if (langLabel === "sinhala") langLabel = "singlish";
+  if (langLabel === "tamil") langLabel = "tanglish";
 
   // Run the stateful stickiness checks on top of Gemini's/fallback detection
   if (!isFallback) {
@@ -384,24 +392,53 @@ export async function understandConversation({
     langConf = stickinessResult.confidence;
   }
 
-  const langCode = (langLabel === "sinhala_mix") ? "si" :
-                   (langLabel === "tamil_mix") ? "ta" : "en";
+  const langCode = (langLabel === "singlish") ? "si" :
+                   (langLabel === "tanglish") ? "ta" : "en";
 
-  // Persist updated language fields to state DB
+  // Resolve and lock conversational style (Friendly, Professional, Romantic, Sympathy)
+  let personalityState = conversationState?.personalityState || "friendly";
+  const normalizedLower = message ? message.toLowerCase().trim() : "";
+  
+  if (["machan", "mams", "dei", "da", "bro", "buddy", "super", "gethu", "baba"].some(w => normalizedLower.includes(w))) {
+    personalityState = "friendly";
+  } else if (["please", "kindly", "dear", "sir", "madam", "could you"].some(w => normalizedLower.includes(w))) {
+    // If we are already friendly, we stick to it, otherwise we can use professional
+    if (personalityState !== "friendly" && personalityState !== "romantic") {
+      personalityState = "professional";
+    }
+  } else if (["love", "romantic", "wife", "girlfriend", "valantine", "sweetheart"].some(w => normalizedLower.includes(w))) {
+    personalityState = "romantic";
+  }
+
+  // Persist updated language and personality fields to state DB
   if (conversationState && conversationState.sessionId) {
     try {
+      conversationState.personalityState = personalityState;
       await saveConversationState(conversationState.sessionId, {
         preferredLanguage: conversationState.preferredLanguage,
         consecutiveMessagesInSameLanguage: conversationState.consecutiveMessagesInSameLanguage,
         lastDetectedLanguage: conversationState.lastDetectedLanguage,
         languageConfidence: conversationState.languageConfidence,
+        personalityState: personalityState
       });
     } catch (err) {
       // Non-fatal logging
     }
   }
 
-  const intent = result.intent?.value || "general_chat";
+  const orderNumberMatch = message ? message.match(/\b((?:VPAY|VIMP|KAP-)[A-Z0-9-]+)\b/i) : null;
+  const extractedOrderNumber = orderNumberMatch ? orderNumberMatch[1].toUpperCase() : null;
+
+  const lowerMsg = message ? message.toLowerCase().trim() : "";
+  const hasTrackingKeywords = message ? [
+    "track", "status", "where is my", "where is order", "check my order", "check order", "where's my order"
+  ].some(kw => lowerMsg.includes(kw)) : false;
+
+  let intent = result.intent?.value || "general_chat";
+  if (extractedOrderNumber || hasTrackingKeywords) {
+    intent = "track_order";
+  }
+
   const chat_subtype = result.intent?.chat_subtype || null;
   const emotion = result.emotion || "neutral";
 
@@ -430,7 +467,8 @@ export async function understandConversation({
     occasion: String(vars.occasion || ""),
     brand: String(vars.brand || ""),
     category: String(vars.category || ""),
-    price: String(vars.price || "")
+    price: String(vars.price || ""),
+    orderNumber: String(vars.orderNumber || vars.order_number || extractedOrderNumber || "")
   };
 
   return {

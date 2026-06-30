@@ -107,7 +107,9 @@ export function manageWorkflow({
 
             message,
 
-            memory
+            memory,
+
+            intent
 
         });
 

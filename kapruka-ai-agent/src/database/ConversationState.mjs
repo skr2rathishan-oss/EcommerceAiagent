@@ -27,6 +27,10 @@ const conversationStateSchema = new mongoose.Schema({
     status: { type: String, default: "active" },
     currentStep: { type: String, default: "browsing" }
   },
+  personalityState: {
+    type: String,
+    default: "standard"
+  },
   pausedFlows: {
     type: [mongoose.Schema.Types.Mixed],
     default: []

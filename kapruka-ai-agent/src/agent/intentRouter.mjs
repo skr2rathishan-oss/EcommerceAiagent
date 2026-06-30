@@ -133,7 +133,24 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
 
             let results;
             try {
-                results = await searchProducts(searchQuery);
+                const isVagueAccessory = ["accessory", "accessories", "components", "parts", "items", "extras"].some(word => searchQuery.toLowerCase().includes(word));
+                const shoppingCtx = getShoppingContext(sessionId) || {};
+                const prevQuery = shoppingCtx.searchQuery || "";
+
+                if (isVagueAccessory && prevQuery) {
+                    logger.info(`[SEARCH RECOVERY] Detected accessory search mismatch with previous query: "${prevQuery}". Refining search...`);
+                    let refinedQuery = `${prevQuery} accessories`;
+                    results = await searchProducts(refinedQuery);
+                    if (results && results.length > 0) {
+                        searchQuery = refinedQuery;
+                    } else {
+                        logger.info(`[SEARCH RECOVERY] No refined accessory results. Falling back to previous query: "${prevQuery}" to return laptops`);
+                        searchQuery = prevQuery;
+                        results = await searchProducts(prevQuery);
+                    }
+                } else {
+                    results = await searchProducts(searchQuery);
+                }
 
                 if ((!results || results.length === 0) && searchQuery) {
                     const fallback = getFallbackQuery(searchQuery, context);

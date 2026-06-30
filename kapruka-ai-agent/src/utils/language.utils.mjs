@@ -179,10 +179,10 @@ export function runHeuristicDetection(normalizedText) {
 
   if (siScore > taScore && siScore > enScore) {
     const confidence = parseFloat((siScore / totalScore).toFixed(2));
-    return { language: "sinhala_mix", confidence, reason: "romanized_keywords" };
+    return { language: "singlish", confidence, reason: "romanized_keywords" };
   } else if (taScore > siScore && taScore > enScore) {
     const confidence = parseFloat((taScore / totalScore).toFixed(2));
-    return { language: "tamil_mix", confidence, reason: "romanized_keywords" };
+    return { language: "tanglish", confidence, reason: "romanized_keywords" };
   } else {
     const confidence = parseFloat((enScore / totalScore).toFixed(2));
     return { language: "english", confidence, reason: "english_keywords" };
@@ -217,8 +217,8 @@ export function applyLanguagePreferenceStickiness(detectedLang, detectedConf, te
   let langConf = detectedConf;
   let reason = "detection_direct";
 
-  if (langLabel === "sinhala") langLabel = "sinhala_mix";
-  if (langLabel === "tamil") langLabel = "tamil_mix";
+  if (langLabel === "sinhala") langLabel = "singlish";
+  if (langLabel === "tamil") langLabel = "tanglish";
 
   const normalized = normalizeText(text);
   const isShort = isShortMessage(normalized);
@@ -258,12 +258,12 @@ export function applyLanguagePreferenceStickiness(detectedLang, detectedConf, te
           const histNorm = normalizeText(msg.content);
           const histHeur = runHeuristicDetection(histNorm);
           
-          const histLang = (histHeur.language === "sinhala" || histHeur.language === "sinhala_mix") ? "sinhala_mix" : 
-                           (histHeur.language === "tamil" || histHeur.language === "tamil_mix") ? "tamil_mix" : 
+          const histLang = (histHeur.language === "sinhala" || histHeur.language === "singlish") ? "singlish" : 
+                           (histHeur.language === "tamil" || histHeur.language === "tanglish") ? "tanglish" : 
                            "english";
           
-          const targetLang = (langLabel === "sinhala" || langLabel === "sinhala_mix") ? "sinhala_mix" :
-                             (langLabel === "tamil" || langLabel === "tamil_mix") ? "tamil_mix" :
+          const targetLang = (langLabel === "sinhala" || langLabel === "singlish") ? "singlish" :
+                             (langLabel === "tamil" || langLabel === "tanglish") ? "tanglish" :
                              "english";
 
           if (histLang !== targetLang) {
@@ -340,12 +340,12 @@ export async function detectLanguageExtended(text, history = [], sessionState = 
   if (heuristicConfidence < threshold && !isShort && callLLMFallbackFn) {
     try {
       const llmLang = await callLLMFallbackFn(text);
-      if (llmLang === "sinhala_mix" || llmLang === "sinhala") {
-        finalLanguage = "sinhala_mix";
+      if (llmLang === "singlish" || llmLang === "sinhala" || llmLang === "sinhala_mix") {
+        finalLanguage = "singlish";
         finalConfidence = 0.90;
         finalReason = "llm_fallback";
-      } else if (llmLang === "tamil_mix" || llmLang === "tamil") {
-        finalLanguage = "tamil_mix";
+      } else if (llmLang === "tanglish" || llmLang === "tamil" || llmLang === "tamil_mix") {
+        finalLanguage = "tanglish";
         finalConfidence = 0.90;
         finalReason = "llm_fallback";
       } else {
@@ -386,10 +386,10 @@ export function localDetectLanguage(text) {
   const normalized = normalizeText(text);
   const result = runHeuristicDetection(normalized);
 
-  if (result.language === "sinhala" || result.language === "sinhala_mix") {
+  if (result.language === "sinhala" || result.language === "singlish" || result.language === "sinhala_mix") {
     return "si";
   }
-  if (result.language === "tamil" || result.language === "tamil_mix") {
+  if (result.language === "tamil" || result.language === "tanglish" || result.language === "tamil_mix") {
     return "ta";
   }
   return "en";

@@ -66,21 +66,14 @@ const DEFAULTS = Object.freeze({
  */
 
 export function buildCommerceRuntime({
-
     commerce = {},
-
     products = [],
-
     cart = {},
-
     order = {},
-
     tracking = {}
-
 } = {}) {
-
+    const normTracking = tracking || {};
     const runtime = {
-
         searchQuery:
             commerce.searchQuery ??
             DEFAULTS.searchQuery,
@@ -122,18 +115,24 @@ export function buildCommerceRuntime({
             DEFAULTS.activeOrder,
 
         trackingAvailable:
-            Boolean(tracking.status)
+            Boolean(normTracking.status),
 
+        trackingDetails: normTracking.status ? {
+            orderNumber: normTracking.orderNumber || normTracking.order_number || "Unknown",
+            status: normTracking.status,
+            error: normTracking.error || null,
+            recipientName: normTracking.recipient?.name || "Unknown",
+            recipientCity: normTracking.recipient?.city || "Unknown",
+            deliveryDate: normTracking.deliveryDate || normTracking.delivery_date || "Unknown",
+            progress: normTracking.progress || [],
+            items: normTracking.items || []
+        } : null
     };
 
     return {
-
         data: runtime,
-
         prompt: buildCommercePrompt(runtime)
-
     };
-
 }
 
 /**
@@ -143,8 +142,7 @@ export function buildCommerceRuntime({
  */
 
 function buildCommercePrompt(runtime) {
-
-    return `
+    let prompt = `
 ===============================================================================
 COMMERCE RUNTIME
 ===============================================================================
@@ -174,6 +172,41 @@ Tracking Available   : ${runtime.trackingAvailable ? "Yes" : "No"}
 ===============================================================================
 `.trim();
 
+    if (runtime.totalProducts > 0) {
+        const productsList = runtime.products.slice(0, 5).map((p, idx) => {
+            const priceVal = typeof p.price === 'object' && p.price ? `${p.price.amount} ${p.price.currency}` : `${p.price || 'N/A'} LKR`;
+            return `Product ${idx + 1}:
+ID: ${p.id || p.product_id}
+Name: ${p.name}
+Brand: ${p.brand || "N/A"}
+Price: ${priceVal}
+Description: ${p.description || "N/A"}
+In Stock: ${p.in_stock !== undefined ? (p.in_stock ? "Yes" : "No") : "N/A"}`;
+        }).join("\n\n");
+
+        prompt += `\n\n[PRODUCTS FOUND]\n${productsList}`;
+    }
+
+    if (runtime.trackingAvailable && runtime.trackingDetails) {
+        const details = runtime.trackingDetails;
+        let trackingStr = `Order Number: ${details.orderNumber}\nStatus: ${details.status}`;
+        if (details.error) {
+            trackingStr += `\nError: ${details.error}`;
+        } else {
+            const progressStr = details.progress.map(p => `- ${p.step || p.step_display}: ${p.completed ? "Completed" : "Pending"}${p.timestamp ? ` (${p.timestamp})` : ""}`).join("\n");
+            const itemsStr = details.items.map(item => `- ${item.name} (Qty: ${item.quantity || 1}) - ${item.price} LKR`).join("\n");
+            trackingStr += `
+Recipient: ${details.recipientName} (${details.recipientCity})
+Delivery Date: ${details.deliveryDate}
+Items Ordered:
+${itemsStr || "None"}
+Progress:
+${progressStr || "None"}`;
+        }
+        prompt += `\n\n[TRACKING DETAILS]\n${trackingStr}`;
+    }
+
+    return prompt;
 }
 
 /**

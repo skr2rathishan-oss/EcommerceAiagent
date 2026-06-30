@@ -43,7 +43,9 @@ export function validateWorkflow({
 
     message = "",
 
-    memory = {}
+    memory = {},
+
+    intent = ""
 
 } = {}) {
 
@@ -164,7 +166,7 @@ export function validateWorkflow({
 
     ) {
 
-        if (!state.waitingForDelivery) {
+        if (!state.waitingForDelivery && intent !== "check_delivery" && intent !== "delivery_flow_input") {
 
             result.allowed = false;
 

@@ -1,60 +1,22 @@
 /**
  * =============================================================================
- * Velora Prompt Operating System
+ * Velora Prompt Operating System Builder
  * =============================================================================
  *
  * File:
  *    promptBuilder.mjs
  *
  * Purpose:
- *    Builds the complete static Prompt Operating System by assembling all
- *    prompt modules into a single system instruction.
- *
- * Responsibilities:
- *    ✓ Load every Prompt OS module
- *    ✓ Organize prompts into logical sections
- *    ✓ Build one immutable Prompt OS
- *
- * This file NEVER:
- *    ✗ Calls Gemini
- *    ✗ Uses runtime context
- *    ✗ Accesses conversation state
- *    ✗ Reads MCP products
- *    ✗ Performs business logic
- *    ✗ Validates prompts
- *    ✗ Compresses prompts
- *
- * =============================================================================
+ *    Assembles the complete system prompt dynamically by reading prompt modules
+ *    from the central Prompt Registry.
  */
 
-import { IDENTITY_PROMPT } from "../core/01_identity.prompt.mjs";
-import { MISSION_PROMPT } from "../core/02_mission.prompt.mjs";
-import { PERSONALITY_PROMPT } from "../core/03_personality.prompt.mjs";
-import { SAFETY_PROMPT } from "../core/04_safety.prompt.mjs";
-import { LOCALIZATION_PROMPT } from "../core/05_localization.prompt.mjs";
-
-import { COMMERCE_PROMPT } from "../intelligence/06_commerce.prompt.mjs";
-import { CUSTOMER_PSYCHOLOGY_PROMPT } from "../intelligence/07_customerPsychology.prompt.mjs";
-import { CONVERSATION_STRATEGY_PROMPT } from "../intelligence/08_conversationStrategy.prompt.mjs";
-import { RECOMMENDATION_STRATEGY_PROMPT } from "../intelligence/09_recommendationStrategy.prompt.mjs";
-import { RESPONSE_LIBRARY_PROMPT } from "../intelligence/10_responseLibrary.prompt.mjs";
-import { REFERENCE_PROMPT } from "../intelligence/10b_reference.prompt.mjs";
-
-import { SHOPPING_PROMPT } from "../commerce/11_shopping.prompt.mjs";
-import { DELIVERY_PROMPT } from "../commerce/12_delivery.prompt.mjs";
-import { CHECKOUT_PROMPT } from "../commerce/13_checkout.prompt.mjs";
-import { ORDERS_PROMPT } from "../commerce/14_orders.prompt.mjs";
-import { TRACKING_PROMPT } from "../commerce/15_tracking.prompt.mjs";
-
-import { WRITING_STYLE_PROMPT } from "../communication/16_writingStyle.prompt.mjs";
-import { VOICE_PROMPT } from "../communication/17_voice.prompt.mjs";
-import { CLARIFICATION_PROMPT } from "../communication/18_clarification.prompt.mjs";
-import { RECOVERY_PROMPT } from "../communication/19_recovery.prompt.mjs";
+import { Core, Commerce, Communication, Intelligence } from "../index.mjs";
+import buildRuntimeContext from "../../builders/runtimeBuilder.mjs";
 
 /* ============================================================================
  * Prompt OS Version
  * ========================================================================== */
-
 export const PROMPT_OS_VERSION = Object.freeze({
     name: "Velora Prompt Operating System",
     version: "2.0.0",
@@ -62,45 +24,8 @@ export const PROMPT_OS_VERSION = Object.freeze({
 });
 
 /* ============================================================================
- * Prompt Sections
- * ========================================================================== */
-
-const CORE = [
-    IDENTITY_PROMPT,
-    MISSION_PROMPT,
-    PERSONALITY_PROMPT,
-    SAFETY_PROMPT,
-    LOCALIZATION_PROMPT
-];
-
-const INTELLIGENCE = [
-    COMMERCE_PROMPT,
-    CUSTOMER_PSYCHOLOGY_PROMPT,
-    CONVERSATION_STRATEGY_PROMPT,
-    RECOMMENDATION_STRATEGY_PROMPT,
-    RESPONSE_LIBRARY_PROMPT,
-    REFERENCE_PROMPT
-];
-
-const COMMERCE = [
-    SHOPPING_PROMPT,
-    DELIVERY_PROMPT,
-    CHECKOUT_PROMPT,
-    ORDERS_PROMPT,
-    TRACKING_PROMPT
-];
-
-const COMMUNICATION = [
-    WRITING_STYLE_PROMPT,
-    VOICE_PROMPT,
-    CLARIFICATION_PROMPT,
-    RECOVERY_PROMPT
-];
-
-/* ============================================================================
  * Helpers
  * ========================================================================== */
-
 function buildSection(title, prompts) {
     return `
 ===============================================================================
@@ -112,10 +37,40 @@ ${prompts.filter(Boolean).join("\n\n")}
 }
 
 /* ============================================================================
- * Build Prompt Operating System
+ * Build Prompt OS (Static / Legacy Compatibility)
  * ========================================================================== */
-
 export function buildPromptOS() {
+    const corePrompts = [
+        Core.identity,
+        Core.mission,
+        Core.personality,
+        Core.safety,
+        Core.localization
+    ];
+
+    const intelligencePrompts = [
+        Intelligence.commerce,
+        Intelligence.customerPsychology,
+        Intelligence.conversationStrategy,
+        Intelligence.recommendationStrategy,
+        Intelligence.responseLibrary,
+        Intelligence.reference
+    ];
+
+    const commercePrompts = [
+        Commerce.shopping,
+        Commerce.delivery,
+        Commerce.checkout,
+        Commerce.orders,
+        Commerce.tracking
+    ];
+
+    const communicationPrompts = [
+        Communication.writingStyle,
+        Communication.voice,
+        Communication.clarification,
+        Communication.recovery
+    ];
 
     return `
 ===============================================================================
@@ -127,49 +82,174 @@ Version    : ${PROMPT_OS_VERSION.version}
 Modules    : ${PROMPT_OS_VERSION.modules}
 
 This Prompt OS defines Velora's permanent behaviour.
-
-Runtime context such as language, conversation state,
-customer memory, MCP products, response templates,
-and user messages are injected separately by the runtime builder.
-
 ===============================================================================
 
-${buildSection("CORE", CORE)}
+${buildSection("CORE", corePrompts)}
 
-${buildSection("INTELLIGENCE", INTELLIGENCE)}
+${buildSection("INTELLIGENCE", intelligencePrompts)}
 
-${buildSection("COMMERCE", COMMERCE)}
+${buildSection("COMMERCE", commercePrompts)}
 
-${buildSection("COMMUNICATION", COMMUNICATION)}
+${buildSection("COMMUNICATION", communicationPrompts)}
 
 ===============================================================================
 END OF PROMPT OPERATING SYSTEM
 ===============================================================================
 `.trim();
+}
 
+/* ============================================================================
+ * Build Complete System Prompt (Dynamic)
+ * ========================================================================== */
+export function buildSystemPrompt(runtimeContext = {}) {
+    const runtime = buildRuntimeContext(runtimeContext);
+
+    // 1. Core prompts
+    const corePrompts = [
+        Core.identity,
+        Core.mission,
+        Core.personality,
+        Core.safety,
+        Core.localization
+    ];
+
+    // 2. Intelligence prompts
+    const intelligencePrompts = [
+        Intelligence.commerce,
+        Intelligence.customerPsychology,
+        Intelligence.conversationStrategy,
+        Intelligence.recommendationStrategy,
+        Intelligence.responseLibrary,
+        Intelligence.reference
+    ];
+
+    // 3. Commerce prompts (assembled dynamically based on active workflow context)
+    const commercePrompts = [];
+    const workflow = runtimeContext?.workflow?.currentWorkflow || "idle";
+    const hasProducts = runtimeContext?.products && runtimeContext.products.length > 0;
+    const hasTracking = runtimeContext?.tracking && runtimeContext.tracking.status;
+
+    // Always include shopping
+    commercePrompts.push(Commerce.shopping);
+
+    // Conditionally include delivery, checkout, orders, tracking
+    if (workflow === "delivery" || runtimeContext?.delivery?.deliveryRequired) {
+        commercePrompts.push(Commerce.delivery);
+    }
+    if (workflow === "checkout" || runtimeContext?.shopping?.checkoutStarted) {
+        commercePrompts.push(Commerce.checkout);
+    }
+    if (workflow === "orders" || runtimeContext?.activeOrder) {
+        commercePrompts.push(Commerce.orders);
+    }
+    if (workflow === "order_tracking" || hasTracking) {
+        commercePrompts.push(Commerce.tracking);
+    }
+
+    // Include all as reference if no specific active workflow
+    if (commercePrompts.length === 1) {
+        commercePrompts.push(Commerce.delivery, Commerce.checkout, Commerce.orders, Commerce.tracking);
+    }
+
+    // 4. Communication prompts
+    const communicationPrompts = [
+        Communication.writingStyle,
+        Communication.voice
+    ];
+    if (workflow === "clarify" || runtimeContext?.response?.askClarification) {
+        communicationPrompts.push(Communication.clarification);
+    }
+    if (workflow === "recovery") {
+        communicationPrompts.push(Communication.recovery);
+    } else {
+        communicationPrompts.push(Communication.recovery);
+    }
+
+    // Build Prompt OS section dynamically
+    const promptOSStr = `
+===============================================================================
+VELORA PROMPT OPERATING SYSTEM (DYNAMIC)
+===============================================================================
+
+${buildSection("CORE", corePrompts)}
+
+${buildSection("INTELLIGENCE", intelligencePrompts)}
+
+${buildSection("COMMERCE", commercePrompts)}
+
+${buildSection("COMMUNICATION", communicationPrompts)}
+`;
+
+    const latestMessage =
+        runtimeContext.latestMessage ||
+        runtimeContext.message ||
+        "No customer message provided.";
+
+    const finalPromptText = `
+VELORA SYSTEM PROMPT PACKAGE
+${promptOSStr}
+`;
+    const tokenEst = Math.ceil(finalPromptText.length / 4);
+
+    // Prompt Debugging Console Output
+    console.log(`
+[PROMPT]
+Workflow: ${workflow}
+Language: ${runtimeContext?.customer?.preferredLanguage || "english"}
+
+Prompt Modules:
+✓ Core
+✓ Intelligence
+✓ Commerce
+✓ Voice
+✓ Writing Style
+${runtimeContext?.responseLibrary ? "✓ Response Library" : "✗ Response Library"}
+✓ Recommendation Strategy
+
+Response Library: ${runtimeContext?.responseLibrary ? `${runtimeContext.responseLibrary.module}.${runtimeContext.responseLibrary.category}` : "None"}
+Templates Used: ${runtimeContext?.responseLibrary?.templates?.length || 0}
+LLM Tokens (Estimated): ${tokenEst}
+`.trim());
+
+    // Assemble final system prompt package
+    return `
+===============================================================================
+VELORA AI SYSTEM PROMPT
+===============================================================================
+
+${promptOSStr}
+
+===============================================================================
+VELORA RUNTIME CONTEXT
+===============================================================================
+
+${runtime.prompt}
+
+===============================================================================
+LATEST CUSTOMER MESSAGE
+===============================================================================
+
+${latestMessage}
+
+===============================================================================
+END OF SYSTEM PROMPT
+===============================================================================
+`.trim();
 }
 
 /* ============================================================================
  * Prompt Metadata
  * ========================================================================== */
-
 export function getPromptOSInfo() {
-
     return {
         ...PROMPT_OS_VERSION,
-
         sections: {
-            core: CORE.length,
-            intelligence: INTELLIGENCE.length,
-            commerce: COMMERCE.length,
-            communication: COMMUNICATION.length
+            core: 5,
+            intelligence: 6,
+            commerce: 5,
+            communication: 4
         }
     };
-
 }
-
-/* ============================================================================
- * Default Export
- * ========================================================================== */
 
 export default buildPromptOS;

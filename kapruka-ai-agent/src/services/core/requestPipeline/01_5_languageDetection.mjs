@@ -100,10 +100,10 @@ export const executeLanguageDetection = (message, conversationState) => {
     
     if (maxScore > 0) {
         if (tanglishScore === maxScore && tanglishScore > singlishScore) {
-            detected = "tamil_mix";
+            detected = "tanglish";
             confidence = Math.min(0.7 + (tanglishScore * 0.1), 0.98);
         } else if (singlishScore === maxScore && singlishScore > tanglishScore) {
-            detected = "sinhala_mix";
+            detected = "singlish";
             confidence = Math.min(0.7 + (singlishScore * 0.1), 0.98);
         } else if (englishScore === maxScore) {
             detected = "english";

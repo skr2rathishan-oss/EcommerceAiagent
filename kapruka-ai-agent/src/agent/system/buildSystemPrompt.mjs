@@ -38,46 +38,14 @@
 
 import getPromptCache from "../core/promptCache.mjs";
 import buildRuntimeContext from "../builders/runtimeBuilder.mjs";
+import { buildSystemPrompt as buildDynamicSystemPrompt } from "../prompts/builder/promptBuilder.mjs";
 
 /* =============================================================================
  * Build Complete System Prompt
  * ========================================================================== */
 
 export function buildSystemPrompt(runtimeContext = {}) {
-
-    const promptOS = getPromptCache();
-
-    const runtime = buildRuntimeContext(runtimeContext);
-
-    const latestMessage =
-        runtimeContext.latestMessage ||
-        runtimeContext.message ||
-        "No customer message provided.";
-
-    return `
-===============================================================================
-VELORA AI SYSTEM PROMPT
-===============================================================================
-
-${promptOS}
-
-===============================================================================
-VELORA RUNTIME CONTEXT
-===============================================================================
-
-${runtime.prompt}
-
-===============================================================================
-LATEST CUSTOMER MESSAGE
-===============================================================================
-
-${latestMessage}
-
-===============================================================================
-END OF SYSTEM PROMPT
-===============================================================================
-`.trim();
-
+    return buildDynamicSystemPrompt(runtimeContext);
 }
 
 /* =============================================================================
@@ -85,35 +53,21 @@ END OF SYSTEM PROMPT
  * ========================================================================== */
 
 export function buildPromptPackage(runtimeContext = {}) {
-
     const promptOS = getPromptCache();
-
     const runtime = buildRuntimeContext(runtimeContext);
-
     const systemPrompt = buildSystemPrompt(runtimeContext);
 
     return {
-
         systemPrompt,
-
         promptOS,
-
         runtime,
-
         metadata: {
-
             promptVersion: "2.0.0",
-
             runtimeVersion: "1.0.0",
-
             provider: "Google Gemini",
-
             generatedAt: new Date().toISOString()
-
         }
-
     };
-
 }
 
 /* =============================================================================

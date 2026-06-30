@@ -142,7 +142,8 @@ export const useSearch = () => {
           setMessages(prev => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, type: "order_tracking" as const, text: `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`, tracking: data.tracking };
+            const text = data.text || `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`;
+            const newMsg = { role: "ai" as const, type: "order_tracking" as const, text, tracking: data.tracking };
             if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
             else updated.push(newMsg);
             return updated;
@@ -152,7 +153,8 @@ export const useSearch = () => {
           setMessages(prev => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, type: "order_tracking_error" as const, text: `❌ ${data.message || "Unable to retrieve order status"}`, orderNumber: data.orderNumber };
+            const text = data.text || `❌ ${data.message || "Unable to retrieve order status"}`;
+            const newMsg = { role: "ai" as const, type: "order_tracking_error" as const, text, orderNumber: data.orderNumber };
             if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
             else updated.push(newMsg);
             return updated;
@@ -173,7 +175,8 @@ export const useSearch = () => {
           setMessages(prev => {
             const updated = [...prev];
             const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, text: `Here are the details for **${data.product?.name || "the product"}**:`, type: "product_details" as const, productDetails: { content: data.content, product: data.product } };
+            const text = data.text || `Here are the details for **${data.product?.name || "the product"}**:`;
+            const newMsg = { role: "ai" as const, text, type: "product_details" as const, productDetails: { content: data.content, product: data.product } };
             if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
             else updated.push(newMsg);
             return updated;
