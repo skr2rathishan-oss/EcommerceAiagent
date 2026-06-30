@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart, Menu, ChevronDown, Bell } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart, Menu, ChevronDown, Bell, GitCompare } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
@@ -483,13 +483,15 @@ function MainApp() {
     setActivePanel(label as PanelId);
   };
 
-  const handleStartWorkflow = (type: "find_products" | "find_gift" | "track_order") => {
-    setPhase("bottom");
-
-    if (type === "find_gift" || type === "find_products") {
-      setActiveSmartPanel("recommendation");
+  const handleStartWorkflow = (type: "find_products" | "find_gift" | "track_order" | "compare_products") => {
+    if (type === "find_gift") {
+      handleSend("Help me find a gift");
     } else if (type === "track_order") {
-      setActiveSmartPanel("track_order");
+      handleSend("Track my order");
+    } else if (type === "compare_products") {
+      handleSend("Compare products");
+    } else {
+      handleSend("Find products");
     }
   };
 
@@ -778,6 +780,7 @@ function MainApp() {
                         {[
                           { title: "Find Products", mobileTitle: "Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
                           { title: "Find Gift", mobileTitle: "Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                          { title: "Compare Products", mobileTitle: "Compare", icon: GitCompare, color: "#6366f1", fill: "#e0e7ff", type: "compare_products" as const },
                           { title: "Track My Order", mobileTitle: "Track", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
                         ].map((act, idx) => {
                           const Icon = act.icon;

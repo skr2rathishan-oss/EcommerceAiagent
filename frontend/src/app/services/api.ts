@@ -3,8 +3,19 @@ const DEFAULT_API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "")
 export const getApiBaseUrl = () => DEFAULT_API_BASE;
 
 export const buildApiUrl = (path: string) => {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return DEFAULT_API_BASE ? `${DEFAULT_API_BASE}${normalizedPath}` : normalizedPath;
+  let normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  
+  if (!DEFAULT_API_BASE) {
+    return normalizedPath;
+  }
+
+  // Prevent duplication of /api if both DEFAULT_API_BASE and the path contain it.
+  const baseEndsWithApi = DEFAULT_API_BASE.endsWith("/api") || DEFAULT_API_BASE === "/api";
+  if (baseEndsWithApi && (normalizedPath === "/api" || normalizedPath.startsWith("/api/"))) {
+    normalizedPath = normalizedPath.substring(4);
+  }
+
+  return `${DEFAULT_API_BASE}${normalizedPath}`;
 };
 
 export const apiFetch = async (path: string, init: RequestInit = {}) => {

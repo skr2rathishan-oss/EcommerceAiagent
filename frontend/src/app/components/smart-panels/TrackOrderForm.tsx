@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import { useApp } from "../../contexts/AppContext";
 import { logPanelEvent } from "../../utils/panelAnalytics";
+import { apiFetch } from "../../services/api";
 
 export const TrackOrderForm: React.FC = () => {
   const { setMessages, setIsTyping, setActiveSmartPanel } = useApp();
@@ -27,9 +28,9 @@ export const TrackOrderForm: React.FC = () => {
     setIsTyping(true);
 
     try {
-      const res = await fetch("/api/orders/track", {
+      const res = await apiFetch("/api/orders/track", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-session-id": getSessionId() },
+        headers: { "x-session-id": getSessionId() },
         body: JSON.stringify({ orderNumber: orderId.trim() })
       });
       const data = await res.json();

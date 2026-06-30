@@ -4,6 +4,7 @@ import { useApp } from "../../contexts/AppContext";
 import { useCart } from "../../contexts/CartContext";
 import { type DeliveryInfo, getDefaultSeller } from "../InteractiveOrderSummary";
 import { logPanelEvent } from "../../utils/panelAnalytics";
+import { apiFetch } from "../../services/api";
 
 export const CheckoutForm: React.FC = () => {
   const { setMessages, setActiveSmartPanel, saveOrderToHistory } = useApp();
@@ -92,7 +93,7 @@ export const CheckoutForm: React.FC = () => {
 
     // Track interaction asynchronously
     cartItems.forEach(item => {
-      fetch("/api/products/interaction", {
+      apiFetch("/api/products/interaction", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -39,23 +39,6 @@ export const useChat = () => {
     setMessages(prev => [...prev, { role: "user", text: trimmed }]);
     setValue("");
 
-    const lowerText = trimmed.toLowerCase();
-
-    // ── Smart panel keyword shortcuts (Only if not in voice assistant mode) ──
-    if (!voiceDashboardOpen) {
-      const recKeywords = ["gift", "birthday gift", "recommend", "present", "surprise", "anniversary gift", "gift idea", "find gift", "shopping recommendation"];
-      if (recKeywords.some(kw => lowerText.includes(kw))) {
-        setActiveSmartPanel("recommendation");
-        return;
-      }
-
-      // Allow delivery-related queries to go through to AI search directly rather than opening the panel
-      if (lowerText.includes("track order")) {
-        setActiveSmartPanel("track_order");
-        return;
-      }
-    }
-
     // ── Default: AI search ────────────────────────────────────────────────
     performSearch(trimmed, customCommerceState);
   };
