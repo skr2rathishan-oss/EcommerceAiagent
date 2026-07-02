@@ -34,7 +34,7 @@ import { parseReference } from "./02_referenceParser.mjs";
  */
 export function resolveReference(sessionId, message) {
 
-    const parsed = parseReference(message);
+    const parsed = parseReference(message, sessionId);
 
     if (!parsed.detected) {
         return {
@@ -63,6 +63,12 @@ export function resolveReference(sessionId, message) {
         case "current":
             return resolveCurrent(sessionId);
 
+        case "all":
+            return resolveAll(sessionId);
+
+        case "dynamic_match":
+            return resolveDynamicMatch(sessionId, parsed.targetIndexes);
+
         case "comparison":
             return resolveComparison(sessionId, parsed.indexes);
 
@@ -75,6 +81,66 @@ export function resolveReference(sessionId, message) {
                 reason: "UNKNOWN_REFERENCE"
             };
     }
+}
+
+/**
+ * Resolve all products currently in selection memory.
+ */
+function resolveAll(sessionId) {
+    const products = getProducts(sessionId);
+    if (!products.length) {
+        return {
+            success: false,
+            reason: "EMPTY_SELECTION"
+        };
+    }
+
+    return {
+        success: true,
+        type: "all",
+        products
+    };
+}
+
+/**
+ * Resolve products matched by index in referenceIndex.
+ */
+function resolveDynamicMatch(sessionId, targetIndexes = []) {
+    const products = getProducts(sessionId);
+    if (!products || !products.length || !targetIndexes.length) {
+        return {
+            success: false,
+            reason: "PRODUCT_NOT_FOUND"
+        };
+    }
+
+    const matchedProducts = targetIndexes
+        .map(idx => products[idx])
+        .filter(Boolean);
+
+    if (matchedProducts.length === 0) {
+        return {
+            success: false,
+            reason: "PRODUCT_NOT_FOUND"
+        };
+    }
+
+    if (matchedProducts.length === 1) {
+        const index = products.indexOf(matchedProducts[0]);
+        setCurrentSelection(sessionId, index);
+        return {
+            success: true,
+            type: "single",
+            index,
+            product: matchedProducts[0]
+        };
+    }
+
+    return {
+        success: true,
+        type: "comparison",
+        products: matchedProducts
+    };
 }
 
 /**

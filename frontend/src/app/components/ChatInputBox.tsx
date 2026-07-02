@@ -40,14 +40,23 @@ export const ChatInputBox: React.FC<ChatInputBoxProps> = ({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  const DEFAULT_TEXTAREA_HEIGHT = 32;
+  const MAX_TEXTAREA_HEIGHT = 120;
+
   // Auto-resize textarea height dynamically based on content (uses useLayoutEffect to prevent visual jumping)
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
+
     el.style.height = "auto";
-    const nextHeight = Math.min(el.scrollHeight, 120);
+    const scrollHeight = el.scrollHeight;
+    const shouldGrow = value.trim().length > 0;
+    const nextHeight = shouldGrow
+      ? Math.min(Math.max(scrollHeight, DEFAULT_TEXTAREA_HEIGHT), MAX_TEXTAREA_HEIGHT)
+      : DEFAULT_TEXTAREA_HEIGHT;
+
     el.style.height = `${nextHeight}px`;
-    el.style.overflowY = el.scrollHeight > 120 ? "auto" : "hidden";
+    el.style.overflowY = scrollHeight > MAX_TEXTAREA_HEIGHT ? "auto" : "hidden";
   }, [value, textareaRef]);
 
 

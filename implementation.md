@@ -1,322 +1,299 @@
-Refactor the prompt architecture into a modular Prompt Registry and integrate it cleanly into the existing AI request pipeline.
+Objective
 
-Goal
+Investigate and fix the issue where the Gift Planner correctly ignores category extraction while collecting mandatory information (occasion, recipient, budget), but the LLM still generates product recommendation responses as if the category had already been accepted.
 
-The project now contains many prompt files across different categories (commerce, communication, intelligence, etc.). Prompt loading is becoming difficult to maintain.
+This is not an extraction bug. The extraction layer is already behaving correctly. The bug exists in the conversation orchestration between the Shopping Mission state and the Response Engine.
 
-Create a centralized Prompt Registry that manages all prompts and assembles the final system prompt for the Response Engine.
+Root Cause
 
-Do not change the existing business logic or workflow behavior.
+Current flow:
 
-------------------------------------------------------------
+User
+ ↓
+Conversation Understanding
+ ↓
+Gift Planner Extractor
+ ↓
+Mission State
+ ↓
+Response Engine
+ ↓
+Gemini
 
-1. Create Prompt Registry
-
-Create:
-
-src/agent/prompts/index.mjs
-
-This file should become the single entry point for every prompt used by the AI.
-
-It should export all prompt modules in a structured way.
-
-Example structure:
-
-Commerce
-- shopping
-- delivery
-- checkout
-- orders
-- tracking
-
-Communication
-- writingStyle
-- voice
-- clarification
-- recovery
-
-Intelligence
-- commerce
-- customerPsychology
-- conversationStrategy
-- recommendationStrategy
-- responseLibrary
-- reference
-
-The registry should not contain prompt text.
-It should only organize and expose prompt modules.
-
-------------------------------------------------------------
-
-2. Update Prompt Builder
-
-Refactor promptBuilder.mjs.
-
-Instead of importing individual prompt files, import them only from:
-
-src/agent/prompts/index.mjs
-
-The Prompt Builder should assemble prompts dynamically depending on:
-
-- workflow
-- runtime context
-- language
-- available MCP data
-- response library context
-
-This should become the only place responsible for constructing the final system prompt.
-
-------------------------------------------------------------
-
-3. Response Library Integration
-
-Refactor the Response Engine so that it always performs a Response Library lookup before generating the final response.
-
-When a matching response category exists:
-
-Retrieve:
-- module
-- category
-- language
-- candidate responses
-
-Do NOT directly return one of the responses.
-
-Instead include them inside the Response Engine prompt as context.
-
-Example runtime:
-
-Response Library
-
-Module:
-delivery
-
-Category:
-ask_city
-
-Language:
-english
-
-Candidate Responses:
-
-1...
-2...
-3...
-
-The LLM should receive these templates.
-
-------------------------------------------------------------
-
-4. Rewrite Strategy
-
-Update the Response Library prompt.
-
-The LLM must understand:
-
-The Response Library represents Velora's official communication style.
-
-The templates are NOT final responses.
-
-Instead:
-
-- understand the templates
-- preserve their intent
-- preserve their personality
-- preserve their meaning
-- rewrite naturally
-- combine multiple templates if useful
-- never invent different business logic
-
-If no templates exist:
-
-Generate a completely new response that matches Velora's communication style.
-
-------------------------------------------------------------
-
-5. Writing Style Prompt
-
-Enhance writingStyle.prompt.mjs.
-
-Describe HOW responses should be written.
-
-Requirements:
-
-- conversational
-- natural
-- human
-- friendly
-- premium shopping assistant
-- concise
-- not repetitive
-- context-aware
-- smooth transitions
-- avoid robotic wording
-
-This prompt should only describe writing style.
-
-------------------------------------------------------------
-
-6. Voice Prompt
-
-Enhance voice.prompt.mjs.
-
-Define Velora's personality.
-
-Examples:
-
-- warm
-- confident
-- trustworthy
-- proactive
-- shopping expert
-- polite
-- empathetic
-- premium brand voice
-
-This prompt should never contain workflow logic.
-
-------------------------------------------------------------
-
-7. Response Library Prompt
-
-Rewrite responseLibrary.prompt.mjs.
-
-Explain:
-
-The Response Library is Velora's source of truth.
-
-When templates are provided:
-
-- analyze them
-- identify the best candidate
-- combine if appropriate
-- improve fluency
-- preserve meaning
-- preserve personality
-- respond naturally
-
-Never simply copy a template unless it already perfectly matches the conversation.
-
-------------------------------------------------------------
-
-8. Multilingual Behaviour
-
-The rewriting process must support every language currently supported.
-
-Examples:
-
-- English
-- Sinhala
-- Tamil
-- Tanglish
-
-The LLM must preserve the user's detected language.
-
-Never translate unless the user changes language.
-
-------------------------------------------------------------
-
-9. Runtime Context
-
-Extend the runtime builder so the Response Engine receives:
-
-responseLibrary
-
-{
-    module,
-    category,
-    language,
-    templates
-}
-
-This should become part of the runtime context.
-
-------------------------------------------------------------
-
-10. Logging
-
-Add prompt debugging.
+The extractor correctly rejects category extraction when the mission is still collecting required information.
 
 Example:
 
-[PROMPT]
+Mission Status:
+COLLECTING_INFORMATION
 
-Workflow:
-delivery
+Current Step:
+Collecting Budget
 
-Language:
-english
+User:
+dress
 
-Prompt Modules:
+Extractor:
+Ignored
 
-✓ Commerce
-✓ Voice
-✓ Writing Style
-✓ Response Library
-✓ Recommendation Strategy
+Mission:
+No category added
 
-Response Library:
+However, the Response Engine still tells Gemini to talk about dresses, causing responses such as:
 
-delivery.ask_city
+"I'll show you some dresses..."
 
-Templates:
-3
+instead of asking for the missing budget.
 
-This should help debug prompt construction.
+The Response Engine is therefore not respecting the current Shopping Mission state.
 
-------------------------------------------------------------
+Implementation Requirements
+1. Investigate the Response Pipeline
 
-11. No Breaking Changes
+Trace the complete execution path after extractGiftPlannerData() returns.
 
-Do NOT change:
+Review:
 
-- Conversation Understanding
-- Decision Builder
-- Workflow Manager
-- MCP integrations
-- Business logic
-- UI rendering
+06_commerceServices.mjs
+07_responseEngine.mjs
+runtimeBuilder.mjs
+recommendation prompts
+response strategy prompts
 
-Only improve prompt organization and Response Engine prompt construction.
+Identify where the current mission state is lost or ignored.
 
-------------------------------------------------------------
+2. Make the Response Engine State-Aware
 
-12. Expected Architecture
+Before Gemini is invoked, inspect:
 
-User
-      ↓
-Conversation Understanding
-      ↓
-Decision Builder
-      ↓
-Workflow
-      ↓
-Business Logic / MCP
-      ↓
-Runtime Builder
-      ↓
-Prompt Builder
-      ↓
-Prompt Registry (index.mjs)
-      ↓
-Response Library Lookup
-      ↓
-Response Engine Prompt
-      ↓
-Gemini
-      ↓
-UI Renderer
+shoppingMission.status
+shoppingMission.currentStep
+shoppingMission.presentation
+validation.nextStep
+validation.missingFields
 
-------------------------------------------------------------
+The Response Engine must use these values as the single source of truth.
 
-Expected Result
+Never infer the next conversational step from the user's latest message.
 
-The Prompt Registry becomes the single source for prompt management.
+3. Introduce Blocking Reasons
 
-The Prompt Builder dynamically assembles prompts.
+Instead of simply ignoring category extraction, return a structured response from the commerce layer.
 
-The Response Library guides the LLM instead of bypassing it.
+Example:
 
-Every response becomes more natural while preserving Velora's multilingual personality.
+{
+    blocked: true,
+    blockedReason: "WAITING_FOR_BUDGET",
+    nextStep: "Collecting Budget"
+}
 
-The architecture remains modular, scalable, and easy to extend as new prompt modules and workflows are added.
+Supported blocking reasons:
+
+WAITING_FOR_OCCASION
+WAITING_FOR_RECIPIENT
+WAITING_FOR_BUDGET
+WAITING_FOR_CATEGORIES
+
+The Response Engine must consume this metadata before calling Gemini.
+
+4. Enforce Strict Conversation State Rules
+
+Gemini must never advance the workflow ahead of the Shopping Mission.
+
+Required behavior:
+
+Collecting Occasion
+
+Only ask for the occasion.
+
+Never discuss:
+
+products
+categories
+recommendations
+budget allocation
+Collecting Recipient
+
+Only ask who the gift is for.
+
+Do not recommend products.
+
+Collecting Budget
+
+Only ask for the budget.
+
+If the user says:
+
+dress
+iphone
+flowers
+earbuds
+watch
+
+Gemini must respond naturally:
+
+"Great choice! Before I start searching, could you tell me your budget?"
+
+Never mention searching.
+
+Never mention products found.
+
+Never say "I'll show you..."
+
+Collecting Categories
+
+Accept categories.
+
+Only after at least one valid category exists may the planner transition to READY_FOR_SEARCH.
+
+5. Prevent Premature Product Search
+
+The following actions must never occur while the mission is in COLLECTING_INFORMATION:
+
+searchProducts()
+orchestrateSequentialSearch()
+recommendation generation
+comparison generation
+product card rendering
+search payload generation
+"Search Products" UI payload
+
+All search logic must remain blocked until:
+
+validation.ready == true
+6. Runtime Prompt Improvements
+
+Update the runtime prompt with strict workflow instructions.
+
+Example:
+
+Shopping Mission is authoritative.
+
+Follow shoppingMission.currentStep exactly.
+
+Never skip steps.
+
+Never assume missing information.
+
+Never recommend products until the mission reaches READY_FOR_SEARCH.
+
+If categories are mentioned before budget, acknowledge them politely but continue collecting the missing budget.
+
+Do not fabricate searches.
+
+Do not say you are searching when no search has been executed.
+
+Never generate Search Products payloads unless grounded MCP results exist.
+7. Response Engine Safety Check
+
+Before generating the final response, verify:
+
+Mission Status
+↓
+
+COLLECTING_INFORMATION ?
+
+↓
+
+Yes
+
+↓
+
+Missing Fields?
+
+↓
+
+Occasion
+Recipient
+Budget
+Mission Items
+
+↓
+
+Generate ONLY the question for the next missing field.
+
+No product conversation should occur until the mission is validated.
+
+8. Verification Scenarios
+
+All of these flows must pass:
+
+Scenario 1
+birthday
+girlfriend
+dress
+
+Expected:
+
+Ask for budget.
+
+No search.
+
+Scenario 2
+birthday
+girlfriend
+50000
+dress
+
+Expected:
+
+Accept category
+↓
+
+READY_FOR_SEARCH
+↓
+
+MCP search
+↓
+
+Product cards
+Scenario 3
+birthday
+girlfriend
+dress
+50000
+
+Expected:
+
+Remember dress.
+
+Ask for budget.
+
+After budget is received:
+
+Automatically continue with dress search.
+
+Do not ask the user to repeat "dress".
+Scenario 4
+birthday
+girlfriend
+50000
+
+Expected:
+
+Ask which gift categories they would like to include.
+Scenario 5
+birthday
+girlfriend
+50000
+dress
+earbuds
+flowers
+
+Expected:
+
+Mission becomes READY_FOR_SEARCH.
+
+Sequential searches begin.
+
+Product cards are rendered.
+
+No premature recommendations.
+Success Criteria
+The Shopping Mission state is the single source of truth.
+The Response Engine strictly follows shoppingMission.currentStep.
+No product recommendations or searches occur before the mission is ready.
+Blocked states return natural conversational prompts instead of search responses.
+Existing workflows (Product Search, Checkout, Delivery, Tracking) remain unaffected.
+No regressions to the Gift Planner sequential workflow or Phase 3 functionality.

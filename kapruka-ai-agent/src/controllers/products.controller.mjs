@@ -165,7 +165,9 @@ async function runMcpSearch(query, category, budget) {
 
     const result = await mcpClient.callTool({
       name: "kapruka_search_products",
-      arguments: searchParams
+      arguments: {
+        params: searchParams
+      }
     });
 
     const raw =

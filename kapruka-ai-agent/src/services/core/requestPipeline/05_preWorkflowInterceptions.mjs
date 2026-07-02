@@ -12,6 +12,38 @@ export const executePreWorkflowInterceptions = async (reqBody, decision, context
   const { deliverySession, deliveryState, pendingOrder } = contextData;
   const lowerMsg = message ? message.toLowerCase().trim() : "";
 
+  // ── Early Gift Planner Cancellation Check ──
+  const giftPlannerCancelPhrases = ["cancel gift planner", "never mind", "stop planning", "cancel planner", "stop planner"];
+  const isGiftPlannerCancel = giftPlannerCancelPhrases.some(phrase => lowerMsg.includes(phrase));
+  const isGiftPlannerActive = contextData.userState?.activeFlow?.type === "gift_planner" || contextData.userState?.workflowContext?.currentWorkflow === "gift_planner";
+
+  if (isGiftPlannerCancel && isGiftPlannerActive) {
+    logStepDone("Interception", "PRE-WF: Gift Planner Cancellation");
+    await saveConversationState(sessionId, { 
+      shoppingMission: null,
+      activeFlow: {
+        type: "general_chat",
+        status: "active",
+        currentStep: "browsing"
+      },
+      workflowContext: {
+        ...(contextData.userState?.workflowContext || {}),
+        currentWorkflow: "idle",
+        previousWorkflow: "gift_planner",
+        lastTransition: "gift_planner_to_idle"
+      }
+    });
+
+    const cancelText = "😊 No worries. I've cancelled your Gift Planner session and cleared your shopping mission. What would you like to do next?";
+    return {
+      earlyReturn: true,
+      providerUsed: "response_library",
+      pipelineStage: "Response Engine",
+      responsePayload: { type: "text", text: cancelText },
+      saveUserMessage: true
+    };
+  }
+
   // ── Early Cancellation Check ──
   const cancellationPhrases = ["cancel order", "don't place it", "never mind", "don't place", "cancel my order", "stop order", "cancel"];
   const isEarlyCancellation = cancellationPhrases.some(phrase => lowerMsg.includes(phrase));

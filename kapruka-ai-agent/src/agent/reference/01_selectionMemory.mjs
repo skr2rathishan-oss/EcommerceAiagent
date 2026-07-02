@@ -21,15 +21,112 @@
 import { getShoppingContext, updateShoppingContext } from "../memoryManager.mjs";
 
 /**
+ * Expose raw shopping context helper.
+ */
+export function getSelectionContext(sessionId) {
+    return getShoppingContext(sessionId);
+}
+
+/**
+ * Dynamic reference index builder.
+ * Decouples parsing from repetitive product parsing by creating
+ * a normalized index on search results arrival.
+ */
+export function buildReferenceIndex(products = []) {
+    const index = {
+        products: [],
+        categories: {},
+        brands: {},
+        terms: {}
+    };
+
+    if (!Array.isArray(products)) return index;
+
+    const stopWords = new Set([
+        "the", "and", "a", "of", "with", "for", "to", "in", "on", "at", "by", "an", "is", "it", "from", "this", "that"
+    ]);
+
+    products.forEach((product, idx) => {
+        if (!product) return;
+
+        const name = (product.name || product.productName || product.title || "").toLowerCase();
+        const catVal = product.category;
+        const category = (typeof catVal === "object" && catVal ? catVal.name : catVal) || "";
+        const categoryLower = String(category).toLowerCase();
+        const brand = (product.brand || "").toLowerCase();
+
+        const item = {
+            index: idx,
+            id: product.id || product.product_id,
+            name,
+            category: categoryLower,
+            brand,
+            searchableTerms: []
+        };
+
+        const addTerm = (term, dictionary, indexId) => {
+            if (!term) return;
+            const clean = term.trim().replace(/[^\w\s]/g, "").toLowerCase();
+            if (!clean || stopWords.has(clean)) return;
+
+            if (!item.searchableTerms.includes(clean)) {
+                item.searchableTerms.push(clean);
+            }
+
+            if (!dictionary[clean]) {
+                dictionary[clean] = [];
+            }
+            if (!dictionary[clean].includes(indexId)) {
+                dictionary[clean].push(indexId);
+            }
+        };
+
+        // Index category (singular and plural)
+        if (categoryLower) {
+            addTerm(categoryLower, index.categories, idx);
+            if (categoryLower.endsWith("s")) {
+                addTerm(categoryLower.slice(0, -1), index.categories, idx);
+            } else {
+                addTerm(categoryLower + "s", index.categories, idx);
+            }
+        }
+
+        // Index brand
+        if (brand) {
+            addTerm(brand, index.brands, idx);
+        }
+
+        // Index name tokens (singular and plural)
+        const nameWords = name.split(/\s+/);
+        nameWords.forEach(word => {
+            addTerm(word, index.terms, idx);
+            if (word.endsWith("s")) {
+                addTerm(word.slice(0, -1), index.terms, idx);
+            } else {
+                addTerm(word + "s", index.terms, idx);
+            }
+        });
+
+        index.products.push(item);
+    });
+
+    return index;
+}
+
+/**
  * Save latest product search results.
  */
 export function saveSelection(sessionId, products = []) {
     if (!sessionId) return;
 
+    const lastSearchResults = Array.isArray(products) ? products : [];
+    const referenceIndex = buildReferenceIndex(lastSearchResults);
+
     updateShoppingContext(sessionId, {
-        lastSearchResults: Array.isArray(products) ? products : [],
+        lastSearchResults,
         lastSelectedIndex: null,
-        selectedProduct: null
+        selectedProduct: null,
+        referenceIndex
     });
 }
 

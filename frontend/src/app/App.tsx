@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart, Menu, ChevronDown, Bell, GitCompare } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, MapPin, Sparkles, ShoppingBag, Gift, Package, Heart, Tag, Percent, Zap, ShoppingCart, PanelLeftOpen, ChevronDown, Bell, GitCompare, CheckCircle, TrendingUp, ShoppingBasket, Cpu, Baby, Home, Shirt, Flower, Cake } from "lucide-react";
 import { ProductShowcase } from "./components/ProductShowcase";
 import { type Product, PRODUCTS } from "./components/products";
 import { getDefaultSeller } from "./components/InteractiveOrderSummary";
@@ -20,7 +20,8 @@ import { PanelPopup } from "./components/PanelPopup";
 import { CartScreen } from "./components/CartScreen";
 import { WishlistScreen } from "./components/WishlistScreen";
 import { SmartInputPanel } from "./components/SmartInputPanel";
-import { fetchRecommendations } from "./services/productServices";
+import { ShoppingMissionContainer } from "./components/ShoppingMissionContainer";
+import { fetchRecommendations, fetchCategoryProducts } from "./services/productServices";
 import { mapBackendProductToUI, formatUIPrice } from "./services/mapping";
 import { useIsMobile } from "./components/ui/use-mobile";
 
@@ -71,23 +72,29 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
   const isMobile = useIsMobile();
   const [imgErr, setImgErr] = useState(false);
   const { wishlistItems, handleWishlist } = useApp();
+  if (!prod) return null;
   const isWishlisted = wishlistItems.some(item => item.id === prod.id);
 
+  const prodIdStr = prod.id || "";
   // Simulated discount for visual completeness matching design
-  const hasDiscount = (prod.originalPrice && prod.originalPrice > prod.price) || (parseInt(prod.id.replace(/\D/g, "")) % 3 === 0);
+  const hasDiscount = (prod.originalPrice && prod.originalPrice > prod.price) || (parseInt(prodIdStr.replace(/\D/g, "")) % 3 === 0);
   const discountPct = prod.originalPrice && prod.originalPrice > prod.price
     ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100)
     : 10;
 
-  const mockRating = getRatingInfo(prod.id);
+  const mockRating = getRatingInfo(prodIdStr);
+  const imageUrl = prod.images?.[0] || "";
+
+  const cardWidth = isMobile ? "calc((100vw - 32px) / 3)" : "160px";
 
   return (
     <motion.div
       whileHover={{ y: -3, borderColor: "rgba(124, 77, 186, 0.35)", boxShadow: "0 6px 18px rgba(64, 41, 112, 0.06)" }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="w-[130px] md:w-[160px] flex-shrink-0 mx-auto"
+      className="flex-shrink-0 mx-auto"
       style={{
+        width: cardWidth,
         background: "var(--card-bg, rgba(255, 255, 255, 0.65))",
         backdropFilter: "blur(10px)",
         border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.15))",
@@ -119,9 +126,9 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
             {discountPct}% OFF
           </div>
         )}
-        {!imgErr ? (
+        {imageUrl && !imgErr ? (
           <img
-            src={prod.images[0]}
+            src={imageUrl}
             alt={prod.name}
             onError={() => setImgErr(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
@@ -227,6 +234,255 @@ function RecommendationCard({ prod, onClick }: { prod: Product; onClick: () => v
   );
 }
 
+type HeroProduct = Product & { discountPct?: number; badge?: string };
+
+type HeroCategoryConfig = {
+  key: string;
+  title: string;
+  query: string;
+  category: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string; color?: string }>;
+};
+
+const HERO_CATEGORY_CONFIGS: HeroCategoryConfig[] = [
+  { key: "trending", title: "🔥 Trending Products", query: "popular products", category: "Popular", icon: TrendingUp },
+  { key: "gifts", title: "🎁 Gifts", query: "gift ideas", category: "Gifts", icon: Gift },
+  { key: "cakes", title: "🍰 Cakes", query: "cakes", category: "Cakes", icon: Cake },
+  { key: "flowers", title: "🌸 Flowers", query: "flowers", category: "Flowers", icon: Flower },
+  { key: "grocery", title: "🛒 Grocery", query: "grocery essentials", category: "Grocery", icon: ShoppingBasket },
+  { key: "electronics", title: "📱 Electronics", query: "electronics", category: "Electronics", icon: Cpu },
+  { key: "baby", title: "👶 Baby Care", query: "baby products", category: "Baby Care", icon: Baby },
+  { key: "home", title: "🏠 Home & Living", query: "home products", category: "Home & Living", icon: Home },
+  { key: "beauty", title: "💄 Beauty", query: "beauty products", category: "Beauty", icon: Sparkles },
+  { key: "fashion", title: "👕 Fashion", query: "fashion products", category: "Fashion", icon: Shirt },
+];
+
+function PremiumShowcaseCard({
+  prod,
+  onAddToCart,
+  onQuickView,
+}: {
+  prod: HeroProduct;
+  onAddToCart: (product: Product) => void;
+  onQuickView: (product: Product) => void;
+}) {
+  const isMobile = useIsMobile();
+  const [imgErr, setImgErr] = useState(false);
+  const imageUrl = prod.images?.[0] || "";
+
+  return (
+    <motion.div
+      whileHover={{ y: -6, scale: 1.01, boxShadow: "0 16px 40px rgba(64, 41, 112, 0.12)" }}
+      transition={{ type: "spring", stiffness: 320, damping: 24 }}
+      className="group flex h-full flex-col overflow-hidden rounded-[18px] border border-white/60 bg-white/70 p-2 shadow-[0_10px_30px_rgba(64,41,112,0.07)] backdrop-blur-xl"
+      style={{ minHeight: 280 }}
+    >
+      <div className="relative overflow-hidden rounded-[14px]" style={{ aspectRatio: "1 / 1" }}>
+        {prod.discountPct ? (
+          <div className="absolute left-2 top-2 z-10 rounded-full px-2.5 py-1 text-[10px] font-extrabold text-white" style={{ background: "linear-gradient(135deg, #7c4dba, #ec4899)" }}>
+            {prod.discountPct}% OFF
+          </div>
+        ) : null}
+        {prod.badge ? (
+          <div className="absolute right-2 top-2 z-10 rounded-full border border-white/40 bg-white/80 px-2 py-0.5 text-[10px] font-bold text-[#6d4d9e] backdrop-blur-sm">
+            {prod.badge}
+          </div>
+        ) : null}
+        {imageUrl && !imgErr ? (
+          <img
+            src={imageUrl}
+            alt={prod.name}
+            onError={() => setImgErr(true)}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#f5f0ff] to-[#ede4ff]">
+            <Sparkles size={24} color="rgba(124,77,186,0.3)" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col gap-2 px-2 pb-2 pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.18em]" style={{ color: "#7c6a9e" }}>
+            {prod.brand}
+          </span>
+          {prod.rating ? (
+            <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "#f59e0b" }}>
+              <span>★</span>
+              <span>{prod.rating.toFixed(1)}</span>
+            </span>
+          ) : null}
+        </div>
+
+        <h4 className="line-clamp-2 text-[13px] font-extrabold leading-tight" style={{ color: "var(--text-primary, #1a1025)" }}>
+          {prod.name}
+        </h4>
+
+        <div className="mt-auto flex items-center justify-between pt-1">
+          <span className="text-[13px] font-extrabold" style={{ color: "#7c4dba" }}>
+            {formatUIPrice(prod.price, prod.currency)}
+          </span>
+          <div className="flex items-center gap-2">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onQuickView(prod);
+              }}
+              className="rounded-full border border-[#e9ddff] bg-white/80 px-2.5 py-1 text-[11px] font-bold text-[#6d4d9e] backdrop-blur-sm"
+            >
+              Quick View
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToCart(prod);
+              }}
+              className="rounded-full px-2.5 py-1 text-[11px] font-extrabold text-white"
+              style={{ background: "linear-gradient(135deg, #7c4dba, #a855f7)" }}
+            >
+              Add
+            </motion.button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function PremiumShowcaseSection({
+  title,
+  icon: Icon,
+  products,
+  loading,
+  empty,
+  onAddToCart,
+  onQuickView,
+}: {
+  title: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string; color?: string }>;
+  products: HeroProduct[];
+  loading: boolean;
+  empty: boolean;
+  onAddToCart: (product: Product) => void;
+  onQuickView: (product: Product) => void;
+}) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = () => {
+    const el = rowRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
+  };
+
+  useEffect(() => {
+    checkScroll();
+  }, [products, loading, empty]);
+
+  useEffect(() => {
+    window.addEventListener("resize", checkScroll);
+    return () => window.removeEventListener("resize", checkScroll);
+  }, []);
+
+  const scrollSection = (direction: -1 | 1) => {
+    rowRef.current?.scrollBy({ left: direction * 320, behavior: "smooth" });
+  };
+
+  return (
+    <div className="w-full rounded-[24px] border border-white/70 bg-white/45 p-4 shadow-[0_14px_38px_rgba(64,41,112,0.06)] backdrop-blur-xl" style={{ boxShadow: "0 16px 40px rgba(64,41,112,0.06)" }}>
+      <div className="mb-4 flex items-center justify-between gap-3 px-1">
+        <div className="flex items-center gap-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/70 bg-white/70 shadow-sm" style={{ color: "#7c4dba" }}>
+            <Icon size={18} strokeWidth={2.2} />
+          </div>
+          <span className="text-[15px] font-extrabold" style={{ color: "var(--text-primary, #1a1025)" }}>
+            {title}
+          </span>
+        </div>
+        <button type="button" className="flex items-center gap-1 text-[12px] font-extrabold" style={{ color: "#7c4dba" }}>
+          View all <ChevronRight size={14} strokeWidth={2.4} />
+        </button>
+      </div>
+
+      <div className="relative w-full">
+        <AnimatePresence>
+          {canScrollLeft && (
+            <motion.button
+              key={`${title}-left`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => scrollSection(-1)}
+              aria-label={`Scroll ${title} left`}
+              className="absolute left-[-10px] top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/80 shadow-lg backdrop-blur-md"
+              style={{ color: "#7c4dba" }}
+            >
+              <ChevronLeft size={18} strokeWidth={2.3} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {canScrollRight && (
+            <motion.button
+              key={`${title}-right`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              type="button"
+              onClick={() => scrollSection(1)}
+              aria-label={`Scroll ${title} right`}
+              className="absolute right-[-10px] top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/80 shadow-lg backdrop-blur-md"
+              style={{ color: "#7c4dba" }}
+            >
+              <ChevronRight size={18} strokeWidth={2.3} />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <div
+          ref={rowRef}
+          onScroll={checkScroll}
+          className="no-scrollbar flex gap-3 overflow-x-auto pb-2"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none", WebkitOverflowScrolling: "touch" }}
+        >
+          {loading ? (
+            Array.from({ length: 4 }).map((_, idx) => (
+              <div key={`${title}-skeleton-${idx}`} className="flex-shrink-0 w-[calc((100%-12px)/2)] min-w-[160px] sm:w-[calc((100%-24px)/3)] lg:w-[calc((100%-48px)/5)]">
+                <div className="h-[280px] rounded-[18px] border border-white/60 bg-white/60 shadow-[0_10px_30px_rgba(64,41,112,0.06)]" style={{ animation: "pulse 1.5s infinite" }} />
+              </div>
+            ))
+          ) : empty ? (
+            <div className="w-full rounded-[16px] border border-dashed border-[#d7c8f2] bg-white/50 px-4 py-8 text-center text-[13px] font-semibold" style={{ color: "var(--text-secondary, #7c6a9e)" }}>
+              No products are available for this category right now. Please try again shortly.
+            </div>
+          ) : (
+            products.map((prod) => (
+              <div key={prod.id} className="flex-shrink-0 w-[calc((100%-12px)/2)] min-w-[160px] sm:w-[calc((100%-24px)/3)] lg:w-[calc((100%-48px)/5)]">
+                <PremiumShowcaseCard prod={prod} onAddToCart={onAddToCart} onQuickView={onQuickView} />
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MainApp() {
   const { removeFromCart } = useCart();
   const {
@@ -274,7 +530,9 @@ function MainApp() {
     setLastCheckedDelivery,
     setPendingConfirmProduct,
     setNearbyCitiesSuggested,
-    setIsCartCheckout
+    setIsCartCheckout,
+    shoppingMission,
+    setShoppingMission
   } = useApp();
 
 
@@ -379,6 +637,8 @@ function MainApp() {
   const [recommendations, setRecommendations] = useState<Product[]>([]);
   const [loadingRecs, setLoadingRecs] = useState<boolean>(true);
   const [showBuyConfirm, setShowBuyConfirm] = useState<boolean>(false);
+  const [heroCategoryState, setHeroCategoryState] = useState<Record<string, { products: HeroProduct[]; loading: boolean; empty: boolean }>>({});
+  const heroCategoryCacheRef = useRef<Record<string, HeroProduct[]>>({});
 
   useEffect(() => {
     setShowBuyConfirm(false);
@@ -457,6 +717,10 @@ function MainApp() {
 
 
   const handleItemClick = (label: string, rect: DOMRect) => {
+    if (isMobile) {
+      setSidebarOpen(false);
+    }
+
     if (label === "New Chat") {
       setPhase("centered");
       setMessages([]);
@@ -513,10 +777,12 @@ function MainApp() {
   return (
     <div className="h-screen w-screen flex overflow-hidden" style={{ background: "var(--app-bg, #f0ebfa)", fontFamily: "'Nunito',sans-serif" }}>
       {/* Sidebar */}
-      <Sidebar onItemClick={handleItemClick} />
+      {!isMobile && <Sidebar onItemClick={handleItemClick} />}
 
       {/* Main */}
       <div className="flex-1 flex flex-col relative overflow-hidden min-h-0">
+        <ShoppingMissionContainer />
+
         {/* Floating Header Bar */}
         <div
           className="absolute top-6 left-0 right-0 z-30 w-full select-none"
@@ -525,7 +791,16 @@ function MainApp() {
           <div className="w-full px-4 md:px-8 flex items-center justify-between">
             {/* Left Side: Hamburger trigger + Logo */}
             <div className="flex items-center gap-3">
-
+              {isMobile && (
+                <button
+                  type="button"
+                  onClick={() => setSidebarOpen(true)}
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/95 p-2 text-[#7c4dba] shadow-sm transition hover:bg-white md:hidden"
+                  aria-label="Open sidebar"
+                >
+                  <PanelLeftOpen size={20} strokeWidth={2.2} />
+                </button>
+              )}
 
               <div
                 onClick={() => {
@@ -536,17 +811,7 @@ function MainApp() {
                 }}
                 className="flex items-center gap-2.5 cursor-pointer group"
                 title="Go to Home"
-              >
-                <img
-                  src="/logo.png"
-                  alt="Velora"
-                  className="object-contain group-hover:scale-102 transition-transform duration-200"
-                  style={{
-                    height: 32,
-                    flexShrink: 0,
-                  }}
-                />
-              </div>
+              />
             </div>
 
             {/* Right Side: Notification Bell + Profile Button */}
@@ -731,7 +996,7 @@ function MainApp() {
                   style={{
                     scrollbarWidth: "none",
                     msOverflowStyle: "none",
-                    paddingTop: 84,
+                    paddingTop: 104,
                   }}
                 >
                   <style>{`
@@ -778,8 +1043,7 @@ function MainApp() {
                       <div className="w-full mt-5 flex flex-nowrap overflow-x-auto no-scrollbar gap-2.5 justify-center select-none pb-1"
                         style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
                         {[
-                          { title: "Find Products", mobileTitle: "Products", icon: ShoppingBag, color: "#7c4dba", fill: "#efeaff", type: "find_products" as const },
-                          { title: "Find Gift", mobileTitle: "Gift", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
+                          { title: "Gift Planner", mobileTitle: "Gift Planner", icon: Gift, color: "#ec4899", fill: "#fce7f3", type: "find_gift" as const },
                           { title: "Compare Products", mobileTitle: "Compare", icon: GitCompare, color: "#6366f1", fill: "#e0e7ff", type: "compare_products" as const },
                           { title: "Track My Order", mobileTitle: "Track", icon: Package, color: "#f97316", fill: "#ffedd5", type: "track_order" as const }
                         ].map((act, idx) => {
@@ -921,8 +1185,11 @@ function MainApp() {
                           Array.from({ length: 5 }).map((_, i) => (
                             <div
                               key={i}
-                              className="w-[130px] md:w-[160px] flex-shrink-0 h-[115px] md:h-[202px] mx-auto"
+                              className="flex-shrink-0 mx-auto"
                               style={{
+                                width: "calc((100vw - 32px) / 3)",
+                                minWidth: 104,
+                                height: 170,
                                 borderRadius: 14,
                                 background: "var(--card-bg, rgba(255, 255, 255, 0.4))",
                                 border: "1.5px solid var(--card-border, rgba(124, 77, 186, 0.08))",
@@ -951,13 +1218,31 @@ function MainApp() {
                               key={prod.id}
                               prod={prod}
                               onClick={() => {
-                                handleRequestProductDetails(prod.id, prod.name);
+                                handleRequestProductDetails(prod.id, prod.name, prod);
                               }}
                             />
                           ))
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  <div className="mt-6 flex w-full max-w-7xl flex-col gap-4 select-none">
+                    {HERO_CATEGORY_CONFIGS.map((section) => {
+                      const sectionState = heroCategoryState[section.key] || { products: [], loading: true, empty: false };
+                      return (
+                        <PremiumShowcaseSection
+                          key={section.key}
+                          title={section.title}
+                          icon={section.icon}
+                          products={sectionState.products}
+                          loading={sectionState.loading}
+                          empty={sectionState.empty}
+                          onAddToCart={(product) => handleAddToCart(product)}
+                          onQuickView={(product) => handleRequestProductDetails(product.id, product.name, product)}
+                        />
+                      );
+                    })}
                   </div>
                 </motion.div>
               )}
@@ -980,7 +1265,7 @@ function MainApp() {
                       const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id) || shoppingContext.lastSearchResults.find(p => p.id === id);
                       setSelectedIds({});
                       setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
-                      handleRequestProductDetails(id, found?.name);
+                      handleRequestProductDetails(id, found?.name, found);
                     }}
                     onContinueShopping={() => textareaRef.current?.focus()}
                     onSelectProduct={handleProductSelect}
@@ -1296,7 +1581,7 @@ function MainApp() {
             const found = recommendations.find(p => p.id === id) || PRODUCTS.find(p => p.id === id) || shoppingContext.lastSearchResults.find(p => p.id === id);
             setSelectedIds({});
             setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
-            handleRequestProductDetails(id, found?.name);
+            handleRequestProductDetails(id, found?.name, found);
           }}
         />
       </div>
@@ -1309,6 +1594,21 @@ function MainApp() {
       </AnimatePresence>
 
 
+
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-stretch bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        >
+          <div className="relative h-full w-full max-w-[360px] bg-transparent" onClick={(e) => e.stopPropagation()}>
+            <Sidebar
+              onItemClick={handleItemClick}
+              mobileOverlay
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Checkout overlay modal removed to favor conversational checkout */}
     </div>

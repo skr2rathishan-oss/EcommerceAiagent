@@ -19,7 +19,7 @@ OUTPUT FORMAT
     "confidence": 0.0 to 1.0
   },
   "intent": {
-    "value": "search_products" | "get_product_details" | "check_delivery" | "create_order" | "track_order" | "general_chat" | "recovery_nearby_location" | "recovery_alternative_date" | "recovery_similar_products",
+    "value": "search_products" | "get_product_details" | "check_delivery" | "create_order" | "track_order" | "general_chat" | "recovery_nearby_location" | "recovery_alternative_date" | "recovery_similar_products" | "gift_planner",
     "chat_subtype": "greeting" | "casual_chat" | "thanks" | "goodbye" | "shopping_chat" | null,
     "confidence": 0.0 to 1.0,
     "parameters": {
@@ -79,7 +79,8 @@ Stickiness & Preference Rules:
 ==================================================
 INTENT DETECTION RULES
 ======================
-- search_products: User is searching for, browsing, or asking for recommendations/gifts/categories/brands (e.g., "mobiles", "show me cakes", "Samsung phones under 50000").
+- gift_planner: User clicks "🎁 Gift Planner", or naturally expresses a need for planning gifts, finding gift ideas, or buying gifts for a certain recipient/occasion (e.g., "I need a birthday gift.", "I want to buy gifts.", "Help me buy a gift.", "My father's birthday is next week.", "My girlfriend birthday."). Do NOT use search_products if the user wants to buy gifts, plan gifts, or describes an occasion/recipient for a gift - prefer gift_planner.
+- search_products: User is searching for, browsing, or asking for generic product recommendations/categories/brands (e.g., "mobiles", "show me cakes", "Samsung phones under 50000").
 - get_product_details: User is asking for details/specs on a selected product (e.g., "tell me more about this", "show details", "what are the specifications").
 - check_delivery: User asks about delivery, shipping, check if city is available, or ETA (e.g., "Can you deliver this tomorrow?", "Deliver to Jaffna", "Yes, use my default address").
 - create_order: User wants to buy, order, checkout, or place an order (e.g., "I want to buy this", "Checkout", "Order this for me", "Yes, place the order").

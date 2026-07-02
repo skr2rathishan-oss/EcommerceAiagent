@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import { ProductShowcase } from "./ProductShowcase";
@@ -57,7 +57,17 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
   activityExpanded,
   onExpandedChange,
 }) => {
-  const { displayedCounts, setDisplayedCounts, setMessages, setActiveDetailsProduct } = useApp();
+  const { displayedCounts, setDisplayedCounts, setMessages, setActiveDetailsProduct, shoppingMission, activeMissionProducts } = useApp();
+
+  const latestAiProductMessageIndex = useMemo(() => {
+    for (let idx = messages.length - 1; idx >= 0; idx--) {
+      const m = messages[idx];
+      if (m.role === "ai" && m.products && m.products.length > 0) {
+        return idx;
+      }
+    }
+    return -1;
+  }, [messages]);
   const isMobile = useIsMobile();
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastScrolledProductIdRef = useRef<string | null>(null);
@@ -196,7 +206,7 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                       border: msg.role === "ai" ? "1px solid rgba(64,41,112,0.1)" : "none",
                     }}
                   >
-                    {msg.role === "ai" && !(msg.products && msg.products.length > 0) ? (
+                    {msg.role === "ai" ? (
                       <AIMessageRenderer text={msg.text} streaming={msg.streaming} />
                     ) : (
                       msg.text
@@ -266,56 +276,67 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
                   )}
                 </div>
 
-                {msg.role === "ai" && msg.products && msg.products.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
-                    style={{ marginTop: 12 }}
-                  >
-                    {/* Determine how many products to display */}
-                    {(() => {
-                      const total = msg.products.length;
-                      const currentCount = displayedCounts[i] ?? (total >= 15 ? 15 : total);
-                      const showCount = Math.min(currentCount, total);
-                      return (
-                        <>
-                          <ProductShowcase
-                            products={msg.products.slice(0, showCount)}
-                            selectedId={selectedIds[i] ?? null}
-                            onSelect={p => setSelectedIds(prev => ({ ...prev, [i]: p ? p.id : null }))}
-                            onAddToCart={onAddToCart}
-                            onBuyNow={onBuyNow}
-                            onWishlist={onWishlist}
-                            onViewDetails={onViewDetails}
-                            onSelectProduct={onSelectProduct}
-                          />
-                          {showCount < total && (
-                            <div style={{ marginTop: isMobile ? 8 : 12, display: "flex", justifyContent: "center" }}>
-                              <button
-                                onClick={() => {
-                                  const newCount = Math.min(showCount + 5, total);
-                                  setDisplayedCounts(prev => ({ ...prev, [i]: newCount }));
-                                }}
-                                style={{
-                                  padding: isMobile ? "5px 10px" : "8px 16px",
-                                  background: "linear-gradient(135deg,#7c4dba,#402970)",
-                                  color: "#fff",
-                                  border: "none",
-                                  borderRadius: isMobile ? 5 : 6,
-                                  fontFamily: "'Nunito',sans-serif",
-                                  cursor: "pointer",
-                                  fontSize: isMobile ? "10.5px" : "12.5px",
-                                  boxShadow: "0 2px 8px rgba(64,41,112,0.2)"
-                                }}
-                              >
-                                Load More (+5)
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </motion.div>
-                )}
+                {msg.role === "ai" && msg.products && msg.products.length > 0 && (() => {
+                  const isMissionCollecting = shoppingMission?.status === "COLLECTING_INFORMATION" || shoppingMission?.status === "CREATED";
+                  // Only use activeMissionProducts when this message was explicitly a gift planner
+                  // product grid (msg.isGiftPlanner === true). Regular searches (handbags, phones, etc.)
+                  // must always display their own msg.products — never activeMissionProducts.
+                  const isLatestActiveMissionGrid = !!msg.isGiftPlanner && !!shoppingMission && !!shoppingMission.status && !isMissionCollecting && i === latestAiProductMessageIndex;
+                  const currentProducts = isLatestActiveMissionGrid ? activeMissionProducts : msg.products;
+
+                  if (!currentProducts || currentProducts.length === 0) return null;
+
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: 0.1 }}
+                      style={{ marginTop: 12 }}
+                    >
+                      {/* Determine how many products to display */}
+                      {(() => {
+                        const total = currentProducts.length;
+                        const currentCount = displayedCounts[i] ?? (total >= 15 ? 15 : total);
+                        const showCount = Math.min(currentCount, total);
+                        return (
+                          <>
+                            <ProductShowcase
+                              products={currentProducts.slice(0, showCount)}
+                              selectedId={selectedIds[i] ?? null}
+                              onSelect={p => setSelectedIds(prev => ({ ...prev, [i]: p ? p.id : null }))}
+                              onAddToCart={onAddToCart}
+                              onBuyNow={onBuyNow}
+                              onWishlist={onWishlist}
+                              onViewDetails={onViewDetails}
+                              onSelectProduct={onSelectProduct}
+                            />
+                            {showCount < total && (
+                              <div style={{ marginTop: isMobile ? 8 : 12, display: "flex", justifyContent: "center" }}>
+                                <button
+                                  onClick={() => {
+                                    const newCount = Math.min(showCount + 5, total);
+                                    setDisplayedCounts(prev => ({ ...prev, [i]: newCount }));
+                                  }}
+                                  style={{
+                                    padding: isMobile ? "5px 10px" : "8px 16px",
+                                    background: "linear-gradient(135deg,#7c4dba,#402970)",
+                                    color: "#fff",
+                                    border: "none",
+                                    borderRadius: isMobile ? 5 : 6,
+                                    fontFamily: "'Nunito',sans-serif",
+                                    cursor: "pointer",
+                                    fontSize: isMobile ? "10.5px" : "12.5px",
+                                    boxShadow: "0 2px 8px rgba(64,41,112,0.2)"
+                                  }}
+                                >
+                                  Load More (+5)
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </motion.div>
+                  );
+                })()}
 
                 {msg.role === "ai" && msg.type === "product_details" && msg.productDetails && !msg.isDetailsClosed && (
                   <motion.div

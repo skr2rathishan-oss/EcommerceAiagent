@@ -67,3 +67,21 @@ export const fetchRecommendations = async (): Promise<BackendRecommendationProdu
   return data.products || [];
 };
 
+export const fetchCategoryProducts = async (query: string, category: string): Promise<BackendRecommendationProduct[]> => {
+  const sessionId = sessionStorage.getItem("velora_session_id") || "default";
+  const response = await apiFetch("/api/products/recommendations/search", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-session-id": sessionId,
+    },
+    body: JSON.stringify({ query, category, budget: 0 }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch category products");
+  }
+
+  return response.json();
+};
+

@@ -50,6 +50,7 @@ function resolveConversationStage(intent, deliveryState) {
   }
 
   const intentStageMap = {
+    gift_planner:              "searching",
     search_products:           "searching",
     get_product_details:       "product_selected",
     check_delivery:            "delivery_address",
@@ -66,6 +67,7 @@ function resolveConversationStage(intent, deliveryState) {
 // ── Tool decision resolver ────────────────────────────────────────────────────
 function resolveToolDecision(intent) {
   const toolMap = {
+    gift_planner:              "none",
     search_products:           "search_products",
     get_product_details:       "none",
     check_delivery:            "kapruka_check_delivery",
@@ -90,6 +92,9 @@ function resolveResponseLibrary(intent, conversationStage, emotion, situation) {
   }
 
   // Shopping intents
+  if (intent === "gift_planner") {
+    return { module: "shopping", category: "search", llm_response: true };
+  }
   if (intent === "search_products") {
     return { module: "shopping", category: "search", llm_response: true };
   }
@@ -223,7 +228,13 @@ function runLocalHeuristicFallback({ message, history, deliveryState, conversati
     "track", "status", "where is my", "where is order", "check my order", "check order", "where's my order"
   ].some(kw => lowerMsg.includes(kw)) : false;
 
-  if (extractedOrderNumber || hasTrackingKeywords) {
+  const isGiftPlanner = [
+    "gift planner", "gift_planner", "need a birthday gift", "want to buy gifts", "help me buy a gift", "birthday is next week", "father's birthday", "girlfriend birthday", "anniversary gift", "wedding gift", "suggest a gift", "gifts for", "gift for"
+  ].some(kw => lowerMsg.includes(kw));
+
+  if (isGiftPlanner) {
+    intent = "gift_planner";
+  } else if (extractedOrderNumber || hasTrackingKeywords) {
     intent = "track_order";
   } else if (["buy", "order", "checkout", "purchase", "place order", "place the order"].some(p => lowerMsg.includes(p))) {
     intent = "create_order";

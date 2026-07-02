@@ -54,6 +54,9 @@ export function rememberSearchResults(sessionId, products = []) {
     }
 
     saveSelection(sessionId, products);
+
+    // Logging the storage of product references
+    console.log(`\n[PRODUCT REFERENCES]\nStored Products:\n${products.length}\nReference IDs:\n${products.map(p => p.id || p.product_id).filter(Boolean).join(", ") || "None"}\n`);
 }
 
 /**
@@ -95,7 +98,7 @@ export function handleReference(sessionId, message) {
     }
 
     // Parse user input
-    const parsed = parseReference(message);
+    const parsed = parseReference(message, sessionId);
 
     // Resolve reference
     const resolved = resolveReference(sessionId, message);
@@ -140,8 +143,8 @@ export function handleReference(sessionId, message) {
         };
     }
 
-    // Comparison
-    if (resolved.type === "comparison") {
+    // Comparison or All
+    if (resolved.type === "comparison" || resolved.type === "all") {
 
         const safeProducts = resolved.products.map(product =>
             sanitizeReferenceResponse(
@@ -155,7 +158,7 @@ export function handleReference(sessionId, message) {
 
             handled: true,
 
-            action: "COMPARE_PRODUCTS",
+            action: resolved.type === "all" ? "SHOW_ALL_PRODUCTS" : "COMPARE_PRODUCTS",
 
             parsed,
 

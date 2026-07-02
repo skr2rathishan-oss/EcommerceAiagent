@@ -2,7 +2,31 @@ import { getMcpClient } from "../integration/mcp.client.mjs";
 import { trackOrder } from "../commerce/orderTracking.service.mjs";
 import logger from "../../utils/logger.mjs";
 
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const isRateLimitError = (text = "") => /rate limit exceeded|too many requests|429|temporarily unavailable/i.test(text);
+
+const callToolWithRetry = async (client, toolName, args, maxRetries = 3) => {
+  let lastRaw = "";
+  for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
+    const result = await client.callTool({ name: toolName, arguments: args });
+    const raw = result?.structuredContent?.result ?? result?.content?.[0]?.text ?? "";
+    lastRaw = raw;
+
+    if (!isRateLimitError(raw)) {
+      return { result, raw };
+    }
+
+    if (attempt < maxRetries) {
+      logger.warn(`[MCP] ${toolName} hit rate limit, retrying in ${attempt}s...`);
+      await wait(attempt * 1000);
+    }
+  }
+
+  return { result: null, raw: lastRaw };
+};
+
 export const searchProducts = async (query) => {
+  logger.info(`[GiftPlanner LOG] Entering searchProducts() with query: "${query}"`);
   const client = await getMcpClient();
 
   logger.info(`[PRODUCT SEARCH] Initiating product search for query: "${query}"`, {
@@ -11,25 +35,21 @@ export const searchProducts = async (query) => {
   });
   const mcpStart = Date.now();
 
-  const result = await client.callTool({
-    name: "kapruka_search_products",
-    arguments: {
-      params: {
-        q: query,
-        response_format: "json",
-        in_stock_only: true,
-        limit: 50          // default is 10; max is 50
-      }
+  const { result, raw } = await callToolWithRetry(client, "kapruka_search_products", {
+    params: {
+      q: query,
+      response_format: "json",
+      in_stock_only: true,
+      limit: 50          // default is 10; max is 50
     }
   });
 
   const durationMs = Date.now() - mcpStart;
 
-  // Safely extract the raw string — prefer structuredContent, fall back to content text
-  const raw =
-    result?.structuredContent?.result ??
-    result?.content?.[0]?.text ??
-    "";
+  if (isRateLimitError(raw)) {
+    logger.warn(`[MCP] searchProducts: rate limit exceeded after retries for query: ${query}`);
+    return [];
+  }
 
   let data;
   try {
@@ -67,6 +87,7 @@ export const searchProducts = async (query) => {
     durationMs,
     resultsCount: mappedResults.length
   });
+  logger.info(`[GiftPlanner LOG] Exiting searchProducts() with ${mappedResults.length} mapped results.`);
   return mappedResults;
 };
 
@@ -103,22 +124,18 @@ export const getProductDetails = async (productId) => {
   });
   const mcpStart = Date.now();
 
-  const result = await client.callTool({
-    name: "kapruka_get_product",
-    arguments: {
-      params: {
-        product_id: productId,
-        response_format: "json"
-      }
+  const { result, raw } = await callToolWithRetry(client, "kapruka_get_product", {
+    params: {
+      product_id: productId,
+      response_format: "json"
     }
   });
 
   const durationMs = Date.now() - mcpStart;
 
-  const raw =
-    result?.structuredContent?.result ??
-    result?.content?.[0]?.text ??
-    "";
+  if (isRateLimitError(raw)) {
+    throw new Error("Product details are temporarily unavailable. Please try again in a moment.");
+  }
 
   let data;
   try {

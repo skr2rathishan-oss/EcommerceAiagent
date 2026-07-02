@@ -55,7 +55,9 @@ export const WORKFLOWS = Object.freeze({
 
     VOICE: "voice",
 
-    RECOVERY: "recovery"
+    RECOVERY: "recovery",
+
+    GIFT_PLANNER: "gift_planner"
 
 });
 
@@ -213,6 +215,16 @@ export const WORKFLOW_INFO = Object.freeze({
         interruptible: true,
 
         resumable: false
+
+    },
+
+    gift_planner: {
+
+        displayName: "Gift Planner",
+
+        interruptible: true,
+
+        resumable: true
 
     }
 

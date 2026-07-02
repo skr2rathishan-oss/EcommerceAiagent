@@ -39,6 +39,8 @@ function MiniCard({
 }: { product: Product; onClick: () => void; productId?: string }) {
   const [imgErr, setImgErr] = useState(false);
   const isMobile = useIsMobile();
+  if (!product) return null;
+  const imageUrl = product.images?.[0] || "";
   return (
     <motion.div
       layout
@@ -62,8 +64,8 @@ function MiniCard({
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
         style={{ width: "100%", aspectRatio: "4/3", background: "linear-gradient(135deg,#f5f0ff,#ede4ff)", overflow: "hidden", flexShrink: 0, position: "relative" }}
       >
-        {!imgErr
-          ? <img src={product.images[0]} alt={product.name} onError={() => setImgErr(true)}
+        {imageUrl && !imgErr
+          ? <img src={imageUrl} alt={product.name} onError={() => setImgErr(true)}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
           : <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Package size={20} color="rgba(124,77,186,0.25)" />
@@ -102,14 +104,14 @@ function MiniCard({
           isMobile ? (
             <div style={{ display: "flex", alignItems: "center", gap: 2, marginTop: 2 }}>
               <Star size={8} strokeWidth={0} fill="#f59e0b" />
-              <span style={{ color: "#f59e0b", fontSize: 8, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+              <span style={{ color: "#f59e0b", fontSize: 8, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating || 0}</span>
             </div>
           ) : (
             <div style={{ display: "flex", alignItems: "center", gap: 3, marginTop: 3 }}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
+                <Star key={i} size={8} strokeWidth={0} fill={i < Math.floor(product.rating || 0) ? "#f59e0b" : "rgba(0,0,0,0.1)"} />
               ))}
-              <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
+              <span style={{ color: "#f59e0b", fontSize: 9, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating || 0}</span>
             </div>
           )
         )}
@@ -149,7 +151,7 @@ function SelectedBanner({
   const [lightbox, setLightbox] = useState(false);
   const [added, setAdded] = useState(false);
   const [variants, setVariants] = useState<Record<string, string>>(
-    () => Object.fromEntries(product.variants.map(v => [v.type, v.options[0]]))
+    () => Object.fromEntries((product.variants || []).map(v => [v.type, v.options?.[0] || ""]))
   );
 
   const discount = product.originalPrice
@@ -211,9 +213,9 @@ function SelectedBanner({
             overflow: "hidden",
           }}
         >
-          {!imgErr
+          {(product.images?.[imgIdx] || product.images?.[0]) && !imgErr
             ? <img
-              src={product.images[imgIdx]}
+              src={product.images?.[imgIdx] || product.images?.[0] || ""}
               alt={product.name}
               onError={() => setImgErr(true)}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
@@ -249,7 +251,7 @@ function SelectedBanner({
               {getBadgeEmoji(product.recommendationType)} {product.recommendationType}
             </div>
           )}
-          {product.images.length > 1 && (
+          {product.images && product.images.length > 1 && (
             <div style={{ position: "absolute", bottom: 8, width: "100%", display: "flex", justifyContent: "center", gap: 4, zIndex: 1 }}>
               {product.images.map((_, i) => (
                 <button key={i} type="button" onClick={(e) => { e.stopPropagation(); setImgIdx(i); }}
@@ -286,10 +288,10 @@ function SelectedBanner({
           {!product.isMcp && (
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               {Array.from({ length: 5 }).map((_, i) => (
-                <Star key={i} size={isMobile ? 8.5 : 10} strokeWidth={0} fill={i < Math.floor(product.rating) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
+                <Star key={i} size={isMobile ? 8.5 : 10} strokeWidth={0} fill={i < Math.floor(product.rating || 0) ? "#f59e0b" : "rgba(0,0,0,0.12)"} />
               ))}
-              <span style={{ color: "#f59e0b", fontSize: isMobile ? 9 : 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating}</span>
-              <span style={{ color: "#b8aed0", fontSize: isMobile ? 9 : 10, fontFamily: "'Nunito',sans-serif" }}>({product.reviewCount.toLocaleString()})</span>
+              <span style={{ color: "#f59e0b", fontSize: isMobile ? 9 : 10, fontWeight: 700, fontFamily: "'Nunito',sans-serif" }}>{product.rating || 0}</span>
+              <span style={{ color: "#b8aed0", fontSize: isMobile ? 9 : 10, fontFamily: "'Nunito',sans-serif" }}>({(product.reviewCount || 0).toLocaleString()})</span>
             </div>
           )}
 
@@ -324,12 +326,12 @@ function SelectedBanner({
             </div>
           ) : null}
 
-          {product.variants.length > 0 && (
+          {product.variants && product.variants.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {product.variants.map(v => (
                 <div key={v.type} style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 5 }}>
                   <span style={{ color: "#9e8dc0", fontSize: isMobile ? 8.5 : 9, fontWeight: 700, textTransform: "uppercase", fontFamily: "'Nunito',sans-serif", flexShrink: 0 }}>{v.type}:</span>
-                  {v.options.map(opt => (
+                  {(v.options || []).map(opt => (
                     <button key={opt} type="button" onClick={() => setVariants(sv => ({ ...sv, [v.type]: opt }))}
                       style={{ padding: isMobile ? "1px 6px" : "2px 8px", borderRadius: 20, border: `1.5px solid ${variants[v.type] === opt ? "rgba(124,77,186,0.6)" : "rgba(64,41,112,0.14)"}`, background: variants[v.type] === opt ? "rgba(124,77,186,0.1)" : "transparent", color: variants[v.type] === opt ? "#402970" : "#9e8dc0", fontSize: isMobile ? 9 : 10, fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito',sans-serif", transition: "all 0.15s" }}>
                       {opt}

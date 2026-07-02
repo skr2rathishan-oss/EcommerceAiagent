@@ -40,8 +40,10 @@ export interface RecommendationProduct {
 /**
  * Step 1: Generate Search Strategy using Qwen
  */
+import { apiFetch } from "../app/services/api";
+
 export async function generateSearchStrategy(preferences: GiftPreferences): Promise<SearchStrategy> {
-  const response = await fetch("/api/products/recommendations/strategy", {
+  const response = await apiFetch("/api/products/recommendations/strategy", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -60,7 +62,7 @@ export async function generateSearchStrategy(preferences: GiftPreferences): Prom
  * Step 2: Search products in Kapruka catalog via MCP tool
  */
 export async function searchProducts(query: string, category: string, budget: number): Promise<RecommendationProduct[]> {
-  const response = await fetch("/api/products/recommendations/search", {
+  const response = await apiFetch("/api/products/recommendations/search", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -79,7 +81,7 @@ export async function searchProducts(query: string, category: string, budget: nu
  * Step 3: Rank products for preferences using Qwen
  */
 export async function rankProducts(products: RecommendationProduct[], preferences: GiftPreferences): Promise<RankedProductMetadata[]> {
-  const response = await fetch("/api/products/recommendations/rank", {
+  const response = await apiFetch("/api/products/recommendations/rank", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -98,7 +100,7 @@ export async function rankProducts(products: RecommendationProduct[], preference
  * Combined Step: Fully coordinated backend strategy generation, search, and ranking
  */
 export async function generateRecommendations(preferences: GiftPreferences): Promise<{ recommendations: RecommendationProduct[] }> {
-  const response = await fetch("/api/products/recommendations/generate", {
+  const response = await apiFetch("/api/products/recommendations/generate", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

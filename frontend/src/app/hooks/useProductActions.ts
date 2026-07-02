@@ -3,11 +3,13 @@
  * and product details requests.
  */
 import { useApp } from "../contexts/AppContext";
-import { selectProduct, fetchProductDetails } from "../services/chatServices";
+import { fetchProductDetails, selectProduct } from "../services/chatServices";
 import { type Product } from "../components/products";
 import { useRecentlyViewed } from "../contexts/RecentlyViewedContext";
+import { useSearch } from "./useSearch";
 
 export const useProductActions = () => {
+  const { performProductSelection } = useSearch();
   const {
     phase, setPhase,
     setMessages,
@@ -51,22 +53,11 @@ export const useProductActions = () => {
       ],
     });
 
-    try {
-      await selectProduct({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        currency: product.currency,
-        images: product.images,
-        inStock: product.stock > 0,
-      });
-    } catch {
-      console.warn("[ProductSelect] Backend session save failed (non-critical)");
-    }
+    performProductSelection(product);
   };
 
   /** Fetches and displays full product details */
-  const handleRequestProductDetails = async (productId: string, productName?: string) => {
+  const handleRequestProductDetails = async (productId: string, productName?: string, product?: Product) => {
     if (phase === "centered") setPhase("bottom");
     setIsTyping(true);
     setActivity({
@@ -78,17 +69,55 @@ export const useProductActions = () => {
       ]
     });
     try {
+      const productObj = product || ({ id: productId, name: productName || "Product", price: 0 } as Product);
+
+      if (productObj) {
+        try {
+          await selectProduct({
+            id: productObj.id,
+            name: productObj.name,
+            price: productObj.price,
+            currency: productObj.currency,
+            image: productObj.images?.[0],
+            images: productObj.images,
+            inStock: productObj.stock > 0,
+            url: productObj.description,
+          });
+        } catch (selectErr) {
+          console.warn("Failed to register selected product for details lookup:", selectErr);
+        }
+      }
+
       const data = await fetchProductDetails(productId) as {
-        type: string; content: string; product: Product;
+        type?: string; content?: string; product?: Product; text?: string;
       };
+
       if (data?.type === "product_details") {
-        const productObj = data.product || { id: productId, name: productName || "Product", price: 0 } as Product;
+        const resolvedProduct = data.product || productObj;
+        trackView(resolvedProduct);
+        setMessages(prev => [...prev, {
+          role: "ai",
+          text: `Here are the full details for **${productName || resolvedProduct.name || "the product"}**:`,
+          type: "product_details",
+          productDetails: { content: data.content || "", product: resolvedProduct },
+        }]);
+      } else if (productObj) {
+        const fallbackContent = [
+          "**📦 Product Information:**",
+          `**Name:** ${productObj.name || productName || "Product"}`,
+          productObj.brand ? `**Brand:** ${productObj.brand}` : null,
+          productObj.price !== undefined ? `**Price:** ${productObj.price}` : null,
+          productObj.category ? `**Category:** ${productObj.category}` : null,
+          productObj.shortDesc ? `**Summary:** ${productObj.shortDesc}` : null,
+          productObj.description ? `**Description:** ${productObj.description}` : null,
+        ].filter(Boolean).join("\n");
+
         trackView(productObj);
         setMessages(prev => [...prev, {
           role: "ai",
           text: `Here are the full details for **${productName || productObj.name || "the product"}**:`,
           type: "product_details",
-          productDetails: { content: data.content || "", product: productObj },
+          productDetails: { content: fallbackContent, product: productObj },
         }]);
       } else {
         setMessages(prev => [...prev, {
@@ -116,7 +145,7 @@ export const useProductActions = () => {
     setShoppingContext(prev => ({ ...prev, selectedProduct: null }));
 
     if (actionId === "view_details") {
-      handleRequestProductDetails(product.id, product.name);
+      handleRequestProductDetails(product.id, product.name, product);
     } else if (actionId === "add_to_cart") {
       handleAddToCart(product);
     } else if (actionId === "save_for_later") {

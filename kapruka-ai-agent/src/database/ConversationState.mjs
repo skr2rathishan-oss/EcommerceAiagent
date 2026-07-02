@@ -31,6 +31,21 @@ const conversationStateSchema = new mongoose.Schema({
     type: String,
     default: "standard"
   },
+  shoppingMission: {
+    id: { type: String, default: null },
+    status: { type: String, default: null },
+    occasion: { type: String, default: null },
+    recipient: { type: String, default: null },
+    budget: { type: Number, default: null },
+    remainingBudget: { type: Number, default: null },
+    currency: { type: String, default: "LKR" },
+    categories: { type: [String], default: [] },
+    missionItems: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    selectedProducts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    productGroups: { type: mongoose.Schema.Types.Mixed, default: {} },
+    currentStep: { type: String, default: null },
+    createdAt: { type: Date, default: null }
+  },
   pausedFlows: {
     type: [mongoose.Schema.Types.Mixed],
     default: []

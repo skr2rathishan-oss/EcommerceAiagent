@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { type Product } from "../components/products";
 import { type DeliveryInfo, type SellerInfo } from "../components/InteractiveOrderSummary";
+import { mapBackendProductToUI } from "../services/mapping";
 import { type OrderConfirmationDetails } from "../components/OrderConfirmationCard";
 import { type OrderTrackingDetails } from "../types/orderTracking";
 import { type LogItem } from "../components/AgentActivityBar";
@@ -48,6 +49,7 @@ export interface Message {
   isDetailsClosed?: boolean;
   /** True while the SSE stream is in progress; false once complete (switches renderer). */
   streaming?: boolean;
+  isGiftPlanner?: boolean;
 }
 
 export type { CartItem };
@@ -148,6 +150,9 @@ export interface AppContextType {
   setLastCheckedDelivery: React.Dispatch<React.SetStateAction<{ city: string; deliveryDate: string; productId: string | null } | null>>;
   nearbyCitiesSuggested: string[];
   setNearbyCitiesSuggested: React.Dispatch<React.SetStateAction<string[]>>;
+  shoppingMission: any;
+  setShoppingMission: React.Dispatch<React.SetStateAction<any>>;
+  activeMissionProducts: Product[];
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -167,6 +172,22 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
   const [isCartCheckout, setIsCartCheckout] = useState(false);
   const [lastCheckedDelivery, setLastCheckedDelivery] = useState<{ city: string; deliveryDate: string; productId: string | null } | null>(null);
   const [nearbyCitiesSuggested, setNearbyCitiesSuggested] = useState<string[]>([]);
+  const [shoppingMission, setShoppingMission] = useState<any>(null);
+
+  const activeMissionProducts = useMemo(() => {
+    if (!shoppingMission || !shoppingMission.missionItems) return [];
+    // Only surface products during active product selection phases.
+    // For COLLECTING_INFORMATION, READY_FOR_CHECKOUT, COMPLETED, or any other
+    // status, return an empty array so stale product cards are not re-rendered.
+    const activeSelectionStatuses = ["SEARCHING", "SELECTING_PRODUCTS"];
+    if (!activeSelectionStatuses.includes(shoppingMission.status)) return [];
+    // Find all unselected searched items, sort by latest search timestamp
+    const unselectedSearched = shoppingMission.missionItems.filter((item: any) => item.searchCompleted && !item.selectedProduct);
+    unselectedSearched.sort((a: any, b: any) => (b.lastSearchedAt || 0) - (a.lastSearchedAt || 0));
+    const activeItem = unselectedSearched[0];
+    if (!activeItem || !activeItem.recommendedProducts) return [];
+    return activeItem.recommendedProducts.map(mapBackendProductToUI);
+  }, [shoppingMission]);
 
   // Consume new independent contexts
   const { cartItems, addToCart } = useCart();
@@ -304,6 +325,9 @@ const AppInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children })
         setLastCheckedDelivery,
         nearbyCitiesSuggested,
         setNearbyCitiesSuggested,
+        shoppingMission,
+        setShoppingMission,
+        activeMissionProducts,
       }}
     >
       {children}

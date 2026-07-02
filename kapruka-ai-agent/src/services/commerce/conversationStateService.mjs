@@ -378,6 +378,7 @@ export async function clearConversationState(sessionId) {
       shopping: {},
       delivery: {},
       order: {},
+      shoppingMission: null,
       workflowContext: {
         currentWorkflow: "greeting",
         previousWorkflow: "idle",

@@ -56,6 +56,8 @@ const LAST_WORDS = [
     "latest"
 ];
 
+import { getSelectionContext } from "./01_selectionMemory.mjs";
+
 const PRODUCT_WORDS = [
     "phone",
     "mobile",
@@ -64,7 +66,39 @@ const PRODUCT_WORDS = [
     "watch",
     "gift",
     "laptop",
-    "tv"
+    "tv",
+    "flower",
+    "flowers",
+    "dress",
+    "necklace",
+    "cake",
+    "cakes",
+    "toy",
+    "toys",
+    "perfume",
+    "perfumes",
+    "chocolate",
+    "chocolates",
+    "card",
+    "cards",
+    "cupcake",
+    "cupcakes",
+    "gift",
+    "gifts",
+    "bouquet",
+    "bouquets",
+    "hamper",
+    "hampers",
+    "box",
+    "boxes",
+    "teddy",
+    "bear",
+    "balloon",
+    "balloons",
+    "watches",
+    "phones",
+    "laptops",
+    "mobiles"
 ];
 
 /**
@@ -151,9 +185,9 @@ function parseComparison(text) {
 }
 
 /**
- * Main parser.
+ * Main parser with optional dynamic data-driven Reference Index queries.
  */
-export function parseReference(message = "") {
+export function parseReference(message = "", sessionId = null) {
 
     const text = normalize(message);
 
@@ -167,10 +201,14 @@ export function parseReference(message = "") {
 
         indexes: [],
 
-        raw: message
+        raw: message,
+
+        matchedTerm: null,
+
+        targetIndexes: []
     };
 
-    // Compare
+    // 1. Compare
     const comparison = parseComparison(text);
 
     if (comparison) {
@@ -182,27 +220,7 @@ export function parseReference(message = "") {
         return result;
     }
 
-    // Last item
-    for (const word of LAST_WORDS) {
-        const regex = new RegExp(`\\b${word}\\b`);
-        if (regex.test(text)) {
-            result.detected = true;
-            result.type = "last";
-            return result;
-        }
-    }
-
-    // Pronouns
-    for (const word of PRONOUNS) {
-        const regex = new RegExp(`\\b${word}\\b`);
-        if (regex.test(text)) {
-            result.detected = true;
-            result.type = "current";
-            return result;
-        }
-    }
-
-    // Ordinals
+    // 2. Ordinals
     const ordinal = parseOrdinal(text);
 
     if (ordinal !== null) {
@@ -214,7 +232,81 @@ export function parseReference(message = "") {
         return result;
     }
 
-    // Generic product reference
+    // 3. Last item
+    for (const word of LAST_WORDS) {
+        const regex = new RegExp(`\\b${word}\\b`);
+        if (regex.test(text)) {
+            result.detected = true;
+            result.type = "last";
+            return result;
+        }
+    }
+
+    // 4. Check for plural/all requests ("show me those", "can I see the images", "let me see them")
+    const lowerText = text.toLowerCase();
+    const isAllRequest = [
+        "show", "see", "display", "view", "look", "render"
+    ].some(phrase => lowerText.includes(phrase)) && [
+        "them", "those", "these", "images", "pictures", "cards", "products", "items", "options", "all"
+    ].some(word => lowerText.includes(word));
+
+    if (isAllRequest) {
+        result.detected = true;
+        result.type = "all";
+        return result;
+    }
+
+    // 5. Query the reference index for category/brand/term matches!
+    const selection = sessionId ? getSelectionContext(sessionId) : null;
+    const refIndex = selection?.referenceIndex;
+
+    if (refIndex) {
+        const words = text.split(/\s+/);
+        for (const word of words) {
+            const cleanWord = word.trim();
+            if (!cleanWord) continue;
+
+            // Check categories
+            if (refIndex.categories && refIndex.categories[cleanWord]) {
+                result.detected = true;
+                result.type = "dynamic_match";
+                result.matchedTerm = cleanWord;
+                result.targetIndexes = refIndex.categories[cleanWord];
+                return result;
+            }
+
+            // Check brands
+            if (refIndex.brands && refIndex.brands[cleanWord]) {
+                result.detected = true;
+                result.type = "dynamic_match";
+                result.matchedTerm = cleanWord;
+                result.targetIndexes = refIndex.brands[cleanWord];
+                return result;
+            }
+
+            // Check name terms
+            if (refIndex.terms && refIndex.terms[cleanWord]) {
+                result.detected = true;
+                result.type = "dynamic_match";
+                result.matchedTerm = cleanWord;
+                result.targetIndexes = refIndex.terms[cleanWord];
+                return result;
+            }
+        }
+    }
+
+    // 6. Pronouns
+    const EXPANED_PRONOUNS = [...PRONOUNS, "those", "them", "these"];
+    for (const word of EXPANED_PRONOUNS) {
+        const regex = new RegExp(`\\b${word}\\b`);
+        if (regex.test(text)) {
+            result.detected = true;
+            result.type = "current";
+            return result;
+        }
+    }
+
+    // 7. Generic product reference
     for (const word of PRODUCT_WORDS) {
         const regex = new RegExp(`\\b${word}\\b`);
         if (regex.test(text)) {
@@ -230,8 +322,8 @@ export function parseReference(message = "") {
 /**
  * Helper
  */
-export function hasReference(message = "") {
-    return parseReference(message).detected;
+export function hasReference(message = "", sessionId = null) {
+    return parseReference(message, sessionId).detected;
 }
 
 /**

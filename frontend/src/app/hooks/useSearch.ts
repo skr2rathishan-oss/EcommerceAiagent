@@ -5,7 +5,7 @@
  */
 import { useRef } from "react";
 import { useApp } from "../contexts/AppContext";
-import { sendMessage, abortActiveRequest } from "../services/chatServices";
+import { sendMessage, sendIntentMessage, abortActiveRequest } from "../services/chatServices";
 import { mapBackendProductToUI } from "../services/mapping";
 import { useCart } from "../contexts/CartContext";
 import { useWishlist } from "../contexts/WishlistContext";
@@ -36,10 +36,241 @@ export const useSearch = () => {
     pendingConfirmProduct,
     pendingConfirmVariants,
     voiceDashboardOpen,
+    shoppingMission,
+    setShoppingMission,
   } = useApp();
 
-  const { cartItems } = useCart();
+  const { cartItems, addToCart } = useCart();
   const { wishlistItems } = useWishlist();
+
+  const finalize = (fullText: string, data: any) => {
+    setActivity(null);
+    setIsTyping(false);
+
+    if (data?.shoppingMission !== undefined) {
+      setShoppingMission(data.shoppingMission);
+    }
+
+    if (data?.cartItemsToAdd && Array.isArray(data.cartItemsToAdd)) {
+      data.cartItemsToAdd.forEach((item: any) => {
+        addToCart(item.product, item.quantity || 1);
+      });
+    }
+
+    // If the backend returned a streamed text response and there is no
+    // richer structured payload, mark the streaming message as complete
+    // (switches from plain-text renderer to ReactMarkdown).
+    // isGiftPlannerMsg is true ONLY when the backend explicitly tagged this payload as a gift
+    // planner product grid (via isGiftPlannerGrid: true). Using !!shoppingMission (frontend state)
+    // was wrong — it caused every message to be tagged as gift planner whenever a stale mission
+    // existed in state, overriding msg.products with activeMissionProducts (the old phones).
+    const isGiftPlannerMsg = !!data?.isGiftPlannerGrid;
+
+    if (fullText && data && data.type === "text") {
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        if (updated[lastIdx]?.role === "ai" && updated[lastIdx].streaming) {
+          // Final flush: commit full text, mark done, and EXPLICITLY clear any stale products
+          // from this slot so they never carry forward via the spread operator.
+          updated[lastIdx] = {
+            ...updated[lastIdx],
+            text: fullText,
+            streaming: false,
+            isGiftPlanner: isGiftPlannerMsg,
+            products: undefined,  // ← prevent stale products from persisting via spread
+          };
+        } else {
+          const newMsg = { role: "ai" as const, text: fullText, streaming: false, isGiftPlanner: isGiftPlannerMsg };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+        }
+        return updated;
+      });
+      return;
+    }
+
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      if (data.type === "order_confirmation") {
+        if (data.order) {
+          saveOrderToHistory(data.order);
+        }
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = {
+            role: "ai" as const,
+            type: "order_confirmation" as const,
+            text: data.text || "✅ Order Successfully Placed",
+            order: data.order
+          };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "order_tracking") {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const text = data.text || `Here is the current tracking status for order ${data.tracking?.orderNumber}:`;
+          const newMsg = { role: "ai" as const, type: "order_tracking" as const, text, tracking: data.tracking };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "order_tracking_error") {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const text = data.text || `❌ ${data.message || "Unable to retrieve order status"}`;
+          const newMsg = { role: "ai" as const, type: "order_tracking_error" as const, text, orderNumber: data.orderNumber };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "checkout_init") {
+        setPhase("bottom");
+        setCheckoutOpen(true);
+        setMessages(prev => {
+          const updated = [...prev];
+          if (updated[updated.length - 1]?.role === "ai" && !updated[updated.length - 1].text) {
+            updated.pop();
+          }
+          return updated;
+        });
+        return;
+      } else if (data.type === "product_details") {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const text = data.text || `Here are the details for ${data.product?.name || "the product"}:`;
+          const newMsg = { role: "ai" as const, text, type: "product_details" as const, productDetails: { content: data.content, product: data.product } };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "delivery_result") {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = {
+            role: "ai" as const,
+            text: data.text,
+            type: (data.available && !data.orderSummary && !data.isConversational) ? ("checkout_confirmation" as const) : undefined,
+            orderSummary: data.orderSummary
+          };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        if (data.available) {
+          setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
+        } else {
+          setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
+          if (data.alternativeCities) setNearbyCitiesSuggested(data.alternativeCities);
+        }
+        return;
+      } else if (data.type === "nearby_cities") {
+        setNearbyCitiesSuggested(data.cities || []);
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = { role: "ai" as const, text: data.text };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "alternative_date") {
+        if (data.city) {
+          setLastCheckedDelivery(prev => prev ? { ...prev, city: data.city, productId: data.productId || prev.productId } : { city: data.city, deliveryDate: "", productId: data.productId || "" });
+        }
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = { role: "ai" as const, text: data.text };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "similar_products") {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = { role: "ai" as const, text: data.text, products: (data.products || []).map(mapBackendProductToUI) };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      } else if (data.type === "text" || (data.type === undefined && typeof data.text === "string")) {
+        setMessages(prev => {
+          const updated = [...prev];
+          const lastIdx = updated.length - 1;
+          const newMsg = { role: "ai" as const, text: data.text };
+          if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+          else updated.push(newMsg);
+          return updated;
+        });
+        return;
+      }
+    }
+
+    let introText = "";
+    let rawProducts: any[] = [];
+
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      if (data.type === "product_grid") {
+        introText = data.text || "";
+        rawProducts = data.products || [];
+      }
+    } else if (Array.isArray(data)) {
+      rawProducts = data;
+    }
+
+    const mappedProducts = rawProducts.map(mapBackendProductToUI);
+    // Always sync lastSearchResults — passing an empty array clears stale results
+    // when the response contains no products (conversational, delivery, etc.)
+    setShoppingContext(prev => ({ ...prev, lastSearchResults: mappedProducts }));
+
+    if (mappedProducts.length > 0) {
+      // Only attach products to the message when we actually have results.
+      // An empty products array would still trigger the product grid condition in MessageArea.
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        const newMsg = {
+          role: "ai" as const,
+          text: introText || "Here are the live results from the backend:",
+          products: mappedProducts,
+          isGiftPlanner: isGiftPlannerMsg,
+        };
+        if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+        else updated.push(newMsg);
+        return updated;
+      });
+    } else {
+      // No products — render as a plain text message without a products key
+      // so the MessageArea product grid is never triggered.
+      setMessages(prev => {
+        const updated = [...prev];
+        const lastIdx = updated.length - 1;
+        const newMsg = {
+          role: "ai" as const,
+          text: introText || "How can I help you?",
+          isGiftPlanner: isGiftPlannerMsg,
+        };
+        if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
+        else updated.push(newMsg);
+        return updated;
+      });
+    }
+  };
 
   const performSearch = (trimmed: string, customCommerceState?: any) => {
     // ── Reset all streaming state ──────────────────────────────────────────
@@ -95,194 +326,6 @@ export const useSearch = () => {
       ? { ...baseCommerceState, ...customCommerceState }
       : baseCommerceState;
 
-    const finalize = (fullText: string, data: any) => {
-      setActivity(null);
-      setIsTyping(false);
-
-      // If the backend returned a streamed text response and there is no
-      // richer structured payload, mark the streaming message as complete
-      // (switches from plain-text renderer to ReactMarkdown).
-      if (fullText && data && data.type === "text") {
-        setMessages(prev => {
-          const updated = [...prev];
-          const lastIdx = updated.length - 1;
-          if (updated[lastIdx]?.role === "ai" && updated[lastIdx].streaming) {
-            // Final flush: ensure full text is committed, then mark done.
-            updated[lastIdx] = { ...updated[lastIdx], text: fullText, streaming: false };
-          } else {
-            const newMsg = { role: "ai" as const, text: fullText, streaming: false };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-          }
-          return updated;
-        });
-        return;
-      }
-
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        if (data.type === "order_confirmation") {
-          if (data.order) {
-            saveOrderToHistory(data.order);
-          }
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = {
-              role: "ai" as const,
-              type: "order_confirmation" as const,
-              text: data.text || "✅ Order Successfully Placed",
-              order: data.order
-            };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "order_tracking") {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const text = data.text || `Here is the current tracking status for order **${data.tracking?.orderNumber}**:`;
-            const newMsg = { role: "ai" as const, type: "order_tracking" as const, text, tracking: data.tracking };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "order_tracking_error") {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const text = data.text || `❌ ${data.message || "Unable to retrieve order status"}`;
-            const newMsg = { role: "ai" as const, type: "order_tracking_error" as const, text, orderNumber: data.orderNumber };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "checkout_init") {
-          setPhase("bottom");
-          setCheckoutOpen(true);
-          setMessages(prev => {
-            const updated = [...prev];
-            if (updated[updated.length - 1]?.role === "ai" && !updated[updated.length - 1].text) {
-              updated.pop();
-            }
-            return updated;
-          });
-          return;
-        } else if (data.type === "product_details") {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const text = data.text || `Here are the details for **${data.product?.name || "the product"}**:`;
-            const newMsg = { role: "ai" as const, text, type: "product_details" as const, productDetails: { content: data.content, product: data.product } };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "delivery_result") {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = {
-              role: "ai" as const,
-              text: data.text,
-              type: (data.available && !data.orderSummary && !data.isConversational) ? ("checkout_confirmation" as const) : undefined,
-              orderSummary: data.orderSummary
-            };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          if (data.available) {
-            setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
-          } else {
-            setLastCheckedDelivery({ city: data.city || "", deliveryDate: data.deliveryDate || "", productId: data.productId || "" });
-            if (data.alternativeCities) setNearbyCitiesSuggested(data.alternativeCities);
-          }
-          return;
-        } else if (data.type === "nearby_cities") {
-          setNearbyCitiesSuggested(data.cities || []);
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, text: data.text };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "alternative_date") {
-          if (data.city) {
-            setLastCheckedDelivery(prev => prev ? { ...prev, city: data.city, productId: data.productId || prev.productId } : { city: data.city, deliveryDate: "", productId: data.productId || "" });
-          }
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, text: data.text };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "similar_products") {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, text: data.text, products: (data.products || []).map(mapBackendProductToUI) };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        } else if (data.type === "text" || (data.type === undefined && typeof data.text === "string")) {
-          setMessages(prev => {
-            const updated = [...prev];
-            const lastIdx = updated.length - 1;
-            const newMsg = { role: "ai" as const, text: data.text };
-            if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-            else updated.push(newMsg);
-            return updated;
-          });
-          return;
-        }
-      }
-
-      let introText = "";
-      let rawProducts: any[] = [];
-
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        if (data.type === "product_grid") {
-          introText = data.text || "";
-          rawProducts = data.products || [];
-        }
-      } else if (Array.isArray(data)) {
-        rawProducts = data;
-      }
-
-      const mappedProducts = rawProducts.map(mapBackendProductToUI);
-      if (mappedProducts.length > 0) {
-        setShoppingContext(prev => ({ ...prev, lastSearchResults: mappedProducts }));
-      }
-
-      setMessages(prev => {
-        const updated = [...prev];
-        const lastIdx = updated.length - 1;
-        const newMsg = {
-          role: "ai" as const,
-          text: introText || (mappedProducts.length > 0
-            ? "Here are the live results from the backend:"
-            : "I searched but couldn't find any products matching your query."),
-          products: mappedProducts,
-        };
-        if (updated[lastIdx]?.role === "ai") updated[lastIdx] = newMsg;
-        else updated.push(newMsg);
-        return updated;
-      });
-    };
-
     sendMessage(trimmed, (payload) => {
       if (firstChunkSeenRef.current) return;
       setActivity({
@@ -316,11 +359,11 @@ export const useSearch = () => {
               const updated = [...prev];
               const last = updated[updated.length - 1];
               if (last?.role === "ai" && last.streaming === true) {
-                updated[updated.length - 1] = { ...last, text: nextText };
+                updated[updated.length - 1] = { ...last, text: nextText, isGiftPlanner: !!shoppingMission };
                 return updated;
               }
               // Bubble doesn't exist yet — create it.
-              return [...prev, { role: "ai" as const, text: nextText, streaming: true }];
+              return [...prev, { role: "ai" as const, text: nextText, streaming: true, isGiftPlanner: !!shoppingMission }];
             });
           } else if (streamDoneRef.current) {
             if (displayTimerRef.current) {
@@ -401,5 +444,112 @@ export const useSearch = () => {
     setActivity(null);
   };
 
-  return { performSearch, handleRetry, handleStop };
+  const performProductSelection = (product: any) => {
+    // ── Reset all streaming state ──────────────────────────────────────────
+    streamBufferRef.current   = "";
+    displayedTextRef.current  = "";
+    firstChunkSeenRef.current = false;
+    streamDoneRef.current     = false;
+    finalFullTextRef.current  = "";
+    finalDataRef.current      = null;
+    if (displayTimerRef.current) {
+      clearInterval(displayTimerRef.current);
+      displayTimerRef.current = null;
+    }
+    setIsTyping(true);
+    setActivityExpanded(false);
+    setActivity({
+      currentStep: "UNDERSTANDING",
+      currentMessage: "Selecting product...",
+      logs: [{ id: "UNDERSTANDING", title: "Selecting product", status: "active", details: [] }],
+      error: false
+    });
+
+    const commerceState = {
+      cart: cartItems.map(i => ({
+        productId: i.productId,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        brand: i.brand,
+      })),
+      wishlist: wishlistItems.map(i => ({
+        productId: i.product.id,
+        name: i.product.name,
+        price: i.product.price,
+      })),
+      saved: [],
+      buyNowProduct: null,
+      buyNowVariants: null,
+      deliveryInfo: null
+    };
+
+    sendIntentMessage(`select_product:${product.id}`, "select_product", { product }, (payload) => {
+      if (firstChunkSeenRef.current) return;
+      setActivity({
+        currentStep: payload.step,
+        currentMessage: payload.message,
+        logs: payload.logs,
+        error: payload.error
+      });
+    }, commerceState, (chunk) => {
+      streamBufferRef.current += chunk;
+
+      if (!firstChunkSeenRef.current) {
+        firstChunkSeenRef.current = true;
+        setActivity(null);
+
+        displayTimerRef.current = setInterval(() => {
+          const target = streamBufferRef.current;
+          const current = displayedTextRef.current;
+
+          if (current.length < target.length) {
+            const nextLength = Math.min(current.length + 3, target.length);
+            const nextText = target.slice(0, nextLength);
+            displayedTextRef.current = nextText;
+
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.role === "ai" && last.streaming === true) {
+                updated[updated.length - 1] = { ...last, text: nextText, isGiftPlanner: !!shoppingMission };
+                return updated;
+              }
+              return [...prev, { role: "ai" as const, text: nextText, streaming: true, isGiftPlanner: !!shoppingMission }];
+            });
+          } else if (streamDoneRef.current) {
+            if (displayTimerRef.current) {
+              clearInterval(displayTimerRef.current);
+              displayTimerRef.current = null;
+            }
+            finalize(finalFullTextRef.current, finalDataRef.current);
+          }
+        }, 25);
+
+        const initialText = streamBufferRef.current.slice(0, 3);
+        displayedTextRef.current = initialText;
+        setMessages(prev => [
+          ...prev,
+          { role: "ai" as const, text: initialText, streaming: true }
+        ]);
+      }
+    }, voiceDashboardOpen)
+      .then((data) => {
+        streamDoneRef.current = true;
+        finalFullTextRef.current = streamBufferRef.current;
+        finalDataRef.current = data;
+
+        const wasStreaming = firstChunkSeenRef.current;
+        if (!wasStreaming) {
+          finalize(streamBufferRef.current, data);
+        }
+      })
+      .catch((err) => {
+        console.error("Selection API Error:", err);
+        setIsTyping(false);
+        setActivity(null);
+      });
+  };
+
+  return { performSearch, handleRetry, handleStop, performProductSelection };
 };

@@ -14,10 +14,13 @@ const NAV_BOTTOM = [
 
 interface SidebarProps {
   onItemClick: (label: string, rect: DOMRect) => void;
+  mobileOverlay?: boolean;
+  onClose?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onItemClick, mobileOverlay = false, onClose }) => {
   const { sidebarOpen, setSidebarOpen, activeScreen, activePanel, cartItems, wishlistItems } = useApp();
+  const [triggerHovered, setTriggerHovered] = useState(false);
 
   const cartCount = cartItems?.reduce((acc, item) => acc + item.quantity, 0) || 0;
   const wishlistCount = wishlistItems?.length || 0;
@@ -25,39 +28,87 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   return (
     <>
       <motion.aside
-        className="relative z-40 flex flex-col h-full left-0 top-0 bottom-0"
-        animate={{ width: sidebarOpen ? 200 : 68 }}
+        className={`relative z-40 flex flex-col h-full left-0 top-0 bottom-0 ${mobileOverlay ? "w-full max-w-[360px]" : ""}`}
+        animate={{ width: mobileOverlay ? "100%" : sidebarOpen ? 200 : 68 }}
         transition={{ type: "spring", stiffness: 350, damping: 32 }}
         style={{
-          background: "linear-gradient(180deg,#4e337f 0%,#402970 60%,#301e56 100%)",
+          background: "linear-gradient(180deg,#5b3f8f 0%,#47306f 45%,#3f2968 70%,#301e56 100%)",
           borderRight: "none",
           overflow: "visible",
           flexShrink: 0,
+          minHeight: "100vh",
+          boxShadow: mobileOverlay ? "0 20px 70px rgba(0,0,0,0.32)" : undefined,
         }}
       >
-        <div style={{ height: 64, display: "flex", alignItems: "center", padding: sidebarOpen ? "0 16px" : "0", justifyContent: sidebarOpen ? "flex-start" : "center" }}>
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97 }}
-            type="button"
-            style={{
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              border: "none",
-              background: "rgba(255,255,255,0.12)",
-              color: "#ffffff",
-            }}
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
-          >
-            {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
-          </motion.button>
-        </div>
+        {mobileOverlay ? (
+          <div className="flex items-center justify-between px-3 py-3 border-b border-white/15">
+            <span style={{ color: "#fff", fontWeight: 800, fontSize: 15, fontFamily: "'Nunito', sans-serif" }}>Menu</span>
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarOpen(false);
+                onClose?.();
+              }}
+              className="inline-flex items-center justify-center rounded-2xl border border-white/20 bg-white/95 p-2 text-[#7c4dba]"
+              aria-label="Close menu"
+            >
+              <PanelLeftClose size={18} strokeWidth={2} />
+            </button>
+          </div>
+        ) : (
+          <div style={{ height: 64, display: "flex", alignItems: "center", padding: sidebarOpen ? "0 16px" : "0", justifyContent: sidebarOpen ? "flex-start" : "center" }}>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              type="button"
+              className="group"
+              style={{
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 40,
+                height: 40,
+                borderRadius: 10,
+                border: "none",
+                background: "transparent",
+                color: "#ffffff",
+                padding: 0,
+              }}
+              onMouseEnter={() => setTriggerHovered(true)}
+              onMouseLeave={() => setTriggerHovered(false)}
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
+            >
+              <div style={{ position: "relative", width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <img
+                  src="/logo.png"
+                  alt="Velora"
+                  style={{
+                    width: 28,
+                    height: 28,
+                    objectFit: "contain",
+                    transition: "opacity 0.2s ease",
+                    opacity: triggerHovered ? 0 : 1,
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    opacity: triggerHovered ? 1 : 0,
+                    transition: "opacity 0.2s ease",
+                  }}
+                >
+                  {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
+                </div>
+              </div>
+            </motion.button>
+          </div>
+        )}
 
         <div style={{ height: 1, width: sidebarOpen ? "85%" : 36, background: "rgba(255,255,255,0.12)", margin: "0 auto 8px" }} />
 

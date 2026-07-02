@@ -25,6 +25,10 @@ export const executeReferenceEngine = (sessionId, message, decision) => {
     } else {
       logStepDone("Reference Engine", `Resolved reference: ${refResult.action}`);
       resolvedReference = refResult;
+
+      // Log follow-up resolution
+      const resolvedCount = refResult.action === "PRODUCT_SELECTED" ? 1 : (refResult.internalProducts?.length || refResult.products?.length || 0);
+      console.log(`\n[PRODUCT REFERENCES]\nFollow-up:\n${message}\nResolved:\n${resolvedCount} products\nRendering:\nProduct Cards\n`);
       
       if (refResult.action === "PRODUCT_SELECTED" && refResult.internalProduct) {
         decision.variables = decision.variables || {};
@@ -33,13 +37,21 @@ export const executeReferenceEngine = (sessionId, message, decision) => {
         
         if (decision.intent.value === "general_chat") {
           const lowerMsg = message.toLowerCase();
-          if (["detail", "info", "spec", "about", "describe", "show"].some(word => lowerMsg.includes(word))) {
+          // Keep as general_chat if it's just asking to see/show cards/images
+          const isShowOrSeeOnly = ["show", "see", "display", "image", "images", "picture", "pictures", "card", "cards", "look", "render"].some(word => lowerMsg.includes(word)) &&
+                                  !["detail", "info", "spec", "about", "describe"].some(word => lowerMsg.includes(word));
+
+          if (isShowOrSeeOnly) {
+            // Keep intent as general_chat so response engine returns product_grid payload with conversational intro
+          } else if (["detail", "info", "spec", "about", "describe", "show"].some(word => lowerMsg.includes(word))) {
             decision.intent.value = "get_product_details";
           } else {
             decision.intent.value = "select_product";
           }
         }
       } else if (refResult.action === "COMPARE_PRODUCTS" && refResult.internalProducts) {
+        decision.intent.value = "general_chat";
+      } else if (refResult.action === "SHOW_ALL_PRODUCTS" && refResult.internalProducts) {
         decision.intent.value = "general_chat";
       }
     }

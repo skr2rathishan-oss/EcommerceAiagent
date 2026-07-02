@@ -150,6 +150,35 @@ export const processRequest = async (req, res, isStream = false) => {
     console.log(`[INTENT] Intent Detected (CUL): ${culOutput?.intent?.value || "N/A"}`);
     console.log(`[INTENT] Intent After Overrides: ${decision.intent.value}`);
 
+    // Initialize parsedIntent early to prevent Temporal Dead Zone ReferenceErrors on early returns
+    let parsedIntent = {
+      intent: decision.intent.value,
+      chat_subtype: decision.chat_subtype,
+      parameters: {
+        message: message,
+        query: decision.variables.product_name || decision.variables.category || decision.variables.brand || message,
+        city: decision.variables.city,
+        deliveryDate: decision.variables.delivery_date,
+        recipient: decision.variables.recipient,
+        occasion: decision.variables.occasion,
+        orderNumber: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
+        order_number: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
+        filters: {
+          category: decision.variables.category,
+          brand: decision.variables.brand,
+          priceMax: decision.variables.price ? parseFloat(decision.variables.price) || null : null
+        }
+      }
+    };
+    if (req.body.intent) {
+      parsedIntent.intent = req.body.intent;
+      parsedIntent.parameters = { ...parsedIntent.parameters, ...(req.body.parameters || {}) };
+    }
+
+    console.log("[STAGE TRACE] 0. culOutput:", JSON.stringify(culOutput, null, 2));
+    console.log("[STAGE TRACE] 1. CUL Variable product_name:", decision.variables?.product_name);
+    console.log("[STAGE TRACE] 2. Early parsedIntent.parameters.query:", parsedIntent.parameters?.query);
+
     // Stage 2.5: Pre-Workflow Interceptions (Legacy Routing that bypasses Workflow Manager)
     const preWfResult = await executePreWorkflowInterceptions(req.body, decision, contextData, sessionId);
     if (preWfResult.earlyReturn) {
@@ -186,6 +215,7 @@ export const processRequest = async (req, res, isStream = false) => {
     }
     
     console.log(`[WORKFLOW] Target Workflow: ${workflowDecision.workflow}`);
+    console.log("[STAGE TRACE] 3. Workflow Context Query:", updatedUserState?.workflowContext?.previousSearchQuery);
 
     if (!workflowDecision.success || workflowDecision.action === "REQUIRE_USER_INPUT") {
       req.pipelineStages.push("Response Engine");
@@ -198,7 +228,7 @@ export const processRequest = async (req, res, isStream = false) => {
       }
       
       const { finalPayload } = await executeResponseEngine(
-        req.body, parsedIntent || { intent: decision.intent.value, parameters: {} }, contextData, decision, null, false, "", isStream, null, staticPayload?.text
+        req.body, parsedIntent, contextData, decision, null, false, "", isStream, null, staticPayload?.text
       );
 
       if (isStream) setSSEHeaders(res);
@@ -216,34 +246,22 @@ export const processRequest = async (req, res, isStream = false) => {
     saveMessage(sessionId, "user", message).catch(() => { });
     addMessage(sessionId, "user", message).catch(() => { });
 
-    let parsedIntent = {
-      intent: decision.intent.value,
-      chat_subtype: decision.chat_subtype,
-      parameters: {
-        message: message,
-        query: decision.variables.product_name,
-        city: decision.variables.city,
-        deliveryDate: decision.variables.delivery_date,
-        recipient: decision.variables.recipient,
-        occasion: decision.variables.occasion,
-        orderNumber: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
-        order_number: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
-        filters: {
-          category: decision.variables.category,
-          brand: decision.variables.brand,
-          priceMax: decision.variables.price ? parseFloat(decision.variables.price) || null : null
-        }
-      }
-    };
-    if (req.body.intent) {
-      parsedIntent.intent = req.body.intent;
-      parsedIntent.parameters = { ...parsedIntent.parameters, ...(req.body.parameters || {}) };
-    }
     intentLabel = parsedIntent.intent;
 
     // Stage 4: Reference Engine
     req.pipelineStages.push("Reference Engine");
     const { resolvedReference, decision: updatedDecision, earlyReturn: refEarlyReturn, providerUsed: refProvider, responsePayload: refPayload } = executeReferenceEngine(sessionId, message, decision);
+
+    // Sync updatedDecision back to parsedIntent parameters
+    if (updatedDecision && updatedDecision.variables) {
+      parsedIntent.intent = updatedDecision.intent.value;
+      const updatedQuery = updatedDecision.variables.product_name || updatedDecision.variables.category || updatedDecision.variables.brand;
+      if (updatedQuery) {
+        parsedIntent.parameters.query = updatedQuery;
+      }
+    }
+
+    console.log("[STAGE TRACE] 4. Reference Engine Query:", parsedIntent.parameters?.query);
     if (refEarlyReturn) {
       req.debugProviderUsed = refProvider;
       
@@ -331,7 +349,7 @@ export const processRequest = async (req, res, isStream = false) => {
       }
     }
 
-    const { shouldAddReminder, reminderText } = commerceResult;
+    const { shouldAddReminder, reminderText, giftPlannerBlocking } = commerceResult;
 
     // Stage 6: Response Engine
     const onChunk = isStream ? (chunk) => {
@@ -342,7 +360,7 @@ export const processRequest = async (req, res, isStream = false) => {
     
     req.pipelineStages.push("Response Engine");
     const { finalPayload, providerUsed: reProvider } = await executeResponseEngine(
-      req.body, parsedIntent, contextData, updatedDecision, resolvedReference, shouldAddReminder, reminderText, isStream, onChunk
+      req.body, parsedIntent, contextData, updatedDecision, resolvedReference, shouldAddReminder, reminderText, isStream, onChunk, null, giftPlannerBlocking
     );
     providerUsed = reProvider;
 

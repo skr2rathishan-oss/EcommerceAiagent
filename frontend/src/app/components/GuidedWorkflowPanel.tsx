@@ -169,7 +169,7 @@ export const GuidedWorkflowPanel: React.FC<GuidedWorkflowPanelProps> = ({ messag
           return {
             ...msg,
             text: finalProducts.length > 0 
-              ? `I found **${finalProducts.length}** products matching your guided search query: "${workflow.answers.query}".` 
+              ? `I found ${finalProducts.length} products matching your guided search query: "${workflow.answers.query}".` 
               : `I couldn't find any products matching your specific filters. Try searching with different options!`,
             products: finalProducts,
             workflow: {
@@ -251,7 +251,7 @@ export const GuidedWorkflowPanel: React.FC<GuidedWorkflowPanelProps> = ({ messag
           return {
             ...msg,
             text: finalProducts.length > 0 
-              ? `Here are some personalized gift suggestions for your **${recipient}** on their **${occasion}**:` 
+              ? `Here are some personalized gift suggestions for your ${recipient} on their ${occasion}:` 
               : `I couldn't find any gift recommendations matching your exact preferences. Let's try adjusting the criteria!`,
             products: finalProducts,
             workflow: {
@@ -301,7 +301,7 @@ export const GuidedWorkflowPanel: React.FC<GuidedWorkflowPanelProps> = ({ messag
           return {
             ...msg,
             type: "order_tracking",
-            text: `Here is the current tracking status for order **${trimmedId}**:`,
+            text: `Here is the current tracking status for order ${trimmedId}:`,
             tracking: trackingData,
             workflow: undefined // Clear workflow to hide the panel
           };

@@ -114,6 +114,7 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
         case INTENTS.SEARCH_PRODUCTS: {
             onProgress?.("SEARCHING", "active");
 
+            console.log("[STAGE TRACE] 5. routeIntent SEARCH_PRODUCTS - searchQuery input:", parameters.query || parameters.q);
             let searchQuery = parameters.query || parameters.q;
             const context = parameters.context || {};
 
