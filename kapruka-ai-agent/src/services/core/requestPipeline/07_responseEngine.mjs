@@ -201,31 +201,52 @@ export const executeResponseEngine = async (reqBody, parsedIntent, contextData, 
   let llmResult;
   const llmStart = Date.now();
 
-  if (isStream) {
-    llmResult = await chatWithLLMStream({ 
-      message, 
-      history, 
-      memory: memoryState, 
-      memoryContext: "", 
-      runtimeContext,
-      onChunk: (chunk) => {
-        if (onChunk) onChunk(chunk);
-      }
-    });
+  const isLlmResponse = decision.llm_response !== false && decision.response?.llm_response !== false && decision.llmResponse !== false;
 
-    // If search products and products list exists, stream recommendation summary formatted
-    if (parsedIntent.intent === "search_products" && productsList.length > 0) {
-      if (onChunk) onChunk("\n\n");
-      const formattedIntro = await formatRecommendationsStream(message, productsList, history, voiceMode, (chunk) => {
-         if (onChunk) onChunk(chunk);
-      });
-      llmResult = (llmResult || "") + "\n\n" + formattedIntro;
+  if (!isLlmResponse && interceptedText) {
+    llmResult = interceptedText;
+    if (isStream && onChunk) {
+      onChunk(interceptedText);
+    }
+  } else if (parsedIntent.intent === "search_products" && productsList.length === 0) {
+    const emptyMsg = "I couldn't find any matching products in the current Kapruka catalogue.";
+    if (isStream && onChunk) {
+      onChunk(emptyMsg);
+    }
+    llmResult = emptyMsg;
+  } else if (parsedIntent.intent === "search_products" && productsList.length > 0) {
+    if (isStream) {
+      llmResult = await formatRecommendationsStream(
+        message,
+        productsList,
+        history,
+        voiceMode,
+        (chunk) => {
+          if (onChunk) onChunk(chunk);
+        }
+      );
+    } else {
+      llmResult = await formatRecommendations(
+        message,
+        productsList,
+        history,
+        voiceMode
+      );
     }
   } else {
-    llmResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "", runtimeContext });
-    if (parsedIntent.intent === "search_products" && productsList.length > 0) {
-      const formattedProducts = formatRecommendations(productsList);
-      llmResult = (llmResult || "") + "\n\n" + formattedProducts;
+    if (isStream) {
+      llmResult = await chatWithLLMStream({ 
+        message, 
+        history, 
+        memory: memoryState, 
+        memoryContext: "", 
+        runtimeContext,
+        onChunk: (chunk) => {
+          if (onChunk) onChunk(chunk);
+        }
+      });
+    } else {
+      llmResult = await chatWithLLM({ message, history, memory: memoryState, memoryContext: "", runtimeContext });
     }
   }
 

@@ -610,8 +610,8 @@ export function ProductShowcase({ products, selectedId, onSelect, onAddToCart, o
           gap: isMobile ? 6 : 10,
           width: "100%",
           maxWidth: isMobile ? "100%" : 622,
-          margin: "0 auto",
-          justifyContent: isMobile ? (selectedIndex !== -1 ? "center" : "flex-start") : "center",
+          margin: isMobile ? "0 auto" : "0",
+          justifyContent: isMobile ? (selectedIndex !== -1 ? "center" : "flex-start") : "flex-start",
           overflowX: isMobile && selectedIndex === -1 ? "auto" : "visible",
           scrollbarWidth: "none",
         }}

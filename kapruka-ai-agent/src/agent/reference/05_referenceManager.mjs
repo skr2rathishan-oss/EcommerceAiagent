@@ -78,6 +78,9 @@ export function handleReference(sessionId, message) {
         };
     }
 
+    // Parse user input first so we can attach it to error payloads
+    const parsed = parseReference(message);
+
     // No previous search results
     if (!hasSelectionMemory(sessionId)) {
 
@@ -89,13 +92,12 @@ export function handleReference(sessionId, message) {
 
             reason: "NO_SELECTION_MEMORY",
 
+            parsed,
+
             response:
                 "I couldn't find your previous product list. Please search for a product first."
         };
     }
-
-    // Parse user input
-    const parsed = parseReference(message);
 
     // Resolve reference
     const resolved = resolveReference(sessionId, message);
@@ -112,6 +114,8 @@ export function handleReference(sessionId, message) {
             handled: true,
 
             reason: validation.code,
+
+            parsed,
 
             response: validation.message
         };

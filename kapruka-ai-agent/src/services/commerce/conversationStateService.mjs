@@ -26,11 +26,6 @@ function syncLegacyFields(stateDoc, updates = {}) {
     };
   }
 
-  // Sync current workflow from activeFlow
-  if (stateDoc.activeFlow?.type) {
-    stateDoc.workflowContext.currentWorkflow = stateDoc.activeFlow.type;
-  }
-
   // 1. Inverse Sync: Legacy inputs update the new Flow state
   if (updates.active_delivery_session !== undefined) {
     if (updates.active_delivery_session) {
@@ -50,14 +45,16 @@ function syncLegacyFields(stateDoc, updates = {}) {
 
   if (updates.active_shopping_context !== undefined) {
     if (updates.active_shopping_context) {
+      const currentType = stateDoc.activeFlow?.type;
+      const isAlreadyShopping = ["shopping", "product_search", "product_details", "product_recommendation"].includes(currentType);
       stateDoc.activeFlow = {
-        type: "shopping",
+        type: isAlreadyShopping ? currentType : "shopping",
         status: "active",
-        currentStep: stateDoc.activeFlow?.type === "shopping" ? stateDoc.activeFlow.currentStep : "searching"
+        currentStep: isAlreadyShopping ? stateDoc.activeFlow.currentStep : "searching"
       };
       if (!stateDoc.shopping) stateDoc.shopping = {};
       stateDoc.shopping.activeContextId = updates.active_shopping_context;
-    } else if (stateDoc.activeFlow?.type === "shopping") {
+    } else if (["shopping", "product_search", "product_details", "product_recommendation"].includes(stateDoc.activeFlow?.type)) {
       stateDoc.activeFlow = {
         type: "general_chat",
         status: "active",
@@ -96,13 +93,18 @@ function syncLegacyFields(stateDoc, updates = {}) {
     stateDoc.active_delivery_session = null;
   }
 
-  if (stateDoc.activeFlow && stateDoc.activeFlow.type === "shopping" && stateDoc.activeFlow.status === "active") {
+  if (stateDoc.activeFlow && ["shopping", "product_search", "product_details", "product_recommendation"].includes(stateDoc.activeFlow.type) && stateDoc.activeFlow.status === "active") {
     stateDoc.active_shopping_context = stateDoc.shopping?.activeContextId || null;
   } else {
     stateDoc.active_shopping_context = null;
   }
 
   stateDoc.pending_order = stateDoc.order?.pendingOrderId || null;
+
+  // Sync current workflow from activeFlow after inverse sync completes
+  if (stateDoc.activeFlow?.type) {
+    stateDoc.workflowContext.currentWorkflow = stateDoc.activeFlow.type;
+  }
 
   // Flatten workflowContext values onto root of stateDoc for validator and legacy compatibility
   const fieldsToSync = [

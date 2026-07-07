@@ -16,6 +16,7 @@ import { setActiveShoppingContext, loadConversationState } from "../services/com
 import logger from "../utils/logger.mjs";
 
 // ── Fallback Query Mapping ───────────────────────────────────────────────────
+// Trigger restart.
 // Maps vague, emotional, or situational search terms to standard product terms.
 export function getFallbackQuery(query, context = {}) {
     const lowerQuery = query ? query.toLowerCase() : "";
@@ -161,13 +162,39 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                     }
                 }
 
-                // Save product search results after every successful MCP search
-                if (Array.isArray(results)) {
-                    rememberSearchResults(sessionId, results);
-                }
             } catch (err) {
                 logger.error("[SEARCH PRODUCTS] MCP Search failed:", err.message);
                 results = [];
+            }
+
+            // Apply Accessory Filter from implementation.md
+            if (Array.isArray(results) && searchQuery) {
+                const lowerQ = searchQuery.toLowerCase();
+                if (["phone", "smartphone", "mobile", "phn"].some(word => lowerQ.includes(word))) {
+                    const ignoredKeywords = [
+                        "case", "cover", "tripod", "holder", "gimbal", "selfie stick", 
+                        "charger", "cable", "screen protector", "tempered glass", "battery", 
+                        "earbuds", "headphones"
+                    ];
+                    results = results.filter(p => {
+                        const name = p.name ? p.name.toLowerCase() : "";
+                        return !ignoredKeywords.some(keyword => name.includes(keyword));
+                    });
+                }
+                if (lowerQ.includes("laptop") || lowerQ.includes("notebook")) {
+                    const ignoredKeywords = ["bag", "mouse", "keyboard", "adapter"];
+                    results = results.filter(p => {
+                        const name = p.name ? p.name.toLowerCase() : "";
+                        return !ignoredKeywords.some(keyword => name.includes(keyword));
+                    });
+                }
+                if (["tv", "television", "led tv", "smart tv"].some(word => lowerQ.includes(word))) {
+                    const ignoredKeywords = ["wall mount", "remote", "hdmi cable", "hdmi"];
+                    results = results.filter(p => {
+                        const name = p.name ? p.name.toLowerCase() : "";
+                        return !ignoredKeywords.some(keyword => name.includes(keyword));
+                    });
+                }
             }
 
             onProgress?.("SEARCHING", "completed", [`Retrieved ${results.length} products`]);
@@ -175,14 +202,6 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
 
             const filters = parameters.filters || {};
             const category = filters.category || "";
-            const activeCtx = await createShoppingContext(sessionId, searchQuery, category, filters);
-            if (activeCtx) {
-                await setActiveShoppingContext(sessionId, activeCtx.contextId);
-                await updateShoppingContextInDB(activeCtx.contextId, { viewedProducts: results, lastSearchResults: results });
-            }
-
-            updateShoppingContext(sessionId, { lastSearchResults: results });
-            logger.info(`[SHOPPING CONTEXT] Stored ${results.length} products for session: ${sessionId}`);
             const filteredResults = applyFilters(results, filters);
             logger.info(`[FILTERING] Applied filters: ${JSON.stringify(filters)} | Filtered count: ${filteredResults.length}`);
 
@@ -210,6 +229,16 @@ export const routeIntent = async (intent, parameters = {}, sessionId = "default"
                 finalProducts = suggestions;
                 introText = "No products matched your filters. However, you might like these similar options:";
             }
+
+            const activeCtx = await createShoppingContext(sessionId, searchQuery, category, filters);
+            if (activeCtx) {
+                await setActiveShoppingContext(sessionId, activeCtx.contextId);
+                await updateShoppingContextInDB(activeCtx.contextId, { viewedProducts: finalProducts, lastSearchResults: finalProducts });
+            }
+
+            updateShoppingContext(sessionId, { lastSearchResults: finalProducts });
+            rememberSearchResults(sessionId, finalProducts);
+            logger.info(`[SHOPPING CONTEXT] Stored ${finalProducts.length} filtered/suggested products for session: ${sessionId}`);
 
             onProgress?.("RANKING", "completed", ["Ranked by relevance"]);
             onProgress?.("READY", "active");

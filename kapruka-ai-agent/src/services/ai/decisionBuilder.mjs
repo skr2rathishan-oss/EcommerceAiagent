@@ -68,7 +68,8 @@ export function validateDecision(decision) {
     value: decision.intent?.value || (typeof decision.intent === "string" ? decision.intent : defaultDecision.intent.value),
     confidence: typeof decision.intent?.confidence === "number"
       ? decision.intent.confidence
-      : (decision.intent === "general_chat" ? 0.85 : 0.95)
+      : (decision.intent === "general_chat" ? 0.85 : 0.95),
+    parameters: decision.intent?.parameters || decision.intent_parameters || null
   };
 
   // 3. Emotion

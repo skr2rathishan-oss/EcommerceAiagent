@@ -118,10 +118,6 @@ function parseComparison(text) {
 
     text = normalize(text);
 
-    if (!text.includes("compare")) {
-        return null;
-    }
-
     const matches = [];
 
     // Numeric ordinals
@@ -141,10 +137,28 @@ function parseComparison(text) {
         }
     }
 
+    // Bare numbers (only if small, e.g. <= 25, to avoid matching price limits or other numbers)
+    const bareNumRegex = /\b(\d+)\b/g;
+    let numMatch;
+    while ((numMatch = bareNumRegex.exec(text))) {
+        const val = Number(numMatch[1]);
+        if (val >= 1 && val <= 25) {
+            matches.push(val);
+        }
+    }
+
     const unique = [...new Set(matches)];
 
     if (unique.length >= 2) {
-        return unique.slice(0, 2);
+        // Indicators for comparison/difference/selection between options
+        const comparisonKeywords = [
+            "compare", "sompare", "copmare", "compair", "cmpare", "comapre",
+            "vs", "between", "difference", "better", "best", "which", "or", "and", "differ"
+        ];
+        const hasKeyword = comparisonKeywords.some(keyword => text.includes(keyword));
+        if (hasKeyword) {
+            return unique.slice(0, 2);
+        }
     }
 
     return null;
