@@ -150,6 +150,37 @@ export const processRequest = async (req, res, isStream = false) => {
     console.log(`[INTENT] Intent Detected (CUL): ${culOutput?.intent?.value || "N/A"}`);
     console.log(`[INTENT] Intent After Overrides: ${decision.intent.value}`);
 
+    let parsedIntent = {
+      intent: decision.intent.value,
+      chat_subtype: decision.chat_subtype,
+      parameters: {
+        message: message,
+        query: decision.variables.product_name,
+        city: decision.variables.city,
+        deliveryDate: decision.variables.delivery_date,
+        recipient: decision.variables.recipient,
+        occasion: decision.variables.occasion,
+        orderNumber: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
+        order_number: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
+        filters: {
+          category: decision.variables.category || decision.intent.parameters?.filters?.category || null,
+          brand: decision.variables.brand || decision.intent.parameters?.filters?.brand || null,
+          color: decision.intent.parameters?.filters?.color || null,
+          size: decision.intent.parameters?.filters?.size || null,
+          gender: decision.intent.parameters?.filters?.gender || null,
+          type: decision.intent.parameters?.filters?.type || null,
+          flavor: decision.intent.parameters?.filters?.flavor || null,
+          weight: decision.intent.parameters?.filters?.weight || null,
+          priceMin: decision.intent.parameters?.filters?.priceMin !== undefined ? parseFloat(decision.intent.parameters.filters.priceMin) || null : null,
+          priceMax: decision.intent.parameters?.filters?.priceMax !== undefined ? parseFloat(decision.intent.parameters.filters.priceMax) || null : ((decision.intent.parameters?.filters?.priceMin === undefined || decision.intent.parameters?.filters?.priceMin === null) && decision.variables.price ? parseFloat(decision.variables.price) || null : null)
+        }
+      }
+    };
+    if (req.body.intent) {
+      // Intent override from client/testing
+      parsedIntent.intent = req.body.intent;
+    }
+
     // Stage 2.5: Pre-Workflow Interceptions (Legacy Routing that bypasses Workflow Manager)
     const preWfResult = await executePreWorkflowInterceptions(req.body, decision, contextData, sessionId);
     if (preWfResult.earlyReturn) {
@@ -216,29 +247,6 @@ export const processRequest = async (req, res, isStream = false) => {
     saveMessage(sessionId, "user", message).catch(() => { });
     addMessage(sessionId, "user", message).catch(() => { });
 
-    let parsedIntent = {
-      intent: decision.intent.value,
-      chat_subtype: decision.chat_subtype,
-      parameters: {
-        message: message,
-        query: decision.variables.product_name,
-        city: decision.variables.city,
-        deliveryDate: decision.variables.delivery_date,
-        recipient: decision.variables.recipient,
-        occasion: decision.variables.occasion,
-        orderNumber: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
-        order_number: decision.variables.orderNumber || contextData.userState?.order?.orderRef || contextData.userState?.order_id || "",
-        filters: {
-          category: decision.variables.category,
-          brand: decision.variables.brand,
-          priceMax: decision.variables.price ? parseFloat(decision.variables.price) || null : null
-        }
-      }
-    };
-    if (req.body.intent) {
-      parsedIntent.intent = req.body.intent;
-      parsedIntent.parameters = { ...parsedIntent.parameters, ...(req.body.parameters || {}) };
-    }
     intentLabel = parsedIntent.intent;
 
     // Stage 4: Reference Engine
@@ -259,6 +267,13 @@ export const processRequest = async (req, res, isStream = false) => {
         saveMessage(sessionId, "assistant", finalPayload.text).catch(() => {});
       }
       return sendCompleteAndEnd(res, finalPayload);
+    }
+
+    if (updatedDecision && updatedDecision.intent) {
+      parsedIntent.intent = updatedDecision.intent.value;
+      if (updatedDecision.chat_subtype) {
+        parsedIntent.chat_subtype = updatedDecision.chat_subtype;
+      }
     }
 
     if (resolvedReference && resolvedReference.action === "PRODUCT_SELECTED" && resolvedReference.internalProduct) {

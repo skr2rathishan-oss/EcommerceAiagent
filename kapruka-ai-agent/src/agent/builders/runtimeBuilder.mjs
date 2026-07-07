@@ -89,7 +89,7 @@ Previous Search Query : ${workflowData.previousSearchQuery || "none"}
 REFERENCE RUNTIME (RESOLVED PRODUCT)
 ===============================================================================
 
-The user is referring to the following product. Address their question or action regarding this specific product:
+The user is referring to the following product. This product has already been resolved from the user's message (e.g. ordinals or pronouns in their message refer to this product). You MUST focus on and talk about this resolved product, ignoring any literal ordinal numbers in the user's message:
 Name: ${referenceData.product.name}
 Brand: ${referenceData.product.brand || "N/A"}
 Price: ${referenceData.product.price || "N/A"} ${referenceData.product.currency || ""}
@@ -110,7 +110,7 @@ Description: ${p.description || "N/A"}
 REFERENCE RUNTIME (COMPARE PRODUCTS)
 ===============================================================================
 
-The user is comparing the following products. Address their comparison regarding these products:
+The user is comparing the following products. These products have already been resolved from the user's message (e.g. ordinals like "2nd", "4th" or pronouns in their message refer to these specific products). You MUST compare only these resolved products and ignore any literal ordinal numbers in the user's message since they have already been resolved for you:
 ${productsList}
 
 ===============================================================================

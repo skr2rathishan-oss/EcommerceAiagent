@@ -61,6 +61,26 @@ export const executeContextLoader = async (reqBody, headers, sessionId) => {
   
   const memory = getMemory(sessionId);
 
+  // ── Load Shopping Context from DB if not in memory (e.g. after nodemon restart) ──
+  const activeShoppingContextId = userState?.active_shopping_context || userState?.shopping?.activeContextId;
+  if (activeShoppingContextId) {
+    if (!memory.shoppingContext?.lastSearchResults || memory.shoppingContext.lastSearchResults.length === 0) {
+      try {
+        const ShoppingContext = (await import("../../../database/ShoppingContext.mjs")).default;
+        const activeCtx = await ShoppingContext.findOne({ contextId: activeShoppingContextId }).lean();
+        if (activeCtx) {
+          const { updateShoppingContext } = await import("../../../agent/memoryManager.mjs");
+          updateShoppingContext(sessionId, {
+            lastSearchResults: activeCtx.lastSearchResults || activeCtx.viewedProducts || [],
+            selectedProduct: activeCtx.selectedProduct || null
+          });
+        }
+      } catch (err) {
+        console.error("Failed to restore shopping context from DB:", err);
+      }
+    }
+  }
+
   const cleanMsg = lowerMsg.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, " ").trim();
   const greetingWords = ["hi", "hello", "hey", "hola", "namaste", "vanakkam", "greetings", "good morning", "good evening", "good afternoon", "ada", "heta", "irukkinga", "machan"];
   const isGreetingOnly = greetingWords.includes(cleanMsg) || cleanMsg.split(/\s+/).length <= 1;
@@ -69,6 +89,7 @@ export const executeContextLoader = async (reqBody, headers, sessionId) => {
   const shouldSuppressMemory = isGreetingOnly && !hasResumeKeywords;
 
   return {
+    sessionId,
     userState,
     history,
     deliverySession,

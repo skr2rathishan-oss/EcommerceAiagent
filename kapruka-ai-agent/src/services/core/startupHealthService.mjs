@@ -386,7 +386,7 @@ export const runStartupChecks = async () => {
   if (results.gemini.status === "FAIL") results.criticalFailures++;
 
   results.mcp = await validateMCP();
-  if (results.mcp.status === "FAIL") results.criticalFailures++;
+  if (results.mcp.status === "FAIL") logger.warn("Kapruka MCP is offline. Starting server anyway.");
 
   results.googleSpeech = validateGoogleSpeech();
   results.elevenLabs = await validateElevenLabs();

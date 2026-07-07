@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ProductShowcase } from "./ProductShowcase";
 import { type Product } from "./products";
 import { useIsMobile } from "./ui/use-mobile";
@@ -156,10 +157,9 @@ export const MessageArea: React.FC<MessageAreaProps> = ({
       const el = scrollRef.current;
       if (!el) return;
 
-      const isNewUserMessage = messages.length > lastMessagesLengthRef.current && messages[messages.length - 1]?.role === "user";
-      const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+      const isNewMessage = messages.length > lastMessagesLengthRef.current;
 
-      if (isAtBottom || isNewUserMessage) {
+      if (isNewMessage) {
         el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
       }
     }
@@ -540,6 +540,41 @@ const AIMessageRenderer: React.FC<{ text: string; streaming?: boolean }> = ({ te
       font-family: monospace;
       font-size: 0.9em;
     }
+    .ai-markdown-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #1a1025;
+      font-family: 'Nunito', sans-serif;
+      border: 1px solid rgba(124, 77, 186, 0.15);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(124, 77, 186, 0.04);
+      display: block;
+      overflow-x: auto;
+    }
+    .ai-markdown-content th {
+      background: linear-gradient(135deg, #7c4dba 0%, #5d3596 100%);
+      color: #ffffff;
+      font-weight: 700;
+      text-align: left;
+      padding: 10px 14px;
+      border-bottom: 2px solid rgba(124, 77, 186, 0.2);
+      white-space: nowrap;
+    }
+    .ai-markdown-content td {
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(124, 77, 186, 0.08);
+      vertical-align: top;
+    }
+    .ai-markdown-content tr:last-child td {
+      border-bottom: none;
+    }
+    .ai-markdown-content tr:nth-of-type(even) {
+      background-color: rgba(124, 77, 186, 0.03);
+    }
     .ai-markdown-content > :last-child { margin-bottom: 0 !important; }
     .ai-markdown-content > :first-child { margin-top: 0 !important; }
   `;
@@ -567,7 +602,7 @@ const AIMessageRenderer: React.FC<{ text: string; streaming?: boolean }> = ({ te
       className="ai-markdown-content"
     >
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
-      <ReactMarkdown>{text}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 };

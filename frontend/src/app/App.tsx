@@ -523,31 +523,8 @@ function MainApp() {
           style={{ height: 48 }}
         >
           <div className="w-full px-4 md:px-8 flex items-center justify-between">
-            {/* Left Side: Hamburger trigger + Logo */}
-            <div className="flex items-center gap-3">
-
-
-              <div
-                onClick={() => {
-                  setPhase("centered");
-                  setMessages([]);
-                  setValue("");
-                  setActiveScreen("chat");
-                }}
-                className="flex items-center gap-2.5 cursor-pointer group"
-                title="Go to Home"
-              >
-                <img
-                  src="/logo.png"
-                  alt="Velora"
-                  className="object-contain group-hover:scale-102 transition-transform duration-200"
-                  style={{
-                    height: 32,
-                    flexShrink: 0,
-                  }}
-                />
-              </div>
-            </div>
+            {/* Left Side: Hamburger trigger */}
+            <div className="flex items-center gap-3" />
 
             {/* Right Side: Notification Bell + Profile Button */}
             <AnimatePresence>

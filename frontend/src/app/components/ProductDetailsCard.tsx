@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ShoppingCart, Zap, Heart, X, Package, Star, Shield, Truck,
   Maximize2, ChevronLeft, ChevronRight, ZoomIn, MapPin,
@@ -586,10 +587,41 @@ export function ProductDetailsCard({
                 border-top: 1px solid rgba(64,41,112,0.1);
                 margin: ${isMobile ? "5px" : "8px"} 0;
               }
+              .product-details-markdown table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 12px 0;
+                font-size: ${isMobile ? "11px" : "12px"};
+                font-family: 'Nunito', sans-serif;
+                border: 1px solid rgba(124, 77, 186, 0.15);
+                border-radius: 6px;
+                overflow: hidden;
+                display: block;
+                overflow-x: auto;
+              }
+              .product-details-markdown th {
+                background: linear-gradient(135deg, #7c4dba 0%, #5d3596 100%);
+                color: #ffffff;
+                font-weight: 700;
+                text-align: left;
+                padding: 6px 10px;
+                white-space: nowrap;
+              }
+              .product-details-markdown td {
+                padding: 6px 10px;
+                border-bottom: 1px solid rgba(124, 77, 186, 0.08);
+                vertical-align: top;
+              }
+              .product-details-markdown tr:last-child td {
+                border-bottom: none;
+              }
+              .product-details-markdown tr:nth-of-type(even) {
+                background-color: rgba(124, 77, 186, 0.03);
+              }
               .product-details-markdown > :first-child { margin-top: 0 !important; }
               .product-details-markdown > :last-child  { margin-bottom: 0 !important; }
             `}} />
-              <ReactMarkdown>{content}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
             </div>
           </div>
 

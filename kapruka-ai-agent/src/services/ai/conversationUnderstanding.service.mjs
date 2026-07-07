@@ -479,6 +479,7 @@ export async function understandConversation({
       reason: isFallback ? "heuristic_fallback" : "gemini_2.5_flash"
     },
     intent,
+    intent_parameters: result.intent?.parameters || null,
     chat_subtype,
     emotion,
     conversation_stage: conversationStage,

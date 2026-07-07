@@ -18,6 +18,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
   const { sidebarOpen, setSidebarOpen, activeScreen, activePanel, cartItems, wishlistItems } = useApp();
+  const [logoHovered, setLogoHovered] = useState(false);
 
   const cartCount = cartItems?.reduce((acc, item) => acc + item.quantity, 0) || 0;
   const wishlistCount = wishlistItems?.length || 0;
@@ -45,17 +46,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ onItemClick }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 32,
-              height: 32,
-              borderRadius: 8,
+              width: 36,
+              height: 36,
+              borderRadius: 10,
               border: "none",
-              background: "rgba(255,255,255,0.12)",
+              background: "transparent",
               color: "#ffffff",
+              padding: 0,
             }}
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            onMouseEnter={() => setLogoHovered(true)}
+            onMouseLeave={() => setLogoHovered(false)}
             title={sidebarOpen ? "Collapse Sidebar" : "Expand Sidebar"}
           >
-            {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
+            <div style={{ position: "relative", width: 28, height: 28 }}>
+              <img
+                src="/logo.png"
+                alt="Velora"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  borderRadius: 8,
+                  transition: "opacity 0.18s ease, transform 0.18s ease",
+                  opacity: logoHovered ? 0.9 : 1,
+                }}
+              />
+              {logoHovered && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "rgba(0,0,0,0.2)",
+                    borderRadius: 8,
+                  }}
+                >
+                  {sidebarOpen ? <PanelLeftClose size={18} strokeWidth={2} /> : <PanelLeftOpen size={18} strokeWidth={2} />}
+                </div>
+              )}
+            </div>
           </motion.button>
         </div>
 
