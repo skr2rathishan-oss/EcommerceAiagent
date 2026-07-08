@@ -104,10 +104,6 @@ if (fs.existsSync(FRONTEND_DIR)) {
 
 report.push("\n## 9. Duplicate Implementation Report");
 report.push("- Found multiple memory managers (`agent/memoryManager.mjs`, `services/memory/memory.service.mjs`, `services/memory/chatMemory.service.mjs`). This indicates some duplication in state handling.");
-report.push("- Duplicate logic seen between `analyze-services.js` and `refactor-services.js` in root `src`.");
-
-report.push("\n## 10. Legacy Code Report");
-report.push("- `test_intent.js`, `test-details.mjs`, `test-mcp.mjs` in root.");
 
 report.push("\n## 11. Workflow Engine Integration Points");
 report.push("To properly connect `05_workflowManager.mjs`:");
