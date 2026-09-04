@@ -1,9 +1,9 @@
 # Velora: Advanced Conversational AI Shopping Assistant for Kapruka
 
 Velora is a premium, context-aware, multilingual conversational AI Shopping Assistant designed specifically for the Kapruka e-commerce platform. Built with a modular **Prompt-based Operating System (Prompt OS)** on top of Express and React, Velora leverages Model Context Protocol (MCP), Upstash Redis, MongoDB, and Gemini/OpenAI LLMs to offer a natural, interactive shopping experience. 
-Demo Video : https://drive.google.com/file/d/1Yv_aZXqZv2L50LALfHK6NYD9sxVJM8Xw/view?usp=drive_link
----
 
+---
+Demo Video : https://drive.google.com/file/d/1Yv_aZXqZv2L50LALfHK6NYD9sxVJM8Xw/view?usp=drive_link
 ## 🚀 Key Features
 
 ### 🎙️ Continuous Voice Conversation Mode
